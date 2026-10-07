@@ -3276,3 +3276,26 @@ model TeacherMarksPin {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 }
+
+// ============================================================
+// LMS DEPARTMENT COORDINATOR (Section 12) — LMS-ONLY assignment of an
+// EXISTING LMS account (Course Coordinator / Teacher) as a department's
+// Course Coordinator. Used when the Super Admin picks an LMS user that has
+// no Admissions `User` row, so the assignment is recorded on the LMS side
+// only (the Admissions Department / DepartmentStaff tables are untouched).
+// Additive and free-standing.
+// ============================================================
+model LmsDepartmentCoordinator {
+  id           Int      @id @default(autoincrement())
+  departmentId Int                                // Department.id (read-only reference)
+  lmsUserId    String                             // LmsUser.id
+  assignedById Int?                               // Admissions super_admin User.id
+  // LMS role the account had before being made Course Coordinator (e.g.
+  // "Teacher"), restored when the assignment is removed.
+  previousRole String?
+  createdAt    DateTime @default(now())
+
+  @@unique([departmentId, lmsUserId])
+  @@index([departmentId])
+  @@index([lmsUserId])
+}

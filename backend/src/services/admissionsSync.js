@@ -356,7 +356,7 @@ async function ensureStaffDepartmentProfile(lmsUserId, department, lmsRole) {
  * @param {string} [department]   canonical admissions department name (stored on
  *                                the staff LmsStudentProfile for STRICT isolation)
  */
-async function ensureLmsStaffUser(user, lmsRole, tempPassword, department) {
+async function ensureLmsStaffUser(user, lmsRole, tempPassword, department, opts = {}) {
   if (!user || !user.username) return null;
   const username = String(user.username).toLowerCase().trim();
   const email = user.email ? String(user.email).toLowerCase().trim() : null;
@@ -371,6 +371,19 @@ async function ensureLmsStaffUser(user, lmsRole, tempPassword, department) {
     if (lmsUser.role !== lmsRole) {
       lmsUser = await prisma.lmsUser.update({ where: { id: lmsUser.id }, data: { role: lmsRole, isActive: true } });
     }
+    // Section 12 — repair accounts that were previously auto-provisioned with
+    // an unknown random password and have NEVER been used (never logged in,
+    // still on first-login password change): align their LMS credential with
+    // the user's known password so they can actually sign in. LMS row only.
+    if (opts.reuseExistingHash && lmsUser.mustChangePassword && !lmsUser.lastLoginAt
+        && user.password && /^\$2[aby]\$/.test(String(user.password))
+        && lmsUser.passwordHash !== String(user.password)
+        && !(tempPassword && String(tempPassword).length >= 6)) {
+      lmsUser = await prisma.lmsUser.update({
+        where: { id: lmsUser.id },
+        data: { passwordHash: String(user.password), failedLoginAttempts: 0, lockedUntil: null },
+      });
+    }
     // CRITICAL: (re)bind this existing staff user to their department so
     // isolation works — this also repairs legacy staff created before this fix.
     await ensureStaffDepartmentProfile(lmsUser.id, department, lmsRole);
@@ -379,10 +392,21 @@ async function ensureLmsStaffUser(user, lmsRole, tempPassword, department) {
 
   // Create a fresh LMS staff account. Use the provided temp password when the
   // Super Admin created the account inline; otherwise generate a random one.
-  const plain = tempPassword && String(tempPassword).length >= 6
-    ? String(tempPassword)
-    : `Lms${Math.random().toString(36).slice(2, 8)}!`;
-  const passwordHash = await bcrypt.hash(plain, 10);
+  // Section 12 — ROOT-CAUSE FIX for "assigned coordinator cannot log in":
+  // when an EXISTING Admissions user was selected, no temp password exists and
+  // a random, never-communicated password used to be generated, so the
+  // coordinator could never sign in to the LMS. We now re-use the user's
+  // existing (bcrypt) credential hash — READ-ONLY from the Admissions row — so
+  // they sign in with the password they already know (forced to change it on
+  // first LMS login). The Admissions row itself is never written.
+  let passwordHash;
+  if (tempPassword && String(tempPassword).length >= 6) {
+    passwordHash = await bcrypt.hash(String(tempPassword), 10);
+  } else if (opts.reuseExistingHash && user.password && /^\$2[aby]\$/.test(String(user.password))) {
+    passwordHash = String(user.password);
+  } else {
+    passwordHash = await bcrypt.hash(`Lms${Math.random().toString(36).slice(2, 8)}!`, 10);
+  }
   try {
     const created = await prisma.lmsUser.create({
       data: {
@@ -418,7 +442,25 @@ async function syncStaffToLms(department, creds = {}) {
     || (department.focalPersonId ? await prisma.user.findUnique({ where: { id: department.focalPersonId } }) : null);
 
   if (ccUser) {
-    results.courseCoordinator = await ensureLmsStaffUser(ccUser, 'CourseCoordinator', creds.courseCoordinator, department.name);
+    results.courseCoordinator = await ensureLmsStaffUser(ccUser, 'CourseCoordinator', creds.courseCoordinator, department.name, { reuseExistingHash: true });
+  }
+  // Section 12 — a department may hold MANY Course Coordinators (DepartmentStaff
+  // join rows). Previously only the PRIMARY one received an LMS login, so every
+  // additional coordinator could never sign in. Provision ALL of them (reads the
+  // Admissions rows only; writes LMS tables only).
+  if (department.id) {
+    const extra = await prisma.departmentStaff.findMany({
+      where: { departmentId: department.id, staffRole: 'course_coordinator' },
+      include: { user: true },
+    }).catch(() => []);
+    const ccCreds = creds.courseCoordinatorsByUserId || {};
+    results.courseCoordinators = [];
+    for (const row of extra) {
+      if (!row.user || (ccUser && row.user.id === ccUser.id)) continue;
+      // eslint-disable-next-line no-await-in-loop
+      const r = await ensureLmsStaffUser(row.user, 'CourseCoordinator', ccCreds[row.user.id], department.name, { reuseExistingHash: true });
+      if (r) results.courseCoordinators.push(r);
+    }
   }
   if (fpUser) {
     results.focalPerson = await ensureLmsStaffUser(fpUser, 'FocalPerson', creds.focalPerson, department.name);
