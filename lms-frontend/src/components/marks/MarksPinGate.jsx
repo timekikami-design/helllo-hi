@@ -71,6 +71,7 @@ export default function MarksPinGate({ children, title = "Marks Module" }) {
   const [pin, setPin] = useState("");
   const [confirm, setConfirm] = useState("");
   const [password, setPassword] = useState("");
+  const [tempPin, setTempPin] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -110,6 +111,24 @@ export default function MarksPinGate({ children, title = "Marks Module" }) {
       setError(err.message);
       refreshStatus();
     } finally { setPin(""); setBusy(false); }
+  };
+
+  // Section 2 — temporary PIN (from a Super Admin reset) → set own new PIN.
+  const doCompleteReset = async (e) => {
+    e.preventDefault();
+    if (tempPin.length !== 5) { setError("Enter the 5-digit temporary PIN you received."); return; }
+    if (pin.length !== 5) { setError("New PIN must be exactly 5 digits."); return; }
+    if (pin !== confirm) { setError("New PIN and confirmation do not match."); return; }
+    setBusy(true); setError("");
+    try {
+      const r = await api.marks.completeReset({ tempPin, pin, confirmPin: confirm });
+      marksSession.set(r.token);
+      setUnlocked(true);
+      refreshStatus();
+    } catch (err) {
+      setError(err.message);
+      refreshStatus();
+    } finally { setBusy(false); setTempPin(""); setPin(""); setConfirm(""); }
   };
 
   const doSetup = async (e) => {
@@ -152,7 +171,9 @@ export default function MarksPinGate({ children, title = "Marks Module" }) {
           <div>
             <h2 className="font-display font-bold text-lg text-app">{title} is locked</h2>
             <p className="text-xs text-muted-app">
-              {status && !status.isSet ? "Create your 5-digit Marks PIN to continue." : "Enter your 5-digit Marks PIN to continue."}
+              {status && !status.isSet ? "Create your 5-digit Marks PIN to continue."
+                : status && status.mustReset ? "Your PIN was reset. Enter the temporary PIN, then set your own new PIN."
+                : "Enter your 5-digit Marks PIN to continue."}
             </p>
           </div>
         </div>
@@ -164,6 +185,18 @@ export default function MarksPinGate({ children, title = "Marks Module" }) {
             <AlertTriangle size={16} className="shrink-0 mt-0.5" />
             Too many wrong attempts. The Marks module is locked until {new Date(status.lockedUntil).toLocaleTimeString()}.
           </div>
+        ) : status.mustReset ? (
+          <form onSubmit={doCompleteReset} className="space-y-4" data-testid="pin-reset-form">
+            <div className="rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 p-3 text-xs">
+              The Super Admin reset your Marks PIN. Enter the temporary PIN you were given, then choose your own new PIN. The temporary PIN stops working once your new PIN is saved.
+            </div>
+            <PinBoxes label="Temporary PIN" value={tempPin} onChange={setTempPin} autoFocus disabled={busy} />
+            <PinBoxes label="New PIN" value={pin} onChange={setPin} disabled={busy} />
+            <PinBoxes label="Confirm new PIN" value={confirm} onChange={setConfirm} disabled={busy} />
+            {error && <p className="text-sm text-rose-600" role="alert">{error}</p>}
+            <p className="text-[11px] text-muted-app">{status.attemptsRemaining} attempt(s) remaining before a 15-minute lockout.</p>
+            <button disabled={busy} className="btn-primary w-full justify-center">{busy ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />} Set new PIN &amp; unlock</button>
+          </form>
         ) : !status.isSet ? (
           <form onSubmit={doSetup} className="space-y-4">
             <p className="text-xs text-muted-app">This PIN is separate from your login password. You will need it every time you open Marks, Gradebook or Results Submission, and to publish or submit results.</p>

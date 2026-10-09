@@ -50,6 +50,18 @@ router.post('/pin/unlock', asyncHandler(async (req, res) => {
   }
 }));
 
+// Section 2 — complete a Super Admin PIN reset: temporary PIN → own new PIN.
+router.post('/pin/complete-reset', asyncHandler(async (req, res) => {
+  try {
+    const out = await pin.completeReset(req.lmsUser.id, req.body || {});
+    await audit(req, 'MARKS_PIN_RESET_COMPLETED', 'TeacherMarksPin', req.lmsUser.id, {});
+    res.json({ message: 'New Marks PIN set. The temporary PIN no longer works.', ...out });
+  } catch (e) {
+    if (e.status === 401 || e.status === 423) await audit(req, 'MARKS_PIN_FAILED', 'TeacherMarksPin', req.lmsUser.id, { after: { status: e.status, temporary: true } });
+    res.status(e.status || 400).json({ error: e.message, code: e.code, attemptsRemaining: e.attemptsRemaining, lockedUntil: e.lockedUntil });
+  }
+}));
+
 router.post('/pin/change', asyncHandler(async (req, res) => {
   const out = await pin.changePin(req.lmsUser.id, req.body || {});
   await audit(req, 'MARKS_PIN_CHANGE', 'TeacherMarksPin', req.lmsUser.id, {});
