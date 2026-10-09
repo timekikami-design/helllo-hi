@@ -17,8 +17,7 @@ let pass = 0; let fail = 0;
 const ok = (cond, msg, extra) => { if (cond) { pass += 1; console.log(`  ✔ ${msg}`); } else { fail += 1; console.log(`  ✘ ${msg}`, extra !== undefined ? JSON.stringify(extra).slice(0, 300) : ''); } };
 
 async function login(username) {
-  const r = await fetch(`${BASE}/api/lms/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password: 'Lms@1234' }) });
-  const j = await r.json();
+  const j = await require('./lmsLogin').lmsLogin(BASE, username);
   if (!j.token) throw new Error(`login ${username}: ${JSON.stringify(j)}`);
   return j.token;
 }
