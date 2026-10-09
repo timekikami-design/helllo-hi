@@ -3270,6 +3270,12 @@ model TeacherMarksPin {
   lmsUserId      String    @unique
   pinHash        String
   pinVersion     Int       @default(1)
+  // Section 2 — true while the stored PIN is a TEMPORARY PIN issued by a
+  // Super Admin reset. Verifying it never opens the Marks module; it only
+  // allows the teacher to set their own new PIN (which clears this flag).
+  isTemporary    Boolean   @default(false)
+  resetAt        DateTime?
+  resetById      Int?
   failedAttempts Int       @default(0)
   lockedUntil    DateTime?
   lastVerifiedAt DateTime?

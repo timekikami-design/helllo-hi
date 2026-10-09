@@ -25,6 +25,7 @@ const adm = require('./admissionsGovernance.controller');
 const lmsAct = require('./lmsAcademicActions.controller');
 const lmsGov = require('./lmsGovernance.controller');
 const lmsCoord = require('./lmsCoordinator.controller');
+const marksPinAdmin = require('./marksPinAdmin.controller');
 
 const router = express.Router();
 
@@ -171,5 +172,9 @@ router.get('/lms/surveys/:id/results', lmsGov.surveyResults);
 router.get('/lms/course-coordinators', lmsCoord.listCoordinators);
 router.post('/lms/course-coordinators', lmsCoord.assignCoordinator);
 router.delete('/lms/course-coordinators/:id', lmsCoord.unassignCoordinator);
+
+// ---- Teacher Marks PIN reset (Section 2, Super Admin only) ---------------
+router.get('/lms/marks-pins', marksPinAdmin.listTeacherPins);
+router.post('/lms/marks-pins/:lmsUserId/reset', marksPinAdmin.resetTeacherPin);
 
 module.exports = router;

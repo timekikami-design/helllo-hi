@@ -904,6 +904,8 @@ const marks = {
   setupPin: (body) => post('/lms/academic/teacher/marks/pin/setup', body),
   unlock: (pin) => post('/lms/academic/teacher/marks/pin/unlock', { pin }),
   changePin: (body) => post('/lms/academic/teacher/marks/pin/change', body),
+  // Section 2 — complete a Super Admin reset (temporary PIN → own new PIN).
+  completeReset: (body) => post('/lms/academic/teacher/marks/pin/complete-reset', body),
   offerings: () => get('/lms/academic/teacher/marks/offerings'),
   gradebook: (offeringId) => get(`/lms/academic/teacher/marks/offerings/${offeringId}/gradebook`),
   setExamTotals: (offeringId, body) => put(`/lms/academic/teacher/marks/offerings/${offeringId}/exam-totals`, body),

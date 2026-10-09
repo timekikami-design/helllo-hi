@@ -55,6 +55,7 @@ const SaQualitySurveys = lazy(() => import('./super-admin/pages/LmsQuality').the
 const SaBulkOps        = lazy(() => import('./super-admin/pages/UsersBulk').then(m => ({ default: m.BulkOperations })));
 const SaTransferDuties = lazy(() => import('./super-admin/pages/UsersTransfer').then(m => ({ default: m.TransferDuties })));
 const SaPortals        = lazy(() => import('./super-admin/pages/Portals').then(m => ({ default: m.PortalRegistry })));
+const SaMarksPins      = lazy(() => import('./super-admin/pages/LmsMarksPins').then(m => ({ default: m.MarksPins })));
 const CoordinatorDashboard = lazy(() => import('./pages/CoordinatorDashboard'));
 const LmsEntry             = lazy(() => import('./pages/lms/LmsEntry'));
 const CourseScheme         = lazy(() => import('./pages/CourseScheme'));
@@ -207,6 +208,7 @@ const App = () => {
             <Route path="lms/exams" element={<SaExamsRechecks />} />
             <Route path="lms/exams/overview" element={<SaExams />} />
             <Route path="lms/quality" element={<SaQualitySurveys />} />
+            <Route path="lms/marks-pins" element={<SaMarksPins />} />
             {/* System */}
             <Route path="system/announcements" element={<SaAnnouncements />} />
             <Route path="system/security" element={<SaSecurity />} />
