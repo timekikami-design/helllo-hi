@@ -26,6 +26,9 @@ const { computeMissingDocs } = require('../../../utils/lmsProvision');
 const bbb = require('../../../utils/bbb');
 const aiTutor = require('../../../utils/aiGenerate');
 const { logActivity } = require('../../../utils/activityLog');
+const feeEngine = require('../../../utils/lmsFeeEngine');
+const { uploadFeeProof, hasImageSignature, proofAbsPath: feeProofPath, MAX_BYTES: PROOF_MAX_BYTES } = require('../../../middleware/lmsFeeProofUpload');
+const fs = require('fs');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const PDFDocument = require('pdfkit');
@@ -2822,12 +2825,38 @@ router.get('/fees', asyncHandler(async (req, res) => {
   const admissionEntries = await resolveAdmissionFeeEntries(studentId).catch(() => []);
 
   // Map DB challans to the response shape.
-  const challanEntries = challans.map((c) => ({
-    id: c.id, challanNo: c.challanNo, title: c.title,
-    lineItems: safeJson(c.lineItems, []), totalAmount: c.totalAmount,
-    dueDate: c.dueDate, status: c.status, paidAt: c.paidAt, paymentRef: c.paymentRef,
-    createdAt: c.createdAt, source: 'lms',
-  }));
+  // S7.2 — attach the latest payment submission + instalment schedule so
+  // the student sees Pending / Approved / Rejected (with reason) per fee.
+  const ids = challans.map((c) => c.id);
+  const [subs, insts] = ids.length ? await Promise.all([
+    prisma.lmsFeePaymentSubmission.findMany({ where: { challanId: { in: ids } }, orderBy: { createdAt: 'desc' } }),
+    prisma.lmsFeeInstallment.findMany({ where: { challanId: { in: ids } }, orderBy: { seq: 'asc' } }),
+  ]) : [[], []];
+  const challanEntries = challans.map((c) => {
+    const mine = subs.filter((x) => x.challanId === c.id);
+    const latest = mine[0] || null;
+    const plan = insts.filter((i) => i.challanId === c.id);
+    const nextInst = plan.find((i) => i.status === 'UNPAID') || null;
+    const payable = c.status === 'UNPAID' || c.status === 'OVERDUE';
+    const amountDue = nextInst ? nextInst.amount : c.totalAmount;
+    const dueBy = nextInst ? nextInst.dueDate : c.dueDate;
+    return {
+      id: c.id, challanNo: c.challanNo, title: c.title,
+      lineItems: safeJson(c.lineItems, []), totalAmount: c.totalAmount,
+      dueDate: c.dueDate, status: c.status, paidAt: c.paidAt, paymentRef: c.paymentRef,
+      createdAt: c.createdAt, source: 'lms', feeType: c.feeType, semester: c.semester,
+      description: c.description || null,
+      installments: plan.map((i) => ({ id: i.id, seq: i.seq, amount: i.amount, dueDate: i.dueDate, status: i.status, paidAt: i.paidAt })),
+      amountDue: payable ? amountDue : 0,
+      notice: payable ? feeEngine.dueNotice(amountDue, dueBy) : null,
+      canSubmit: payable && !(latest && latest.status === 'PENDING'),
+      submission: latest ? {
+        id: latest.id, status: latest.status, method: latest.method, amount: latest.amount,
+        transactionId: latest.transactionId, paidOn: latest.paidOn, createdAt: latest.createdAt,
+        rejectionReason: latest.rejectionReason, reviewedAt: latest.reviewedAt,
+      } : null,
+    };
+  });
 
   // Admission fees first (oldest history), then LMS challans (newest first).
   const allEntries = [...admissionEntries, ...challanEntries];
@@ -2839,46 +2868,105 @@ router.get('/fees', asyncHandler(async (req, res) => {
     return acc;
   }, { total: 0, paid: 0, outstanding: 0 });
 
-  res.json({ challans: allEntries, summary });
+  const dues = await feeEngine.studentDues(studentId);
+  const block = await feeEngine.activeBlock(studentId);
+  res.json({
+    challans: allEntries, summary,
+    dues: { ...dues, notice: dues.next ? feeEngine.dueNotice(dues.next.amount, dues.next.dueDate) : null },
+    blocked: !!block, blockMessage: block ? feeEngine.BLOCK_MESSAGE : null,
+    methods: feeEngine.METHODS.map((m) => ({ value: m, label: feeEngine.METHOD_LABEL[m] })),
+  });
 }));
 
-// PAY a fee challan directly from the Account Book (online payment).
-// Marks the challan PAID in real time so Provost & student records update
-// immediately. Additive — does not alter the existing /fees GET behaviour.
-router.post('/fees/:id/pay', asyncHandler(async (req, res) => {
+// S7.2 — Direct "Pay Now" (marking a challan PAID without proof) is
+// retired: a fee only becomes PAID after the Provost approves a payment
+// submission. The endpoint answers 410 with guidance instead of silently
+// recording money as received.
+router.post('/fees/:id/pay', asyncHandler(async () => {
+  throw httpError(410, 'Online "Pay Now" is no longer available. Please submit your payment proof (method, transaction ID and screenshot) for Provost approval.');
+}));
+
+// Fee status (reachable while blocked) — drives the blocked screen and the
+// "You must submit PKR X before …" notice.
+router.get('/fee-status', asyncHandler(async (req, res) => {
   const studentId = req.lmsUser.id;
-  const id = parseInt(req.params.id, 10);
-  // Admission-time fees are read-only synthetic entries (non-numeric ids like
-  // "adm-proc-1") sourced from the Admission System — they are already paid and
-  // can never be paid/altered from the LMS.
-  if (!Number.isInteger(id)) throw httpError(400, 'This fee cannot be paid from the LMS.');
-  const challan = await prisma.lmsFeeChallan.findFirst({ where: { id, studentId } });
-  if (!challan) throw httpError(404, 'Fee challan not found');
-  if (challan.status === 'PAID') throw httpError(409, 'This fee has already been paid.');
-
-  const method = (req.body && req.body.method) ? String(req.body.method) : 'OneLink';
-  const paymentRef = `PAY-${Date.now().toString().slice(-8)}-${id}`;
-  const updated = await prisma.lmsFeeChallan.update({
-    where: { id },
-    data: { status: 'PAID', paidAt: new Date(), paymentRef },
-  });
-
-  // Req #2.3 — reflect the paid/remaining status change in REAL TIME so the
-  // student's Account Book (and any live finance views) update immediately.
-  try {
-    realtime.emitTo([studentId], 'fee:paid', {
-      id: updated.id, challanNo: updated.challanNo, status: updated.status,
-      paidAt: updated.paidAt, paymentRef: updated.paymentRef,
-    });
-  } catch (_) { /* non-blocking */ }
-
+  const [dues, block] = await Promise.all([feeEngine.studentDues(studentId), feeEngine.activeBlock(studentId)]);
   res.json({
-    success: true,
-    challan: {
-      id: updated.id, challanNo: updated.challanNo, status: updated.status,
-      paidAt: updated.paidAt, paymentRef: updated.paymentRef, method,
-    },
+    blocked: !!block,
+    message: block ? feeEngine.BLOCK_MESSAGE : null,
+    outstanding: dues.outstanding,
+    isDefaulter: dues.isDefaulter,
+    next: dues.next,
+    notice: dues.next ? feeEngine.dueNotice(dues.next.amount, dues.next.dueDate) : null,
   });
+}));
+
+// S7.2 — Submit proof of payment for a challan (multipart/form-data):
+//   method (BANK|JAZZCASH|EASYPAISA), amount, transactionId, paidOn
+//   (YYYY-MM-DD) and screenshot (PNG/JPG/WEBP, max 2 MB).
+router.post('/fees/:id/submissions', (req, res, next) => {
+  uploadFeeProof.single('screenshot')(req, res, (err) => {
+    if (!err) return next();
+    if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: `Screenshot must be ${Math.round(PROOF_MAX_BYTES / 1024 / 1024)} MB or smaller.` });
+    return res.status(err.status || 400).json({ error: err.message || 'Invalid screenshot.' });
+  });
+}, asyncHandler(async (req, res) => {
+  const studentId = req.lmsUser.id;
+  const cleanup = () => { if (req.file) fs.unlink(req.file.path, () => {}); };
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) throw httpError(400, 'This fee cannot be paid from the LMS.');
+    const challan = await prisma.lmsFeeChallan.findFirst({ where: { id, studentId } });
+    if (!challan) throw httpError(404, 'Fee challan not found');
+    if (!['UNPAID', 'OVERDUE'].includes(challan.status)) throw httpError(409, 'This fee is not payable.');
+    const pending = await prisma.lmsFeePaymentSubmission.findFirst({ where: { challanId: id, status: 'PENDING' } });
+    if (pending) throw httpError(409, 'A payment submission for this fee is already awaiting Provost review.');
+
+    const method = String(req.body.method || '').toUpperCase();
+    if (!feeEngine.METHODS.includes(method)) throw httpError(400, 'Select a payment method: Bank, JazzCash or EasyPaisa.');
+    const transactionId = String(req.body.transactionId || '').trim();
+    if (!/^[A-Za-z0-9\-_/]{4,40}$/.test(transactionId)) throw httpError(400, 'Enter a valid transaction ID (4–40 letters/digits).');
+    const paidOn = String(req.body.paidOn || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(paidOn) || Number.isNaN(Date.parse(paidOn))) throw httpError(400, 'Enter the payment date.');
+    if (paidOn > feeEngine.today()) throw httpError(400, 'Payment date cannot be in the future.');
+    const amount = Number(req.body.amount);
+    const expected = await feeEngine.expectedPayment(challan);
+    if (!Number.isFinite(amount) || Math.round(amount) !== Math.round(expected.amount)) {
+      throw httpError(400, `Amount must be exactly ${feeEngine.fmtPKR(expected.amount)} for this fee${expected.installment ? ` (instalment ${expected.installment.seq})` : ''}.`);
+    }
+    if (!req.file) throw httpError(400, 'Attach a screenshot of the payment.');
+    if (!hasImageSignature(req.file.path)) throw httpError(400, 'Screenshot must be a valid PNG, JPG or WEBP image.');
+    const dup = await prisma.lmsFeePaymentSubmission.findFirst({ where: { transactionId, status: { in: ['PENDING', 'APPROVED'] } } });
+    if (dup) throw httpError(409, 'This transaction ID has already been submitted.');
+
+    const sub = await prisma.lmsFeePaymentSubmission.create({
+      data: {
+        challanId: id, studentId, method, amount: expected.amount, transactionId, paidOn,
+        screenshotPath: req.file.filename, screenshotName: req.file.originalname?.slice(0, 120) || null,
+      },
+    });
+    await audit(req, 'STUDENT_FEE_PROOF_SUBMIT', 'LmsFeePaymentSubmission', sub.id, { after: { challanId: id, method, amount: sub.amount, transactionId } });
+    const provosts = await prisma.lmsUser.findMany({ where: { role: 'Provost', isActive: true }, select: { id: true } });
+    const pIds = provosts.map((p) => p.id);
+    await notifyMany(pIds, {
+      title: 'New fee payment submission',
+      message: `${challan.title}: ${feeEngine.fmtPKR(sub.amount)} via ${feeEngine.METHOD_LABEL[method]} (Txn ${transactionId}).`,
+      type: 'FEE', link: '/provost/fee-approvals',
+    });
+    realtime.emitTo(pIds, 'fee:submission', { id: sub.id, challanId: id, studentId });
+    feeEngine.pushFeeUpdate(studentId, { challanId: id, submission: 'PENDING' });
+    res.status(201).json({ submission: { id: sub.id, status: sub.status, amount: sub.amount, method, transactionId, paidOn } });
+  } catch (e) {
+    cleanup();
+    throw e;
+  }
+}));
+
+// The student's own payment screenshot (authenticated; never public).
+router.get('/fees/submissions/:sid/screenshot', asyncHandler(async (req, res) => {
+  const sub = await prisma.lmsFeePaymentSubmission.findFirst({ where: { id: parseInt(req.params.sid, 10), studentId: req.lmsUser.id } });
+  if (!sub) throw httpError(404, 'Submission not found');
+  res.sendFile(feeProofPath(sub.screenshotPath));
 }));
 
 // ============================================================

@@ -143,6 +143,11 @@ app.use('/api/lms-auth', lmsAuthRoutes);
 // auth/change-password require a valid LMS session (system: 'lms').
 // ============================================================
 app.use('/api/lms/auth', lmsAuthV2Routes);
+// S8 — server-side fee block for students on every student API surface
+// (Fee module excepted). Runs before the student routers.
+const { lmsFeeBlockGuard } = require('./middleware/lmsFeeBlock');
+app.use('/api/lms/student', lmsFeeBlockGuard('/student'));
+app.use('/api/lms/academic', lmsFeeBlockGuard('/academic'));
 app.use('/api/lms/student', lmsStudentV2Routes);
 
 // ------------------------------------------------------------
@@ -182,6 +187,8 @@ app.use('/api/lms/academic/exam-verify', lmsAcademicExamPublicRoutes);
 app.use('/api/lms/academic/exam/workflow', require('./routes/lms/academic/examWorkflow'));
 app.use('/api/lms/academic/exam', lmsAcademicExamRoutes);
 app.use('/api/lms/academic/qec', lmsAcademicQecRoutes);
+// S7–S9 — Provost fee workflows (submissions, defaulters, concessions).
+app.use('/api/lms/academic/provost', require('./routes/lms/academic/provostFees'));
 app.use('/api/lms/academic/provost', lmsAcademicProvostRoutes);
 // Support & Grievances staff management surface (all staff roles).
 app.use('/api/lms/academic/grievances', lmsAcademicGrievancesRoutes);
