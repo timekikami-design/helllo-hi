@@ -70,6 +70,14 @@ const PAGES = [
     ok((await pg.$$('[data-testid="promo-row"]')).length === 1, 'search by roll no. narrows to one row');
     await pg.fill('[data-testid="promo-search"]', '');
 
+    // One-click "Record repeat" for QAP-RPT (exception OFF → Repeat semester).
+    await pg.click('[data-testid="promo-tab-failed"]');
+    await pg.click('[data-testid="promo-row"][data-roll="QAP-RPT"] [data-testid="promo-apply"]');
+    const rp = await until(async () => prisma.lmsStudentStanding.findUnique({ where: { studentId: ids['QAP-RPT'] } }));
+    ok(rp?.currentSemester === 1 && rp?.status === 'ACTIVE', 'one click "Record repeat": QAP-RPT stays in semester 1');
+    await pg.waitForFunction(() => /decision recorded/i.test(document.querySelector('[data-roll="QAP-RPT"]')?.innerText || ''), null, T).catch(() => {});
+    ok(!(await pg.$('[data-testid="promo-row"][data-roll="QAP-RPT"] [data-testid="promo-apply"]')), 'repeat decision cannot be applied twice (button gone)');
+
     // Professional-subject exception (configurable) → QAP-FAIL becomes "Failed courses"
     await pg.click('[data-testid="promo-settings"]');
     await pg.waitForSelector('[data-testid="prof-toggle"]', T);
@@ -94,7 +102,6 @@ const PAGES = [
     await pg.click('[data-testid="promo-tab-failed"]');
     await pg.waitForSelector('[data-testid="promo-row"][data-roll="QAP-FAIL"] [data-testid="promo-check"]', T);
     await pg.check('[data-testid="promo-row"][data-roll="QAP-FAIL"] [data-testid="promo-check"]');
-    await pg.check('[data-testid="promo-row"][data-roll="QAP-RPT"] [data-testid="promo-check"]');
     await pg.click('[data-testid="promo-bulk"]');
     await pg.waitForTimeout(3000);
     const both = await until(async () => {
@@ -102,7 +109,7 @@ const PAGES = [
       const b = await prisma.lmsStudentStanding.findUnique({ where: { studentId: ids['QAP-RPT'] } });
       return a?.currentSemester === 2 && b && b.currentSemester === 1;
     });
-    ok(both, 'bulk (failed list): QAP-FAIL promoted with failed course, QAP-RPT repeats semester 1');
+    ok(both, 'bulk (failed list): QAP-FAIL promoted to semester 2 with failed course; QAP-RPT still in semester 1');
     // Select-all on the Eligible list (QAP-PROB remaining) → bulk.
     await pg.click('[data-testid="promo-tab-eligible"]');
     await pg.waitForSelector('[data-testid="promo-select-all"]', T);
