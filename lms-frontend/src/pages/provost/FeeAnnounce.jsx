@@ -200,7 +200,7 @@ const FeeAnnounce = () => {
         <div className="space-y-3">
           <div>
             <label className="text-xs font-semibold text-app mb-1 block">Title</label>
-            <input value={form.title} onChange={(e) => setField("title", e.target.value)} className="input-base w-full text-sm" placeholder={isSemester ? "e.g. Fall 2026 Semester Fee" : "e.g. Final Exam Fee"} />
+            <input data-testid="ann-title" value={form.title} onChange={(e) => setField("title", e.target.value)} className="input-base w-full text-sm" placeholder={isSemester ? "e.g. Fall 2026 Semester Fee" : "e.g. Final Exam Fee"} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -218,7 +218,7 @@ const FeeAnnounce = () => {
           </div>
           <div>
             <label className="text-xs font-semibold text-app mb-1 block">Scope</label>
-            <select value={form.scope} onChange={(e) => setField("scope", e.target.value)} className="input-base w-full text-sm">
+            <select data-testid="ann-scope" value={form.scope} onChange={(e) => setField("scope", e.target.value)} className="input-base w-full text-sm">
               {SCOPES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </div>
@@ -227,7 +227,7 @@ const FeeAnnounce = () => {
           {form.scope === "DEPARTMENT" && (
             <div>
               <label className="text-xs font-semibold text-app mb-1 block">Department</label>
-              <select value={form.department} onChange={(e) => setField("department", e.target.value)} className="input-base w-full text-sm">
+              <select data-testid="ann-department" value={form.department} onChange={(e) => setField("department", e.target.value)} className="input-base w-full text-sm">
                 <option value="">Select department…</option>
                 {(opts?.departments || []).map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
@@ -236,7 +236,7 @@ const FeeAnnounce = () => {
           {["PROGRAM", "SEMESTER"].includes(form.scope) && (
             <div>
               <label className="text-xs font-semibold text-app mb-1 block">Program</label>
-              <select value={form.program} onChange={(e) => setField("program", e.target.value)} className="input-base w-full text-sm">
+              <select data-testid="ann-program" value={form.program} onChange={(e) => setField("program", e.target.value)} className="input-base w-full text-sm">
                 <option value="">Select program…</option>
                 {(opts?.programs || []).map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
@@ -245,7 +245,7 @@ const FeeAnnounce = () => {
           {form.scope === "SEMESTER" && (
             <div>
               <label className="text-xs font-semibold text-app mb-1 block">Semester</label>
-              <select value={form.semester} onChange={(e) => setField("semester", e.target.value)} className="input-base w-full text-sm">
+              <select data-testid="ann-semester" value={form.semester} onChange={(e) => setField("semester", e.target.value)} className="input-base w-full text-sm">
                 <option value="">Select semester…</option>
                 {(opts?.semesters || []).map((s) => <option key={s} value={s}>Semester {s}</option>)}
               </select>
@@ -262,7 +262,7 @@ const FeeAnnounce = () => {
 
           <div className="flex gap-2 pt-2">
             <button onClick={() => setShowCreate(false)} className="btn-secondary flex-1">Cancel</button>
-            <button disabled={saving} onClick={publish} className="btn-primary flex-1 disabled:opacity-50">{saving ? "Announcing…" : "Announce Fee"}</button>
+            <button data-testid="ann-submit" disabled={saving} onClick={publish} className="btn-primary flex-1 disabled:opacity-50">{saving ? "Announcing…" : "Announce Fee"}</button>
           </div>
         </div>
       </Modal>

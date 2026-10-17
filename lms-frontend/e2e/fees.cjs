@@ -36,13 +36,12 @@ async function cleanup() {
     await P.page.waitForSelector('[data-testid="amount-locked"]', T);
     ok(true, 'semester fee form: amount locked to Admission record');
     ok(!/\bSection\b/.test(await P.page.innerText('body')), 'no "Section" scope on announce page');
-    const dialog = P.page.locator('[data-testid="amount-locked"]').locator('xpath=ancestor::div[contains(@class,"space-y-3")][1]');
-    await dialog.locator('input').first().fill('BT Semester Fee');
+    await P.page.fill('[data-testid="ann-title"]', 'BT Semester Fee');
     await P.page.fill('[data-testid="ann-deadline"]', future);
-    await dialog.locator('select').first().selectOption('PROGRAM');
-    await dialog.locator('select').nth(1).selectOption('ADCS');
+    await P.page.selectOption('[data-testid="ann-scope"]', 'PROGRAM');
+    await P.page.selectOption('[data-testid="ann-program"]', 'ADCS');
     await P.page.screenshot({ path: path.join(OUT, 'bt_announce.png') });
-    await P.page.click('button:has-text("Announce Fee")');
+    await P.page.click('[data-testid="ann-submit"]');
     await P.page.waitForSelector('text=/Fee announced — \\d+ student/', T);
     ok(true, 'announcement created');
 
