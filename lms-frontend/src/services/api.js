@@ -241,6 +241,12 @@ const teacher = {
   // EventSource cannot set Authorization headers, so the token is passed
   // as a query param and verified server-side.
   eventsUrl: () => `${API_BASE}/lms/academic/teacher/events?token=${encodeURIComponent(authService.getToken() || '')}`,
+  // In-app notifications (bell) — exam reminders etc.
+  notifications: () => get('/lms/academic/teacher/notifications'),
+  readNotification: (id) => put(`/lms/academic/teacher/notifications/${id}/read`),
+  readAllNotifications: () => put('/lms/academic/teacher/notifications/read-all'),
+  // Own current-term courses with results not yet published.
+  incompleteResults: () => get('/lms/academic/teacher/incomplete-results'),
   offerings: (params = '') => get(`/lms/academic/teacher/offerings${params}`),
   offering: (id) => get(`/lms/academic/teacher/offerings/${id}`),
   students: (offeringId) => get(`/lms/academic/teacher/offerings/${offeringId}/students`),
@@ -706,6 +712,7 @@ const exam = {
   quickMessages: () => get('/lms/academic/exam/quick-messages'),
   pendingTeachers: () => get('/lms/academic/exam/quick-messages/pending'),
   sendQuickMessage: (body) => post('/lms/academic/exam/quick-messages', body),
+  sendQuickMessagesBulk: (items) => post('/lms/academic/exam/quick-messages/bulk', { items }),
   // Results Compilation (was Marks Correction)
   compilationResults: (params = '') => get(`/lms/academic/exam/compilation/results${params}`),
   compileResults: (body) => post('/lms/academic/exam/compilation/compile', body),

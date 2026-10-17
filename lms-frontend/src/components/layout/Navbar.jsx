@@ -5,6 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
 import ThemeToggle from "../common/ThemeToggle";
 import api from "../../services/api";
+import useRealtime from "../../hooks/useRealtime";
 
 // Map the frontend role key → the api.<role> namespace that exposes
 // notifications(). Roles without their own feed simply show none.
@@ -17,6 +18,9 @@ const NOTIF_API = {
   director_qec: () => api.qec,
   provost: () => api.provost,
 };
+
+// Roles whose notifications are also pushed live over SSE.
+const REALTIME_ROLES = ["teacher"];
 
 const timeAgo = (d) => {
   if (!d) return "";
@@ -90,6 +94,23 @@ const Navbar = ({ onMenuClick }) => {
       .catch(() => { if (!cancelled) setNotifications([]); });
     return () => { cancelled = true; };
   }, [role]);
+
+  // Live delivery: teachers receive Exam Controller reminders (incomplete
+  // results) over their SSE stream and the bell updates without a refresh.
+  useRealtime(REALTIME_ROLES.includes(role) ? NOTIF_API[role]?.()?.eventsUrl : undefined, {
+    notification: (n) => {
+      if (!n || !n.title) return;
+      setNotifications((prev) => (n.id != null && prev.some((p) => p.id === n.id) ? prev : [n, ...prev]));
+    },
+  }, [role]);
+
+  const openNotification = async (n) => {
+    if (!n.isRead) {
+      setNotifications((prev) => prev.map((p) => (p.id === n.id ? { ...p, isRead: true } : p)));
+      if (n.id != null) { try { await NOTIF_API[role]?.()?.readNotification?.(n.id); } catch (_) { /* ignore */ } }
+    }
+    if (n.link) { setOpenNotif(false); navigate(n.link); }
+  };
 
   const markAllRead = async () => {
     const ns = NOTIF_API[role]?.();
@@ -167,7 +188,7 @@ const Navbar = ({ onMenuClick }) => {
                           <p className="text-sm text-muted-app">No notifications yet</p>
                         </div>
                       ) : notifications.map((n) => (
-                        <div key={n.id} className={`px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer flex gap-3 border-b border-slate-50 dark:border-slate-800/50 last:border-b-0 ${!n.isRead ? "bg-blue-50/40 dark:bg-blue-950/20" : ""}`}>
+                        <div key={n.id ?? `${n.title}-${n.createdAt}`} role="button" tabIndex={0} onClick={() => openNotification(n)} onKeyDown={(e) => { if (e.key === "Enter") openNotification(n); }} data-notif-link={n.link || undefined} className={`px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer flex gap-3 border-b border-slate-50 dark:border-slate-800/50 last:border-b-0 ${!n.isRead ? "bg-blue-50/40 dark:bg-blue-950/20" : ""}`}>
                           <div className="w-9 h-9 rounded-xl bg-primary-100 dark:bg-primary-950/40 flex items-center justify-center shrink-0">
                             <Bell size={16} className="text-primary-600 dark:text-primary-400" />
                           </div>
