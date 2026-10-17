@@ -37,7 +37,7 @@ const AdminStudents = () => {
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
   const [status, setStatus] = useState("all");
-  const [filters, setFilters] = useState({ program: "", batch: "", section: "" });
+  const [filters, setFilters] = useState({ program: "", batch: "" });
   const [page, setPage] = useState(1);
   const [list, setList] = useState({ items: [], pagination: { total: 0, totalPages: 1, page: 1 } });
   const [loading, setLoading] = useState(true);
@@ -65,7 +65,6 @@ const AdminStudents = () => {
       if (debounced) qs.set("search", debounced);
       if (filters.program) qs.set("program", filters.program);
       if (filters.batch) qs.set("batch", filters.batch);
-      if (filters.section) qs.set("section", filters.section);
       const res = await api.coordinator.studentsList(`?${qs.toString()}`);
       setList(res);
     } catch (err) {
@@ -80,7 +79,7 @@ const AdminStudents = () => {
   const students = list.items || [];
   const pag = list.pagination || { total: 0, totalPages: 1, page: 1 };
 
-  const clearFilters = () => { setFilters({ program: "", batch: "", section: "" }); setPage(1); };
+  const clearFilters = () => { setFilters({ program: "", batch: "" }); setPage(1); };
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
 
   // ---- Profile modal ----
@@ -153,7 +152,7 @@ const AdminStudents = () => {
 
       {/* Advanced filters */}
       {showFilters && (
-        <div className="card-base p-4 mb-4 grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <div className="card-base p-4 mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="text-[10px] font-bold uppercase tracking-wider text-muted-app block mb-1">Program</label>
             <select value={filters.program} onChange={(e) => { setFilters((f) => ({ ...f, program: e.target.value })); setPage(1); }} className="input-base py-2 text-sm w-full">
@@ -166,13 +165,6 @@ const AdminStudents = () => {
             <select value={filters.batch} onChange={(e) => { setFilters((f) => ({ ...f, batch: e.target.value })); setPage(1); }} className="input-base py-2 text-sm w-full">
               <option value="">All batches</option>
               {filterOpts.batches.filter((b) => b && b !== "N/A").map((b) => <option key={b} value={b}>{b}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-app block mb-1">Section</label>
-            <select value={filters.section} onChange={(e) => { setFilters((f) => ({ ...f, section: e.target.value })); setPage(1); }} className="input-base py-2 text-sm w-full">
-              <option value="">All sections</option>
-              {filterOpts.sections.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div className="flex items-end">
@@ -196,7 +188,6 @@ const AdminStudents = () => {
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase text-muted-app">Student</th>
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase text-muted-app">Program</th>
                   <th className="px-4 py-3 text-center text-xs font-bold uppercase text-muted-app">Batch</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold uppercase text-muted-app">Section</th>
                   <th className="px-4 py-3 text-center text-xs font-bold uppercase text-muted-app">Enrolled</th>
                   <th className="px-4 py-3 text-center text-xs font-bold uppercase text-muted-app">Status</th>
                   <th className="px-4 py-3 text-right text-xs font-bold uppercase text-muted-app">Action</th>
@@ -216,7 +207,6 @@ const AdminStudents = () => {
                     </td>
                     <td className="px-4 py-3 text-muted-app">{s.programShort || s.program || "—"}</td>
                     <td className="px-4 py-3 text-center text-muted-app">{s.batch || "—"}</td>
-                    <td className="px-4 py-3 text-center text-muted-app">{s.section || "—"}</td>
                     <td className="px-4 py-3 text-center font-bold text-app">{s.enrolledCount}</td>
                     <td className="px-4 py-3 text-center"><Badge color={statusColor(s.status)}>{s.status}</Badge></td>
                     <td className="px-4 py-3 text-right">
@@ -305,7 +295,6 @@ function StudentProfileView({ profile }) {
             <Field label="Roll Number" value={s.academic.rollNumber} />
             <Field label="Reg. Number" value={s.academic.registrationNumber} />
             <Field label="Semester" value={s.academic.semester} />
-            <Field label="Section" value={s.academic.section} />
             <Field label="Session" value={s.academic.session || s.academic.batch} />
             <Field label="Enrollment Date" value={fmtDate(s.academic.enrollmentDate)} />
           </div>
@@ -340,7 +329,7 @@ function StudentProfileView({ profile }) {
               <thead className="text-muted-app">
                 <tr className="text-left">
                   <th className="py-1.5">Course</th><th className="py-1.5 text-center">Credits</th>
-                  <th className="py-1.5">Term</th><th className="py-1.5 text-center">Section</th>
+                  <th className="py-1.5">Term</th>
                   <th className="py-1.5 text-center">Status</th>
                 </tr>
               </thead>
@@ -350,7 +339,6 @@ function StudentProfileView({ profile }) {
                     <td className="py-1.5 text-app">{e.course}</td>
                     <td className="py-1.5 text-center text-muted-app">{e.credits}</td>
                     <td className="py-1.5 text-muted-app">{e.term || "—"}</td>
-                    <td className="py-1.5 text-center text-muted-app">{e.section || "—"}</td>
                     <td className="py-1.5 text-center"><Badge color={e.status === "ENROLLED" ? "emerald" : e.status === "DROPPED" ? "rose" : "amber"}>{e.status}</Badge></td>
                   </tr>
                 ))}

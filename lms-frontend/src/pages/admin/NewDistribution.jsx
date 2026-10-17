@@ -35,7 +35,6 @@ const emptyRow = () => ({
   key: `row-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
   courseId: "",          // chosen from the scheme-course dropdown
   teacherId: "",         // chosen from the teacher dropdown
-  sectionName: "A",
   capacity: 150,
 });
 
@@ -181,7 +180,6 @@ const NewDistribution = () => {
             teacherId: r.teacherId,
             semesterId: semesterId || undefined,
             sessionId: sessionId || undefined,
-            sectionName: r.sectionName?.trim() || "A",
             capacity: r.capacity || undefined,
           };
         }),
@@ -388,7 +386,6 @@ const NewDistribution = () => {
                   <th className={th}>Course *</th>
                   <th className={th}>Credits</th>
                   <th className={th}>Teacher *</th>
-                  <th className={th}>Section</th>
                   <th className={th}>Capacity</th>
                   <th className={`${th} w-12`}></th>
                 </tr>
@@ -447,14 +444,6 @@ const NewDistribution = () => {
                         </td>
                         <td className={td}>
                           <input
-                            value={r.sectionName}
-                            onChange={(e) => patchRow(r.key, { sectionName: e.target.value })}
-                            placeholder="A"
-                            className="input-base w-14 text-xs py-1.5"
-                          />
-                        </td>
-                        <td className={td}>
-                          <input
                             type="number" min={1}
                             value={r.capacity}
                             onChange={(e) => patchRow(r.key, { capacity: e.target.value })}
@@ -509,7 +498,7 @@ const NewDistribution = () => {
                   <tr>
                     <th className={th}>Course</th>
                     <th className={th}>Teacher</th>
-                    <th className={th}>Section</th>
+                    <th className={th}>Capacity</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -532,7 +521,7 @@ const NewDistribution = () => {
                             : <Badge color="amber">Not assigned</Badge>}
                         </td>
                         <td className="px-3 py-2.5 text-app">
-                          {r.sectionName?.trim() || "A"}{r.capacity ? ` · ${r.capacity}` : ""}
+                          {r.capacity || "—"}
                         </td>
                       </tr>
                     );
