@@ -189,9 +189,13 @@ router.get('/finance/defaulters', PROVOST, asyncHandler(async (req, res) => {
   if (q(req, 'semester')) list = list.filter((r) => String(r.semester) === q(req, 'semester'));
   if (q(req, 'q')) {
     const s = q(req, 'q').toLowerCase();
+    // CNIC / phone are matched digit-only (so "17301-1234567-1" and
+    // "1730112345671" both work) — but only when the query itself is
+    // numeric, otherwise "ADCS-001" would match every "…001" phone number.
+    const numeric = /^[0-9\s+\-]+$/.test(s);
     const digits = s.replace(/[^0-9]/g, '');
-    list = list.filter((r) => [r.username, r.name, r.roll, r.email].some((v) => str(v).toLowerCase().includes(s))
-      || (digits.length >= 3 && [r.cnic, r.phone].some((v) => str(v).replace(/[^0-9]/g, '').includes(digits))));
+    list = list.filter((r) => [r.username, r.name, r.roll, r.email, r.cnic, r.phone].some((v) => str(v).toLowerCase().includes(s))
+      || (numeric && digits.length >= 3 && [r.cnic, r.phone].some((v) => str(v).replace(/[^0-9]/g, '').includes(digits))));
   }
   list.sort((a, b) => b.overdue - a.overdue || str(a.roll).localeCompare(str(b.roll)));
   res.json({
