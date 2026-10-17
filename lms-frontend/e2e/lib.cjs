@@ -14,6 +14,10 @@ async function openAs(browser, username, p) {
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
   await ctx.addInitScript(([t, r]) => { localStorage.setItem('lms_token', t); localStorage.setItem('lms_role', r); }, [l.token, l.role]);
   const page = await ctx.newPage();
+  // The Vite dev server compiles each page on first visit — slow on a
+  // low-memory sandbox, so allow generous navigation / action timeouts.
+  page.setDefaultNavigationTimeout(120000);
+  page.setDefaultTimeout(90000);
   const errors = [];
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));

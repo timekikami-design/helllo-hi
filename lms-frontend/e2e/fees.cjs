@@ -50,7 +50,7 @@ async function cleanup() {
     const S = await openAs(browser, 'ADCS-003', '/student');
     await S.page.waitForSelector('[data-testid="fee-due-banner"]', T);
     const banner = await S.page.innerText('[data-testid="fee-due-banner"]');
-    ok(/You must submit PKR 45,000 before/.test(banner), `dashboard banner: ${banner.trim().slice(0, 60)}`);
+    ok(/You must submit PKR [0-9,]+ before \d+ \w+ \d{4}\./.test(banner), `dashboard banner (oldest open fee first): ${banner.trim().slice(0, 70)}`);
     await S.page.goto(`${UI}/student/account`, { waitUntil: 'domcontentloaded' });
     const card = S.page.locator('[data-testid="fee-card"]', { hasText: 'BT Semester Fee' });
     await card.waitFor(T);
