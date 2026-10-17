@@ -2570,7 +2570,6 @@ router.get('/schedule', asyncHandler(async (req, res) => {
       courseTitle: s.offering.course.title,
       startTime: s.startTime,
       endTime: s.endTime,
-      room: s.room,
       mode: s.mode,
       slotType: s.slotType || 'THEORY',
     });

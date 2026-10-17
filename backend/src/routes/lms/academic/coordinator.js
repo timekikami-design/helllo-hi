@@ -1839,7 +1839,7 @@ router.put('/registrations/:id/section', COORD, sectionsRemoved);
 // WEEKLY SCHEDULE / TIMETABLE
 //   • Full timetable view (all offerings of current term)
 //   • Create / edit (drag&drop move) / delete slots
-//   • Clash detection: teacher, room, and offering conflicts
+//   • Clash detection: teacher-time and offering conflicts (no rooms — S14)
 //   • Auto timetable generator (clash-free)
 // ============================================================
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -1853,7 +1853,9 @@ const overlaps = (aStart, aEnd, bStart, bEnd) => aStart < bEnd && bStart < aEnd;
 
 /* Detect clashes for a candidate slot against all existing slots in the term.
    Returns an array of clash descriptors. excludeId skips a slot (for edits). */
-async function detectSlotClashes({ termId, offeringId, dayOfWeek, startTime, endTime, room, excludeId }) {
+// S14 — Rooms were removed from the LMS: only teacher-time and same-offering
+// conflicts are checked.
+async function detectSlotClashes({ termId, offeringId, dayOfWeek, startTime, endTime, excludeId }) {
   const start = toMinutes(startTime);
   const end = toMinutes(endTime);
   if (start == null || end == null || end <= start) {
@@ -1877,10 +1879,6 @@ async function detectSlotClashes({ termId, offeringId, dayOfWeek, startTime, end
     if (candidateOffering.teacherId && s.offering.teacherId && candidateOffering.teacherId === s.offering.teacherId) {
       clashes.push({ type: 'TEACHER', slotId: s.id, message: `Teacher already teaches ${s.offering.course.code} at ${s.startTime}-${s.endTime}` });
     }
-    // Room clash
-    if (room && s.room && room.toLowerCase() === s.room.toLowerCase()) {
-      clashes.push({ type: 'ROOM', slotId: s.id, message: `Room "${room}" is occupied by ${s.offering.course.code} at ${s.startTime}-${s.endTime}` });
-    }
     // Same-offering clash (an offering cannot be in two places at once)
     if (s.offeringId === offeringId) {
       clashes.push({ type: 'OFFERING', slotId: s.id, message: `${candidateOffering ? '' : ''}This offering already has a class at ${s.startTime}-${s.endTime}` });
@@ -1898,14 +1896,13 @@ async function offeringHasLab(offeringId) {
   return !!(off && off.course && off.course.hasLab === true);
 }
 
-/* Standard weekly period grid + rooms reused by auto-generation and the
+/* Standard weekly period grid reused by auto-generation and the
    automatic Lab-slot placement so behaviour is consistent everywhere. */
 const SCHEDULE_DAYS = [1, 2, 3, 4, 5];
 const SCHEDULE_PERIODS = [
   ['08:00', '09:30'], ['09:30', '11:00'], ['11:00', '12:30'],
   ['12:30', '14:00'], ['14:00', '15:30'], ['15:30', '17:00'],
 ];
-const LAB_ROOMS = ['Lab-1', 'Lab-2', 'Lab-3'];
 
 /**
  * Ensure a course WITH a Lab component has an auto-created LAB slot alongside
@@ -1916,23 +1913,20 @@ const LAB_ROOMS = ['Lab-1', 'Lab-2', 'Lab-3'];
  *
  * @returns {object|null} the created lab slot, or null if none was created.
  */
-async function ensureLabSlot(termId, offeringId, { roomHint } = {}) {
+async function ensureLabSlot(termId, offeringId) {
   if (!(await offeringHasLab(offeringId))) return null;
   const existingLab = await prisma.scheduleSlot.findFirst({
     where: { offeringId, isDeleted: false, slotType: 'LAB' },
   });
   if (existingLab) return null; // already has a lab slot
-  let roomCursor = 0;
   for (const day of SCHEDULE_DAYS) {
     for (const [startTime, endTime] of SCHEDULE_PERIODS) {
-      const room = roomHint || LAB_ROOMS[roomCursor % LAB_ROOMS.length];
-      const clashes = await detectSlotClashes({ termId, offeringId, dayOfWeek: day, startTime, endTime, room });
+      const clashes = await detectSlotClashes({ termId, offeringId, dayOfWeek: day, startTime, endTime });
       if (clashes.length === 0) {
         return prisma.scheduleSlot.create({
-          data: { offeringId, dayOfWeek: day, startTime, endTime, room, mode: 'ONSITE', slotType: 'LAB' },
+          data: { offeringId, dayOfWeek: day, startTime, endTime, mode: 'ONSITE', slotType: 'LAB' },
         });
       }
-      roomCursor += 1;
     }
   }
   return null;
@@ -1972,7 +1966,6 @@ router.get('/schedule', COORD_OR_GOV, asyncHandler(async (req, res) => {
       teacher: s.offering.teacher ? s.offering.teacher.username : null,
       startTime: s.startTime,
       endTime: s.endTime,
-      room: s.room,
       mode: s.mode,
       slotType: s.slotType || 'THEORY',
     });
@@ -1992,7 +1985,6 @@ router.post('/schedule/clash-check', COORD, asyncHandler(async (req, res) => {
     dayOfWeek: parseInt(req.body.dayOfWeek, 10),
     startTime: req.body.startTime,
     endTime: req.body.endTime,
-    room: req.body.room || null,
     excludeId: req.body.excludeId ? parseInt(req.body.excludeId, 10) : null,
   });
   res.json({ clashes, ok: clashes.length === 0 });
@@ -2009,16 +2001,16 @@ router.post('/schedule', COORD, validate([
   const termId = term ? term.id : -1;
   const offeringId = parseInt(req.body.offeringId, 10);
   const dayOfWeek = parseInt(req.body.dayOfWeek, 10);
-  const { startTime, endTime, room = null, mode = 'ONSITE', force = false } = req.body;
+  const { startTime, endTime, mode = 'ONSITE', force = false } = req.body;
 
   // DEPARTMENT ISOLATION: can only schedule offerings in own department.
   await assertOfferingInScope(req.lmsUser, offeringId);
 
-  const clashes = await detectSlotClashes({ termId, offeringId, dayOfWeek, startTime, endTime, room });
+  const clashes = await detectSlotClashes({ termId, offeringId, dayOfWeek, startTime, endTime });
   if (clashes.length && !force) {
     return res.status(409).json({ error: 'Schedule clash detected', clashes });
   }
-  const slot = await prisma.scheduleSlot.create({ data: { offeringId, dayOfWeek, startTime, endTime, room, mode, slotType: 'THEORY' } });
+  const slot = await prisma.scheduleSlot.create({ data: { offeringId, dayOfWeek, startTime, endTime, mode, slotType: 'THEORY' } });
   await audit(req, 'SCHEDULE_SLOT_CREATE', 'ScheduleSlot', slot.id, { after: slot });
   // Req 2: auto-create a Lab slot for courses that have a Lab component (same
   // offering => same instructor). Idempotent — skips if a LAB slot exists.
@@ -2041,16 +2033,15 @@ router.put('/schedule/:id', COORD, asyncHandler(async (req, res) => {
   const dayOfWeek = req.body.dayOfWeek != null ? parseInt(req.body.dayOfWeek, 10) : before.dayOfWeek;
   const startTime = req.body.startTime ?? before.startTime;
   const endTime = req.body.endTime ?? before.endTime;
-  const room = req.body.room !== undefined ? req.body.room : before.room;
   const mode = req.body.mode ?? before.mode;
   const force = !!req.body.force;
 
-  const clashes = await detectSlotClashes({ termId, offeringId: before.offeringId, dayOfWeek, startTime, endTime, room, excludeId: id });
+  const clashes = await detectSlotClashes({ termId, offeringId: before.offeringId, dayOfWeek, startTime, endTime, excludeId: id });
   if (clashes.length && !force) {
     return res.status(409).json({ error: 'Schedule clash detected', clashes });
   }
   // Preserve slotType (a LAB slot stays LAB; legacy null => THEORY).
-  const slot = await prisma.scheduleSlot.update({ where: { id }, data: { dayOfWeek, startTime, endTime, room, mode, slotType: before.slotType || 'THEORY' } });
+  const slot = await prisma.scheduleSlot.update({ where: { id }, data: { dayOfWeek, startTime, endTime, mode, slotType: before.slotType || 'THEORY' } });
   await audit(req, 'SCHEDULE_SLOT_UPDATE', 'ScheduleSlot', id, { before, after: slot });
   // Req 2: guarantee a Lab slot still exists for lab courses (in case none yet).
   const labSlot = await ensureLabSlot(termId, before.offeringId);
@@ -2110,11 +2101,9 @@ router.post('/schedule/auto-generate', COORD, asyncHandler(async (req, res) => {
     ['08:00', '09:30'], ['09:30', '11:00'], ['11:00', '12:30'],
     ['12:30', '14:00'], ['14:00', '15:30'], ['15:30', '17:00'],
   ];
-  const rooms = ['R-101', 'R-102', 'R-103', 'Lab-1', 'Lab-2'];
 
   let created = 0;
   let labCreated = 0;
-  let roomCursor = 0;
   for (const o of offerings) {
     if (!clearExisting && o.scheduleSlots.length > 0) continue; // already scheduled
     // Each offering gets 2 weekly meetings.
@@ -2123,13 +2112,11 @@ router.post('/schedule/auto-generate', COORD, asyncHandler(async (req, res) => {
     for (const day of days) {
       for (const [startTime, endTime] of periods) {
         if (placed >= 2) break outer;
-        const room = rooms[roomCursor % rooms.length];
-        const clashes = await detectSlotClashes({ termId, offeringId: o.id, dayOfWeek: day, startTime, endTime, room });
+        const clashes = await detectSlotClashes({ termId, offeringId: o.id, dayOfWeek: day, startTime, endTime });
         if (clashes.length === 0) {
-          await prisma.scheduleSlot.create({ data: { offeringId: o.id, dayOfWeek: day, startTime, endTime, room, mode: 'ONSITE', slotType: 'THEORY' } });
+          await prisma.scheduleSlot.create({ data: { offeringId: o.id, dayOfWeek: day, startTime, endTime, mode: 'ONSITE', slotType: 'THEORY' } });
           created += 1;
           placed += 1;
-          roomCursor += 1;
         }
       }
     }

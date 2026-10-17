@@ -232,7 +232,7 @@ router.get('/dashboard', EXAM_OR_GOV, asyncHandler(async (req, res) => {
     recheckKpis: { open: rechecksOpen, resolved: rechecksResolved },
     upcomingExams: upcoming.map((e) => ({
       id: e.id, title: e.title, examType: e.examType, date: e.date,
-      startTime: e.startTime, endTime: e.endTime, room: e.room, status: e.status,
+      startTime: e.startTime, endTime: e.endTime, status: e.status,
       offering: upcomingLabels[e.offeringId] || null,
     })),
     pendingPapers: pendingPapers.map((p) => ({
@@ -258,19 +258,12 @@ router.get('/schedules', EXAM_OR_GOV, asyncHandler(async (req, res) => {
   const exams = await prisma.examSchedule.findMany({ where, orderBy: { date: 'asc' } });
   const labels = await offeringLabelMap(exams.map((e) => e.offeringId));
   const deptMap = await offeringDeptMap(exams.map((e) => e.offeringId));
-  const seatingCounts = await prisma.examSeating.groupBy({
-    by: ['examId'], _sum: { capacity: true, allocated: true },
-    where: { examId: { in: exams.map((e) => e.id) } },
-  });
-  const seatMap = {};
-  for (const s of seatingCounts) seatMap[s.examId] = { capacity: s._sum.capacity || 0, allocated: s._sum.allocated || 0 };
   let schedules = exams.map((e) => ({
     id: e.id, title: e.title, examType: e.examType, date: e.date,
-    startTime: e.startTime, endTime: e.endTime, room: e.room,
+    startTime: e.startTime, endTime: e.endTime,
     totalMarks: e.totalMarks, status: e.status, offering: labels[e.offeringId] || null,
     department: deptMap[e.offeringId] || null,
-    offeringId: e.offeringId, capacity: seatMap[e.id]?.capacity || 0,
-    allocated: seatMap[e.id]?.allocated || 0,
+    offeringId: e.offeringId,
   }));
   // Distinct departments for the smart filter (before filtering).
   const departments = [...new Set(schedules.map((s) => s.department).filter(Boolean))].sort();
@@ -293,7 +286,7 @@ router.get('/calendar', EXAM_OR_GOV, asyncHandler(async (req, res) => {
   for (const e of exams) {
     (byDate[e.date] = byDate[e.date] || []).push({
       id: e.id, title: e.title, examType: e.examType,
-      startTime: e.startTime, endTime: e.endTime, room: e.room,
+      startTime: e.startTime, endTime: e.endTime,
       offering: labels[e.offeringId] || null,
     });
   }
@@ -306,13 +299,13 @@ router.post('/schedules', EXAM, validate([
   body('examType').optional().isIn(['MID', 'FINAL', 'QUIZ', 'RETAKE', 'SPECIAL']),
 ]), asyncHandler(async (req, res) => {
   const term = await currentTerm();
-  const { title, date, examType = 'FINAL', offeringId, startTime, endTime, room, totalMarks } = req.body;
+  const { title, date, examType = 'FINAL', offeringId, startTime, endTime, totalMarks } = req.body;
   const exam = await prisma.examSchedule.create({
     data: {
       termId: term ? term.id : null,
       offeringId: offeringId ? Number(offeringId) : null,
       examType, title, date, startTime: startTime || null, endTime: endTime || null,
-      room: room || null, totalMarks: totalMarks != null ? Number(totalMarks) : 100,
+      totalMarks: totalMarks != null ? Number(totalMarks) : 100,
       status: 'DRAFT', createdById: req.lmsUser.id,
     },
   });
@@ -324,7 +317,7 @@ router.put('/schedules/:id', EXAM, asyncHandler(async (req, res) => {
   const id = Number(req.params.id);
   const existing = await prisma.examSchedule.findUnique({ where: { id } });
   if (!existing || existing.isDeleted) throw httpError(404, 'Exam schedule not found');
-  const fields = ['title', 'date', 'startTime', 'endTime', 'room', 'examType'];
+  const fields = ['title', 'date', 'startTime', 'endTime', 'examType']; // S14: no room
   const data = {};
   for (const f of fields) if (req.body[f] !== undefined) data[f] = req.body[f];
   if (req.body.totalMarks !== undefined) data.totalMarks = Number(req.body.totalMarks);
@@ -368,62 +361,15 @@ router.delete('/schedules/:id', EXAM, asyncHandler(async (req, res) => {
 }));
 
 // ============================================================
-// SEATING — room allocation per exam
+// SEATING — S14: rooms were removed from the LMS (exams are online).
+// Room/seating endpoints are retired (410); the ExamSeating table and its
+// historical rows are kept untouched (no column/table is dropped).
 // ============================================================
-router.get('/seating', EXAM_OR_GOV, asyncHandler(async (req, res) => {
-  const seatings = await prisma.examSeating.findMany({
-    orderBy: { id: 'desc' }, include: { exam: true },
-  });
-  const labels = await offeringLabelMap(seatings.map((s) => s.exam?.offeringId));
-  res.json({
-    seatings: seatings.map((s) => ({
-      id: s.id, examId: s.examId, examTitle: s.exam?.title || null,
-      examDate: s.exam?.date || null, room: s.room, capacity: s.capacity,
-      allocated: s.allocated, available: s.capacity - s.allocated,
-      offering: s.exam ? labels[s.exam.offeringId] || null : null, notes: s.notes,
-    })),
-  });
-}));
-
-router.post('/seating', EXAM, validate([
-  body('examId').notEmpty(),
-  body('room').isString().trim().notEmpty(),
-]), asyncHandler(async (req, res) => {
-  const { examId, room, capacity, allocated, notes } = req.body;
-  const exam = await prisma.examSchedule.findUnique({ where: { id: Number(examId) } });
-  if (!exam) throw httpError(404, 'Exam not found');
-  const seating = await prisma.examSeating.create({
-    data: {
-      examId: Number(examId), room, capacity: capacity != null ? Number(capacity) : 40,
-      allocated: allocated != null ? Number(allocated) : 0, notes: notes || null,
-    },
-  });
-  await audit(req, 'EXAM_SEATING_CREATE', 'ExamSeating', String(seating.id), { after: seating });
-  res.status(201).json({ seating });
-}));
-
-router.put('/seating/:id', EXAM, asyncHandler(async (req, res) => {
-  const id = Number(req.params.id);
-  const existing = await prisma.examSeating.findUnique({ where: { id } });
-  if (!existing) throw httpError(404, 'Seating not found');
-  const data = {};
-  if (req.body.room !== undefined) data.room = req.body.room;
-  if (req.body.capacity !== undefined) data.capacity = Number(req.body.capacity);
-  if (req.body.allocated !== undefined) data.allocated = Number(req.body.allocated);
-  if (req.body.notes !== undefined) data.notes = req.body.notes;
-  const seating = await prisma.examSeating.update({ where: { id }, data });
-  await audit(req, 'EXAM_SEATING_UPDATE', 'ExamSeating', String(id), { before: existing, after: seating });
-  res.json({ seating });
-}));
-
-router.delete('/seating/:id', EXAM, asyncHandler(async (req, res) => {
-  const id = Number(req.params.id);
-  const existing = await prisma.examSeating.findUnique({ where: { id } });
-  if (!existing) throw httpError(404, 'Seating not found');
-  await prisma.examSeating.delete({ where: { id } });
-  await audit(req, 'EXAM_SEATING_DELETE', 'ExamSeating', String(id), { before: existing });
-  res.json({ success: true });
-}));
+const roomsRemoved = (req, res) => res.status(410).json({ error: 'Rooms have been removed from the LMS. Exams are conducted online.' });
+router.get('/seating', EXAM_OR_GOV, roomsRemoved);
+router.post('/seating', EXAM, roomsRemoved);
+router.put('/seating/:id', EXAM, roomsRemoved);
+router.delete('/seating/:id', EXAM, roomsRemoved);
 
 // ============================================================
 // INVIGILATORS — assignment per exam (Exam Operations)
@@ -438,7 +384,7 @@ router.get('/invigilators', EXAM_OR_GOV, asyncHandler(async (req, res) => {
       id: i.id, examId: i.examId, examTitle: i.exam?.title || null,
       examDate: i.exam?.date || null, invigilatorId: i.invigilatorId,
       invigilator: names[i.invigilatorId] || i.invigilatorId,
-      room: i.room, role: i.role, createdAt: i.createdAt,
+      role: i.role, createdAt: i.createdAt,
     })),
   });
 }));
@@ -455,13 +401,13 @@ router.post('/invigilators', EXAM, validate([
   body('examId').notEmpty(),
   body('invigilatorId').isString().notEmpty(),
 ]), asyncHandler(async (req, res) => {
-  const { examId, invigilatorId, room, role = 'INVIGILATOR' } = req.body;
+  const { examId, invigilatorId, role = 'INVIGILATOR' } = req.body;
   const exam = await prisma.examSchedule.findUnique({ where: { id: Number(examId) } });
   if (!exam) throw httpError(404, 'Exam not found');
   const teacher = await prisma.lmsUser.findUnique({ where: { id: invigilatorId } });
   if (!teacher) throw httpError(404, 'Invigilator not found');
   const invig = await prisma.examInvigilation.create({
-    data: { examId: Number(examId), invigilatorId, room: room || null, role },
+    data: { examId: Number(examId), invigilatorId, role },
   });
   await audit(req, 'EXAM_INVIGILATOR_ASSIGN', 'ExamInvigilation', String(invig.id), { after: invig });
   await notify(invigilatorId, {
@@ -1170,7 +1116,7 @@ router.put('/notifications/read-all', EXAM_OR_GOV, asyncHandler(async (req, res)
 //   4. Marks collection engine    GET  /offerings/:id/marksheet
 //                                  PUT  /offerings/:id/marks
 //                                  POST /offerings/:id/compile
-//   5. Seating auto-generation    GET  /seating/rooms-suggestion
+//   5. Seating auto-generation    (retired — S14, no rooms)
 //                                  POST /seating/auto/:examId
 //                                  GET  /seating/:id/allocations
 //   6. Paper upload/download      POST /papers/upload
@@ -1236,7 +1182,7 @@ router.get('/offerings', EXAM_OR_GOV, asyncHandler(async (req, res) => {
 }));
 
 // ------------------------------------------------------------
-// 3. CLASH DETECTION — given a date + time window + optional room /
+// 3. CLASH DETECTION — given a date + time window + optional
 // offering, report conflicting exams. Used by the scheduler before
 // creating/publishing a datesheet entry.
 // Overlap rule: two windows [s1,e1) and [s2,e2) clash if s1<e2 && s2<e1.
@@ -1253,14 +1199,14 @@ function windowsOverlap(s1, e1, s2, e2) {
   return s1 < e2 && s2 < e1;
 }
 
-async function detectClashes({ date, startTime, endTime, room, offeringId, excludeId }) {
+// S14 — no room clashes (rooms removed); teacher / student / same-course only.
+async function detectClashes({ date, startTime, endTime, offeringId, excludeId }) {
   const sameDay = await prisma.examSchedule.findMany({
     where: { isDeleted: false, date, status: { not: 'CANCELLED' }, ...(excludeId ? { id: { not: Number(excludeId) } } : {}) },
-    include: { seatings: true },
   });
   const s1 = timeToMin(startTime);
   const e1 = timeToMin(endTime);
-  const clashes = { room: [], offering: [], teacher: [], student: [] };
+  const clashes = { offering: [], teacher: [], student: [] };
 
   // Resolve this offering's teacher + students for teacher/student clash.
   let myTeacherId = null;
@@ -1279,11 +1225,6 @@ async function detectClashes({ date, startTime, endTime, room, offeringId, exclu
     const e2 = timeToMin(ex.endTime);
     if (!windowsOverlap(s1, e1, s2, e2)) continue;
 
-    // Room clash — same room string on the schedule OR overlapping seating room.
-    const rooms = new Set([ex.room, ...ex.seatings.map((st) => st.room)].filter(Boolean));
-    if (room && rooms.has(room)) {
-      clashes.room.push({ id: ex.id, title: ex.title, room, startTime: ex.startTime, endTime: ex.endTime });
-    }
     // Same offering already scheduled same day.
     if (offeringId && ex.offeringId === Number(offeringId)) {
       clashes.offering.push({ id: ex.id, title: ex.title });
@@ -1308,9 +1249,9 @@ async function detectClashes({ date, startTime, endTime, room, offeringId, exclu
 }
 
 router.get('/schedules/clash-check', EXAM, asyncHandler(async (req, res) => {
-  const { date, startTime, endTime, room, offeringId, excludeId } = req.query;
+  const { date, startTime, endTime, offeringId, excludeId } = req.query;
   if (!date) throw httpError(400, 'date is required for clash detection');
-  const result = await detectClashes({ date, startTime, endTime, room, offeringId, excludeId });
+  const result = await detectClashes({ date, startTime, endTime, offeringId, excludeId });
   res.json(result);
 }));
 
@@ -1494,92 +1435,11 @@ router.post('/offerings/:id/compile', EXAM, asyncHandler(async (req, res) => {
 }));
 
 // ------------------------------------------------------------
-// 5. SEATING AUTO-GENERATION
-//    GET  /seating/rooms-suggestion          → distinct rooms + free capacity
-//    POST /seating/auto/:examId { rooms:[{room,capacity}] }  → distribute students
-//    GET  /seating/:id/allocations           → students seated in a room
+// 5. SEATING AUTO-GENERATION — retired (S14: no rooms in the LMS).
 // ------------------------------------------------------------
-router.get('/seating/rooms-suggestion', EXAM, asyncHandler(async (req, res) => {
-  const rows = await prisma.examSeating.findMany({ select: { room: true, capacity: true } });
-  const map = {};
-  for (const r of rows) {
-    if (!map[r.room]) map[r.room] = { room: r.room, capacity: r.capacity };
-    else map[r.room].capacity = Math.max(map[r.room].capacity, r.capacity);
-  }
-  // Always include some standard halls as suggestions.
-  for (const room of ['Hall-1', 'Hall-2', 'Hall-3', 'Lab-A', 'Lab-B']) {
-    if (!map[room]) map[room] = { room, capacity: 40 };
-  }
-  res.json({ rooms: Object.values(map) });
-}));
-
-router.post('/seating/auto/:examId', EXAM, validate([
-  body('rooms').isArray({ min: 1 }),
-]), asyncHandler(async (req, res) => {
-  const examId = Number(req.params.examId);
-  const exam = await prisma.examSchedule.findUnique({ where: { id: examId } });
-  if (!exam || exam.isDeleted) throw httpError(404, 'Exam not found');
-  if (!exam.offeringId) throw httpError(400, 'This exam has no linked offering; cannot auto-seat.');
-
-  const regs = await prisma.courseRegistration.findMany({
-    where: { offeringId: exam.offeringId, status: 'ENROLLED' },
-  });
-  const studentIds = regs.map((r) => r.studentId);
-  const students = await prisma.lmsUser.findMany({
-    where: { id: { in: studentIds } }, include: { profile: true },
-  });
-  // sort by roll for deterministic distribution
-  students.sort((a, b) => (a.linkedRollNumber || a.username).localeCompare(b.linkedRollNumber || b.username));
-
-  const rooms = req.body.rooms
-    .map((r) => ({ room: String(r.room || '').trim(), capacity: Math.max(1, Number(r.capacity) || 40) }))
-    .filter((r) => r.room);
-  const totalCapacity = rooms.reduce((a, b) => a + b.capacity, 0);
-  if (students.length > totalCapacity) {
-    throw httpError(400, `Insufficient capacity: ${students.length} students but only ${totalCapacity} seats across ${rooms.length} room(s).`);
-  }
-
-  // Build allocation plan + persist as ExamSeating rows (rowsCols JSON holds the seat list).
-  const plan = [];
-  let cursor = 0;
-  await prisma.$transaction(async (tx) => {
-    // Clear previous auto seatings for this exam (idempotent re-generate).
-    await tx.examSeating.deleteMany({ where: { examId } });
-    for (const r of rooms) {
-      const slice = students.slice(cursor, cursor + r.capacity);
-      cursor += slice.length;
-      const seatList = slice.map((s, i) => ({
-        seatNo: `${r.room}-${String(i + 1).padStart(2, '0')}`,
-        studentId: s.id,
-        roll: s.linkedRollNumber || s.username,
-        name: s.profile?.fullName || displayName(s),
-      }));
-      await tx.examSeating.create({
-        data: {
-          examId, room: r.room, capacity: r.capacity, allocated: slice.length,
-          rowsCols: JSON.stringify(seatList),
-          notes: `Auto-generated for ${slice.length} student(s).`,
-        },
-      });
-      plan.push({ room: r.room, allocated: slice.length, capacity: r.capacity });
-      if (cursor >= students.length) break;
-    }
-  });
-  await audit(req, 'EXAM_SEATING_AUTO', 'ExamSchedule', String(examId), { after: { examId, plan, students: students.length } });
-  res.json({ success: true, totalStudents: students.length, plan });
-}));
-
-router.get('/seating/:id/allocations', EXAM_OR_GOV, asyncHandler(async (req, res) => {
-  const id = Number(req.params.id);
-  const seating = await prisma.examSeating.findUnique({ where: { id }, include: { exam: true } });
-  if (!seating) throw httpError(404, 'Seating not found');
-  let seats = [];
-  try { seats = seating.rowsCols ? JSON.parse(seating.rowsCols) : []; } catch (_) { seats = []; }
-  res.json({
-    seating: { id: seating.id, room: seating.room, capacity: seating.capacity, allocated: seating.allocated, examTitle: seating.exam?.title || null },
-    seats,
-  });
-}));
+router.get('/seating/rooms-suggestion', EXAM, roomsRemoved);
+router.post('/seating/auto/:examId', EXAM, roomsRemoved);
+router.get('/seating/:id/allocations', EXAM_OR_GOV, roomsRemoved);
 
 // ------------------------------------------------------------
 // 6. PAPER UPLOAD / DOWNLOAD — secure file handling + versioning.
@@ -1673,7 +1533,7 @@ router.get('/exams/:examId/attendance', EXAM_OR_GOV, asyncHandler(async (req, re
     counts, total: records.length,
     records: records.map((r) => ({
       id: r.id, studentId: r.studentId, student: names[r.studentId] || r.studentId,
-      roll: rollMap[r.studentId] || r.studentId, status: r.status, room: r.room,
+      roll: rollMap[r.studentId] || r.studentId, status: r.status,
       seatNo: r.seatNo, remarks: r.remarks, verifiedAt: r.verifiedAt,
     })),
   });
@@ -1692,12 +1552,12 @@ router.put('/exams/:examId/attendance', EXAM, validate([
     await prisma.examAttendance.upsert({
       where: { examId_studentId: { examId, studentId: rec.studentId } },
       update: {
-        status: rec.status, remarks: rec.remarks || null, room: rec.room || null,
+        status: rec.status, remarks: rec.remarks || null,
         seatNo: rec.seatNo || null, verifiedById: req.lmsUser.id, verifiedAt: new Date(),
       },
       create: {
         examId, studentId: rec.studentId, offeringId: exam.offeringId, status: rec.status,
-        remarks: rec.remarks || null, room: rec.room || null, seatNo: rec.seatNo || null,
+        remarks: rec.remarks || null, seatNo: rec.seatNo || null,
         verifiedById: req.lmsUser.id, verifiedAt: new Date(),
       },
     });
@@ -2039,7 +1899,7 @@ router.get('/datesheets', EXAM_OR_GOV, asyncHandler(async (req, res) => {
     entries: s.entries.map((e) => ({
       id: e.id, offeringId: e.offeringId, courseCode: e.courseCode, courseTitle: e.courseTitle,
       semester: e.semester, date: e.date, startTime: e.startTime,
-      endTime: e.endTime, room: e.room,
+      endTime: e.endTime,
     })),
   }));
   const departments = [...new Set(datesheets.map((s) => s.department).filter(Boolean))].sort();
@@ -2127,7 +1987,7 @@ router.post('/datesheets', EXAM, validate([
           courseCode: e.courseCode || null, courseTitle: e.courseTitle || null,
           semester: e.semester ? String(e.semester) : (semester ? String(semester) : null),
           date: e.date, startTime: e.startTime || null,
-          endTime: e.endTime || null, room: e.room || null,
+          endTime: e.endTime || null,
         })),
       },
     },
@@ -2150,7 +2010,7 @@ router.post('/datesheets/:id/entries', EXAM, validate([
       dateSheetId, offeringId: e.offeringId ? Number(e.offeringId) : null,
       courseCode: e.courseCode || null, courseTitle: e.courseTitle || null,
       semester: e.semester ? String(e.semester) : sheet.semester,
-      date: e.date, startTime: e.startTime || null, endTime: e.endTime || null, room: e.room || null,
+      date: e.date, startTime: e.startTime || null, endTime: e.endTime || null,
     },
   });
   await audit(req, 'EXAM_DATESHEET_ENTRY_ADD', 'DateSheet', String(dateSheetId), { after: { entryId: entry.id } });
