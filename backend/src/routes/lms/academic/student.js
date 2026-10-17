@@ -1513,10 +1513,16 @@ router.get('/result-record', asyncHandler(async (req, res) => {
   res.json(record);
 }));
 
-// Transcript PDF: kind = unofficial | official ; optional ?semester=N
+// Transcript PDF — Section 5: on the STUDENT side the transcript is ALWAYS
+// "Unofficial". Requests for an official transcript are refused on the server
+// (the official transcript is issued only by the Exam Controller).
+// optional ?semester=N
 router.get('/transcript/pdf/:kind', asyncHandler(async (req, res) => {
-  const official = req.params.kind === 'official';
-  if (!['official', 'unofficial'].includes(req.params.kind)) throw httpError(400, 'kind must be official or unofficial');
+  if (req.params.kind === 'official') {
+    throw httpError(403, 'Students can only download the Unofficial transcript. The official transcript is issued by the Exam Controller.');
+  }
+  if (req.params.kind !== 'unofficial') throw httpError(400, 'Only the unofficial transcript is available to students.');
+  const official = false;
   const record = await require('../../../services/resultsService').studentRecord(req.lmsUser.id);
   const semester = req.query.semester ? String(req.query.semester) : null;
   const available = record.semesters.filter((s) => s.declared && (!official || s.official));
@@ -1602,9 +1608,10 @@ router.get('/transcript/download', asyncHandler(async (req, res) => {
   ]);
   const doc = new PDFDocument({ margin: 40, size: 'A4' });
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', 'attachment; filename="transcript.pdf"');
+  res.setHeader('Content-Disposition', 'attachment; filename="unofficial-transcript.pdf"');
   doc.pipe(res);
-  drawResultHeader(doc, profile, 'Official Transcript — All Semesters');
+  // Section 5 — student-facing transcript is always Unofficial.
+  drawResultHeader(doc, profile, 'Unofficial Transcript — All Semesters (for information only)');
   for (const t of transcript.terms) {
     doc.moveDown(0.3).fontSize(12).font('Helvetica-Bold').fillColor('#1d4ed8')
       .text(`${t.termTitle || t.termCode}  ·  GPA: ${Number(t.gpa || 0).toFixed(2)}  ·  Credits: ${t.totalCredits}`);
@@ -1630,7 +1637,7 @@ router.get('/results/download', asyncHandler(async (req, res) => {
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', 'attachment; filename="results-cumulative.pdf"');
   doc.pipe(res);
-  drawResultHeader(doc, profile, 'Cumulative Result — All Courses');
+  drawResultHeader(doc, profile, 'Cumulative Result — All Courses (Unofficial — for information only)');
   drawResultTable(doc, transcript.rows);
   doc.moveDown(0.5).fontSize(12).font('Helvetica-Bold')
     .text(`CGPA: ${Number(transcript.cgpa || 0).toFixed(2)}     Total Credits: ${transcript.totalCredits}`);
@@ -1652,7 +1659,7 @@ router.get('/results/download/term/:termCode', asyncHandler(async (req, res) => 
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="result-${termCode}.pdf"`);
   doc.pipe(res);
-  drawResultHeader(doc, profile, `Semester Result — ${term ? (term.termTitle || term.termCode) : termCode}`);
+  drawResultHeader(doc, profile, `Semester Result — ${term ? (term.termTitle || term.termCode) : termCode} (Unofficial — for information only)`);
   drawResultTable(doc, term ? term.rows : []);
   if (term) {
     doc.moveDown(0.5).fontSize(12).font('Helvetica-Bold')

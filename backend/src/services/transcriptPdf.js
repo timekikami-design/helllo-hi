@@ -60,7 +60,9 @@ function drawTranscript(res, record, { official = false, semester = null, filena
   for (const s of sems) {
     if (doc.y > doc.page.height - 180) doc.addPage();
     doc.font('Helvetica-Bold').fontSize(10).fillColor(NAVY)
-      .text(`Semester ${s.semester}${s.term ? ` — ${s.term}` : ''}   (${s.official ? 'Official' : 'Unofficial'})`, left, doc.y, { width: avail });
+      // Section 5 — inside an UNOFFICIAL transcript the semester line never
+      // claims "Official"; it shows the declaration stage instead.
+      .text(`Semester ${s.semester}${s.term ? ` — ${s.term}` : ''}   (${official ? 'Official' : s.official ? 'Result declared' : 'Unofficial'})`, left, doc.y, { width: avail });
     doc.moveDown(0.2).fillColor('#000');
     const rows = s.subjects.map((x) => ({ ...x, pct: fmt(x.totalPercent), gp: fmt(x.gradePoints), qp: fmt((x.creditHours || 0) * (x.gradePoints || 0)) }));
     rows.push({ courseTitle: 'Semester Totals', creditHours: s.credits, gp: `GPA ${fmt(s.gpa)}`, qp: fmt(s.subjects.reduce((a, x) => a + (x.creditHours || 0) * (x.gradePoints || 0), 0)), __bold: true, __fill: '#eef2ff' });
@@ -92,7 +94,7 @@ function drawTranscript(res, record, { official = false, semester = null, filena
   doc.text('Controller of Examinations', left + avail - 150, sy + 3, { width: 150, align: 'center' });
   doc.moveDown(1.2).fontSize(7).fillColor('#666').text(official
     ? 'This transcript is issued on declaration of the official result. Any alteration renders it invalid.'
-    : 'UNOFFICIAL — for information only. The official transcript becomes available once the official result is declared.', left, doc.y, { align: 'center', width: avail });
+    : 'UNOFFICIAL — for information only. Official transcripts are issued by the Controller of Examinations.', left, doc.y, { align: 'center', width: avail });
   footer(doc);
   doc.end();
 }
