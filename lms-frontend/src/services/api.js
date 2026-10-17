@@ -158,7 +158,7 @@ const student = {
   labTask: (id) => get(`/lms/academic/student/lab-tasks/${id}`),
   submitLabTask: (id, formData) => postForm(`/lms/academic/student/lab-tasks/${id}/submit`, formData),
   // Req 3.4 — Download (instead of Print) across the Results module
-  downloadTranscript: (filename = 'transcript.pdf') => download('/lms/academic/student/transcript/download', filename),
+  downloadTranscript: (filename = 'unofficial-transcript.pdf') => download('/lms/academic/student/transcript/download', filename),
   downloadResults: (filename = 'results-cumulative.pdf') => download('/lms/academic/student/results/download', filename),
   downloadTermResult: (termCode, filename) => download(`/lms/academic/student/results/download/term/${encodeURIComponent(termCode)}`, filename || `result-${termCode}.pdf`),
   // Profile (synchronized with the Admissions System)

@@ -17,7 +17,8 @@ import { useToast } from "../../context/ToastContext";
      grade, GPA or transcript. This is informational, not the result.
    • After UNOFFICIAL declaration: grade, GPA, running CGPA and the
      unofficial transcript (download) for that semester.
-   • After OFFICIAL declaration: the official transcript.
+   • Section 5: the transcript on the student side is ALWAYS "Unofficial"
+     (the official transcript is issued only by the Exam Controller).
    • Gating is per semester and independent.
    • Updates in real time as teachers grade.
    ============================================================= */
@@ -83,7 +84,6 @@ export default function Results() {
   if (loading) return <div><PageHeader title="Results & Transcripts" icon="Award" /><Skeleton className="h-64 w-full rounded-2xl" /></div>;
 
   const declared = semesters.filter((s) => s.declared);
-  const anyOfficial = semesters.some((s) => s.official);
 
   return (
     <div>
@@ -95,8 +95,8 @@ export default function Results() {
         actions={
           <div className="flex flex-wrap gap-2">
             <button onClick={reload} className="btn-secondary text-sm"><RefreshCw size={14} /> Refresh</button>
-            <button disabled={!declared.length || !!busy} onClick={() => dl("unofficial")} className="btn-secondary text-sm disabled:opacity-50">{busy === "unofficial-all" ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} Unofficial Transcript</button>
-            <button disabled={!anyOfficial || !!busy} onClick={() => dl("official")} className="btn-primary text-sm disabled:opacity-50">{busy === "official-all" ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />} Official Transcript</button>
+            {/* Section 5 — students only ever receive the Unofficial transcript. */}
+            <button disabled={!declared.length || !!busy} onClick={() => dl("unofficial")} className="btn-primary text-sm disabled:opacity-50">{busy === "unofficial-all" ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} Unofficial Transcript</button>
           </div>
         }
       />
@@ -137,7 +137,6 @@ export default function Results() {
                   {current.declared && (
                     <div className="flex gap-2">
                       <button onClick={() => dl("unofficial", current.semester)} disabled={!!busy} className="btn-secondary text-xs">{busy === `unofficial-${current.semester}` ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Unofficial transcript</button>
-                      {current.official && <button onClick={() => dl("official", current.semester)} disabled={!!busy} className="btn-primary text-xs">{busy === `official-${current.semester}` ? <Loader2 size={13} className="animate-spin" /> : <ShieldCheck size={13} />} Official transcript</button>}
                     </div>
                   )}
                 </div>
