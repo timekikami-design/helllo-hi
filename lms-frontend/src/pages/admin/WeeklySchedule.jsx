@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Calendar, Download, Plus, Wand2, Trash2, Edit3, X, AlertTriangle, Clock,
-  MapPin, GraduationCap, Loader2, Printer, GripVertical, Info,
+  GraduationCap, Loader2, Printer, GripVertical, Info,
 } from "lucide-react";
 import PageHeader from "../../components/common/PageHeader";
 import StatCard from "../../components/common/StatCard";
@@ -40,7 +40,7 @@ const slotColor = (sem) => {
   return palette[((sem || 0) - 1 + palette.length) % palette.length] || "bg-slate-500";
 };
 
-const emptyForm = { offeringId: "", dayOfWeek: 1, startTime: "08:00", endTime: "09:30", room: "", mode: "ONSITE" };
+const emptyForm = { offeringId: "", dayOfWeek: 1, startTime: "08:00", endTime: "09:30", mode: "ONSITE" };
 
 const WeeklySchedule = () => {
   const { toast } = useToast();
@@ -66,7 +66,6 @@ const WeeklySchedule = () => {
     slots: data?.totalSlots || 0,
     courses: new Set(allSlots.map((s) => s.courseCode)).size,
     teachers: new Set(allSlots.map((s) => s.teacherId).filter(Boolean)).size,
-    rooms: new Set(allSlots.map((s) => s.room).filter(Boolean)).size,
   }), [data, allSlots]);
 
   // slot lookup by day + period start
@@ -84,7 +83,7 @@ const WeeklySchedule = () => {
   const openEdit = (slot) => {
     setEditing(slot);
     setClashes([]);
-    setForm({ offeringId: slot.offeringId, dayOfWeek: slot.dayOfWeek, startTime: slot.startTime, endTime: slot.endTime, room: slot.room || "", mode: slot.mode || "ONSITE" });
+    setForm({ offeringId: slot.offeringId, dayOfWeek: slot.dayOfWeek, startTime: slot.startTime, endTime: slot.endTime, mode: slot.mode || "ONSITE" });
     setModalOpen(true);
   };
 
@@ -98,13 +97,13 @@ const WeeklySchedule = () => {
       try {
         const res = await api.coordinator.scheduleClashCheck({
           offeringId: form.offeringId, dayOfWeek: form.dayOfWeek, startTime: form.startTime,
-          endTime: form.endTime, room: form.room || null, excludeId: editing?.id || null,
+          endTime: form.endTime, excludeId: editing?.id || null,
         });
         if (active) setClashes(res.clashes || []);
       } catch { /* ignore */ }
     }, 350);
     return () => { active = false; clearTimeout(t); };
-  }, [modalOpen, form.offeringId, form.dayOfWeek, form.startTime, form.endTime, form.room, editing]);
+  }, [modalOpen, form.offeringId, form.dayOfWeek, form.startTime, form.endTime, editing]);
 
   const handleSave = async (e, force = false) => {
     e?.preventDefault?.();
@@ -166,7 +165,7 @@ const WeeklySchedule = () => {
     setDragSlot(null);
     if (slot.dayOfWeek === dayOfWeek && slot.startTime === startTime) return;
     try {
-      await api.coordinator.updateSlot(slot.id, { dayOfWeek, startTime, endTime, room: slot.room, mode: slot.mode });
+      await api.coordinator.updateSlot(slot.id, { dayOfWeek, startTime, endTime, mode: slot.mode });
       toast(`${slot.courseCode} moved to ${DAYS[dayOfWeek]} ${startTime}`, { type: "success" });
       reload();
     } catch (err) {
@@ -174,7 +173,7 @@ const WeeklySchedule = () => {
         const force = window.confirm(`Moving here causes a clash:\n\n${err.data.clashes.map((c) => "• " + c.message).join("\n")}\n\nMove anyway?`);
         if (force) {
           try {
-            await api.coordinator.updateSlot(slot.id, { dayOfWeek, startTime, endTime, room: slot.room, mode: slot.mode, force: true });
+            await api.coordinator.updateSlot(slot.id, { dayOfWeek, startTime, endTime, mode: slot.mode, force: true });
             toast(`${slot.courseCode} moved (clash overridden)`, { type: "warning" });
             reload();
           } catch (e2) { toast(e2.message || "Move failed", { type: "error" }); }
@@ -187,8 +186,8 @@ const WeeklySchedule = () => {
 
   const exportCsv = () => {
     if (allSlots.length === 0) { toast("Nothing to export", { type: "warning" }); return; }
-    const head = "Day,Start,End,Course,Title,Type,Teacher,Room,Mode";
-    const body = allSlots.map((s) => [DAYS[s.dayOfWeek], s.startTime, s.endTime, s.courseCode, `"${s.courseTitle}"`, s.slotType || "THEORY", s.teacher || "TBA", s.room || "", s.mode].join(",")).join("\n");
+    const head = "Day,Start,End,Course,Title,Type,Teacher,Mode";
+    const body = allSlots.map((s) => [DAYS[s.dayOfWeek], s.startTime, s.endTime, s.courseCode, `"${s.courseTitle}"`, s.slotType || "THEORY", s.teacher || "TBA", s.mode].join(",")).join("\n");
     const blob = new Blob([`${head}\n${body}`], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = "weekly-timetable.csv"; a.click();
@@ -217,11 +216,10 @@ const WeeklySchedule = () => {
         }
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+      <div className="grid grid-cols-3 gap-4 mb-5">
         <StatCard title="Class Slots" value={stats.slots} icon="Calendar" color="blue" delay={0.05} />
         <StatCard title="Courses" value={stats.courses} icon="BookOpen" color="purple" delay={0.1} />
         <StatCard title="Teachers" value={stats.teachers} icon="Users" color="emerald" delay={0.15} />
-        <StatCard title="Rooms" value={stats.rooms} icon="MapPin" color="amber" delay={0.2} />
       </div>
 
       <div className="card-base p-3 mb-4 flex items-start gap-3">
@@ -281,7 +279,6 @@ const WeeklySchedule = () => {
                                 </div>
                                 <p className="text-[10px] opacity-90 leading-tight line-clamp-2">{s.courseTitle}{s.slotType === "LAB" ? " — Lab" : ""}</p>
                                 <div className="flex items-center gap-1 mt-1 text-[9px] opacity-90">
-                                  {s.room && <span className="inline-flex items-center gap-0.5"><MapPin size={8} /> {s.room}</span>}
                                   <span className="px-1 rounded bg-white/20">{s.mode}</span>
                                 </div>
                                 {s.teacher && <p className="text-[9px] opacity-90 mt-0.5 inline-flex items-center gap-0.5"><GraduationCap size={8} /> {s.teacher}</p>}
@@ -341,10 +338,6 @@ const WeeklySchedule = () => {
                 <option value="ONLINE">Online</option>
               </select>
             </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-secondary-app">Room</label>
-            <input value={form.room} onChange={(e) => change("room", e.target.value)} placeholder="e.g. R-101 / Lab-1" className="input-base mt-1 w-full" />
           </div>
 
           {/* Live clash warnings */}

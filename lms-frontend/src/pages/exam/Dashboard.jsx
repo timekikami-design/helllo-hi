@@ -95,7 +95,7 @@ const ExamDashboard = () => {
                 <div key={e.id} className="flex items-center justify-between p-3 rounded-xl border border-app">
                   <div className="min-w-0">
                     <p className="font-bold text-app text-sm truncate">{e.offering || e.title}</p>
-                    <p className="text-xs text-muted-app">{e.date} · {e.startTime || ""}{e.room ? ` · ${e.room}` : ""}</p>
+                    <p className="text-xs text-muted-app">{e.date} · {e.startTime || ""}</p>
                   </div>
                   <StatusBadge status={e.status} />
                 </div>
