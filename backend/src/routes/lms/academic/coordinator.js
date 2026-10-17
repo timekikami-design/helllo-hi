@@ -2911,3 +2911,5 @@ router.put('/weightage/:courseId', COORD, asyncHandler(async (req, res) => {
 }));
 
 module.exports = router;
+// QA hook (S14 tests): pure clash detector, read-only.
+module.exports.detectSlotClashes = detectSlotClashes;
