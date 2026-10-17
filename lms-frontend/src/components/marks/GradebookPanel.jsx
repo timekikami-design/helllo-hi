@@ -21,17 +21,35 @@ import EmptyState from "../common/EmptyState";
    ============================================================= */
 const fmt = (v, d = 2) => (v == null ? "—" : Number(v).toFixed(d).replace(/\.00$/, ""));
 
-function Cell({ cell, item, editable, onSave }) {
+// Section 4 — live (display-only) preview of the weightage conversion while the
+// teacher types, using the SAME formula as the server (lmsGrading.convertToWeight):
+// min(max(obtained / total × weight, 0), weight), rounded to 2 dp. The server
+// remains the source of truth once the cell is saved.
+const round2 = (n) => Math.round(n * 100) / 100;
+function liveConvert(obtained, total, weight) {
+  if (obtained == null || obtained === "" || total == null || Number(total) <= 0) return null;
+  const n = Number(obtained);
+  if (!Number.isFinite(n)) return null;
+  const cap = Number(weight) || 0;
+  return round2(Math.min(Math.max((n / Number(total)) * cap, 0), cap));
+}
+
+function Cell({ cell, item, editable, onSave, onDraft, total: totalOverride }) {
   const [val, setVal] = useState(null);
   const [saving, setSaving] = useState(false);
   const noItem = !item.created && !item.editable;
-  const total = cell?.total ?? item.totalMarks;
+  const total = totalOverride ?? cell?.total ?? item.totalMarks;
+  // While a value is being typed, show its converted weight immediately.
+  const typing = val !== null;
+  const shownConverted = typing ? liveConvert(val, total, item.itemWeight) : cell?.converted;
+  const overTotal = typing && val !== "" && total != null && Number(val) > Number(total);
   const commit = async () => {
     if (val === null) return;
     const v = val.trim();
     if (v === (cell?.obtained == null ? "" : String(cell.obtained))) { setVal(null); return; }
     setSaving(true);
-    try { await onSave(v === "" ? null : Number(v)); setVal(null); }
+    try { await onSave(v === "" ? null : Number(v)); setVal(null); onDraft && onDraft(null); }
+    catch (_) { /* keep the typed value visible so the teacher can correct it */ }
     finally { setSaving(false); }
   };
   if (noItem) return <td className="px-2 py-2 text-center text-[11px] text-slate-400 italic">not created</td>;
@@ -41,11 +59,16 @@ function Cell({ cell, item, editable, onSave }) {
         {editable ? (
           <input
             value={val ?? (cell?.obtained ?? "")}
-            onChange={(e) => setVal(e.target.value.replace(/[^\d.]/g, ""))}
+            onChange={(e) => {
+              const v = e.target.value.replace(/[^\d.]/g, "");
+              setVal(v);
+              onDraft && onDraft(liveConvert(v, total, item.itemWeight));
+            }}
             onBlur={commit}
-            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setVal(null); }}
+            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { setVal(null); onDraft && onDraft(null); } }}
             placeholder="—"
-            className="w-14 input-base text-center text-sm py-1 px-1"
+            className={`w-14 input-base text-center text-sm py-1 px-1 ${overTotal ? "!border-rose-500" : ""}`}
+            title={overTotal ? `Cannot exceed ${total}` : undefined}
             aria-label={`${item.label} obtained`}
           />
         ) : (
@@ -54,8 +77,8 @@ function Cell({ cell, item, editable, onSave }) {
         <span className="text-[11px] text-muted-app">/ {total ?? "?"}</span>
         {saving && <Loader2 size={11} className="animate-spin text-primary-600" />}
       </div>
-      <div className={`text-[10px] mt-0.5 font-semibold ${cell?.converted != null ? "text-primary-700 dark:text-primary-300" : "text-slate-400"}`}>
-        {cell?.converted != null ? `${fmt(cell.converted)} / ${fmt(item.itemWeight)}` : "Pending"}
+      <div data-testid="cell-converted" className={`text-[10px] mt-0.5 font-semibold ${overTotal ? "text-rose-600" : shownConverted != null ? "text-primary-700 dark:text-primary-300" : "text-slate-400"}`}>
+        {overTotal ? `Max ${total}` : shownConverted != null ? `${fmt(shownConverted)} / ${fmt(item.itemWeight)}` : (typing && val !== "" && total == null ? "Set total" : "Pending")}
       </div>
     </td>
   );
@@ -65,6 +88,13 @@ export default function GradebookPanel({ offeringId }) {
   const { toast } = useToast();
   const { data, loading, error, reload } = useApi(() => api.marks.gradebook(offeringId), [offeringId]);
   const [totals, setTotals] = useState({});
+  // Section 4 — converted value of cells currently being typed: { "studentId|itemKey": number }
+  const [drafts, setDrafts] = useState({});
+  const setDraft = (studentId, key, v) => setDrafts((d) => {
+    const k = `${studentId}|${key}`;
+    if (v === null || v === undefined) { if (!(k in d)) return d; const n = { ...d }; delete n[k]; return n; }
+    return { ...d, [k]: v };
+  });
   const [savingTotals, setSavingTotals] = useState(false);
 
   // Real-time: student quiz submissions / other edits refresh the grid.
@@ -81,6 +111,17 @@ export default function GradebookPanel({ offeringId }) {
   if (!data.rows.length) return <EmptyState icon="ClipboardList" title="No students" description="No students are enrolled in this course yet." />;
 
   const off = data.offering;
+  // Running row total = saved weightedTotal with any in-progress cells swapped
+  // for their live converted value (display only).
+  const liveRowTotal = (row) => {
+    let total = row.weightedTotal || 0;
+    for (const it of columns) {
+      const k = `${row.studentId}|${it.key}`;
+      if (!(k in drafts)) continue;
+      total += (drafts[k] || 0) - (row.cells[it.key]?.converted || 0);
+    }
+    return round2(total);
+  };
   const saveCell = async (row, item, marks) => {
     try {
       await api.marks.saveCell(offeringId, { kind: item.kind, itemId: item.id, studentId: row.studentId, marks });
@@ -161,9 +202,14 @@ export default function GradebookPanel({ offeringId }) {
                   <p className="text-[11px] text-muted-app font-mono">{row.rollNumber}</p>
                 </td>
                 {columns.map((it) => (
-                  <Cell key={it.key} cell={row.cells[it.key]} item={it} editable={open && row.editable && (it.created || it.editable) && !it.legacy} onSave={(m) => saveCell(row, it, m)} />
+                  <Cell key={it.key} cell={row.cells[it.key]} item={it}
+                    total={it.category?.key === "mid" ? (totals.mid !== undefined && totals.mid !== "" ? Number(totals.mid) : undefined)
+                      : it.category?.key === "final" ? (totals.final !== undefined && totals.final !== "" ? Number(totals.final) : undefined) : undefined}
+                    editable={open && row.editable && (it.created || it.editable) && !it.legacy}
+                    onDraft={(v) => setDraft(row.studentId, it.key, v === null ? undefined : v)}
+                    onSave={(m) => saveCell(row, it, m)} />
                 ))}
-                <td className="px-2 py-2 text-center font-bold text-primary-700 dark:text-primary-300 border-l border-slate-100 dark:border-slate-800">{fmt(row.weightedTotal)}</td>
+                <td data-testid="row-total" className="px-2 py-2 text-center font-bold text-primary-700 dark:text-primary-300 border-l border-slate-100 dark:border-slate-800">{fmt(liveRowTotal(row))}</td>
               </tr>
             ))}
           </tbody>

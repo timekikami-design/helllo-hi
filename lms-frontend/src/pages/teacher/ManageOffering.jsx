@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft, Users, CalendarCheck, FileText, FileQuestion, Award, Megaphone,
@@ -388,6 +388,7 @@ function AssignmentsTab({ offeringId }) {
   const [subFor, setSubFor] = useState(null); // assignment for submissions view
   const [subs, setSubs] = useState([]);
   const [grades, setGrades] = useState({});
+  const dirtyGrades = useRef(new Set()); // Section 4 — typed-but-ungraded submissions
   const [qFor, setQFor] = useState(null); // assignment for questions modal
 
   const create = async () => {
@@ -419,15 +420,23 @@ function AssignmentsTab({ offeringId }) {
     try {
       const res = await api.teacher.submissions(a.id);
       setSubs(res.submissions || []);
-      const g = {};
-      (res.submissions || []).forEach((s) => { if (s.marks != null) g[s.id] = s.marks; });
-      setGrades(g);
+      // Section 4 — keep marks the teacher typed but has not graded yet when
+      // the list refreshes after grading another submission.
+      setGrades((prev) => {
+        const g = {};
+        (res.submissions || []).forEach((s) => {
+          if (dirtyGrades.current.has(s.id)) g[s.id] = prev[s.id];
+          else if (s.marks != null) g[s.id] = s.marks;
+        });
+        return g;
+      });
     } catch (e) { toast(e.message, { type: "error" }); }
   };
 
   const grade = async (submissionId) => {
     try {
       await api.teacher.gradeSubmission(submissionId, { marks: parseFloat(grades[submissionId]), feedback: "" });
+      dirtyGrades.current.delete(submissionId);
       toast("Graded — marks now visible to student", { type: "success" });
       await openSubs(subFor); await reload();
     } catch (e) { toast(e.message, { type: "error" }); }
@@ -504,7 +513,7 @@ function AssignmentsTab({ offeringId }) {
                   </div>
                   <div className="flex items-center gap-2">
                     {s.filePath && <a href={fileUrl(s.filePath)} target="_blank" rel="noreferrer" className="text-primary-600 text-xs"><Download size={14} /></a>}
-                    <input type="number" value={grades[s.id] ?? ""} onChange={(e) => setGrades((g) => ({ ...g, [s.id]: e.target.value }))} placeholder="Marks" className="input-base w-20 text-sm" />
+                    <input type="number" value={grades[s.id] ?? ""} onChange={(e) => { dirtyGrades.current.add(s.id); setGrades((g) => ({ ...g, [s.id]: e.target.value })); }} placeholder="Marks" className="input-base w-20 text-sm" />
                     <span className="text-xs text-muted-app">/{subFor.totalMarks}</span>
                     <button onClick={() => grade(s.id)} className="btn-primary text-xs">Grade</button>
                   </div>

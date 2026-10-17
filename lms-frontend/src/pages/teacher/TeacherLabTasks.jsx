@@ -3,7 +3,7 @@ import {
   FlaskConical, Users, Calendar, Award, CheckCircle2, Clock,
   Search, Filter, Plus, X, Trash2, Save, Download, FileText, BookOpen, Layers,
 } from "lucide-react";
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import PageHeader from "../../components/common/PageHeader";
 import Badge from "../../components/common/Badge";
@@ -420,17 +420,24 @@ function SubmissionsModal({ task, onClose, onGraded }) {
   const [savingAll, setSavingAll] = useState(false);
   const [viewingId, setViewingId] = useState(null);
   const [marks, setMarks] = useState({});
+  // Section 4 — rows the teacher has typed into but not yet saved. A reload
+  // (after saving ANOTHER row) must never overwrite these values.
+  const dirtyRef = useRef(new Set());
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const res = await api.teacher.labTaskSubmissions(task.id);
       setRows(res.submissions || []);
-      const m = {};
-      for (const r of res.submissions || []) m[r.studentId] = r.submission?.marks ?? "";
-      setMarks(m);
+      setMarks((prev) => {
+        const m = {};
+        for (const r of res.submissions || []) {
+          m[r.studentId] = dirtyRef.current.has(r.studentId) ? prev[r.studentId] : (r.submission?.marks ?? "");
+        }
+        return m;
+      });
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [task.id]);
 
@@ -442,7 +449,8 @@ function SubmissionsModal({ task, onClose, onGraded }) {
     setSavingId(studentId);
     try {
       await api.teacher.saveLabTaskMarks(task.id, studentId, { marks: parseFloat(val) });
-      await load();
+      dirtyRef.current.delete(studentId);
+      await load({ silent: true });
       onGraded && onGraded();
       toast("Marks saved", { type: "success" });
     } catch (e) {
@@ -464,12 +472,13 @@ function SubmissionsModal({ task, onClose, onGraded }) {
     for (const [studentId, v] of entries) {
       try {
         await api.teacher.saveLabTaskMarks(task.id, studentId, { marks: parseFloat(v) });
+        dirtyRef.current.delete(studentId);
         ok += 1;
       } catch (e) {
         failed.push(studentId);
       }
     }
-    await load();
+    await load({ silent: true });
     onGraded && onGraded();
     setSavingAll(false);
     if (failed.length === 0) toast(`Saved marks for ${ok} student${ok === 1 ? "" : "s"}`, { type: "success" });
@@ -559,7 +568,7 @@ function SubmissionsModal({ task, onClose, onGraded }) {
                         <input
                           type="number" min="0" max={task.totalMarks}
                           value={marks[r.studentId] ?? ""}
-                          onChange={(e) => setMarks((m) => ({ ...m, [r.studentId]: e.target.value }))}
+                          onChange={(e) => { dirtyRef.current.add(r.studentId); setMarks((m) => ({ ...m, [r.studentId]: e.target.value })); }}
                           className="input-base w-20 text-sm" placeholder="—"
                         />
                       </td>
