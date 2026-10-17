@@ -701,26 +701,126 @@ router.put('/enrollments/:id/action', FOCAL, validate([
   res.json({ registration: updated });
 }));
 
-// Promotions — students eligible to advance (computed from published GPA).
-router.get('/promotions', FOCAL_OR_GOV, asyncHandler(async (req, res) => {
-  const results = await prisma.courseResult.findMany({
-    where: { status: 'PUBLISHED', ...byOfferingWhere(req.scope) },
-    include: {
-      student: { select: { id: true, username: true, profile: { select: { fullName: true, session: true, program: true } } } },
-      offering: { include: { course: { select: { creditHours: true } } } },
-    },
-  });
-  const byStudent = {};
-  for (const r of results) {
-    const sid = r.studentId;
-    if (!byStudent[sid]) byStudent[sid] = { studentId: sid, roll: r.student.username, name: displayName(r.student), session: r.student.profile ? r.student.profile.session : null, program: r.student.profile ? r.student.profile.program : null, results: [] };
-    byStudent[sid].results.push({ gradePoints: r.gradePoints, creditHours: r.offering.course.creditHours, percent: r.totalPercent });
+// ============================================================
+// SEMESTER PROMOTION (Sections 10 + 11) — AUST rules engine.
+// Lists: eligible (Eligible / On Probation / Last Probation),
+// failed (Failed courses / Repeat semester), dropped (Dropped /
+// Removed) and pending (results not fully declared). One-click
+// single or bulk promotion auto-enrols into the next semester's
+// Scheme of Study courses; failed courses stay visible as "Failed"
+// and are marked for the Special Exam. Department-scoped.
+// ============================================================
+const promotionSvc = require('../../../services/promotionService');
+
+function filterPromotionRows(rows, q) {
+  let out = rows;
+  if (q.department) out = out.filter((r) => r.department === q.department);
+  if (q.program) out = out.filter((r) => r.program === q.program);
+  if (q.semester) out = out.filter((r) => String(r.semester) === String(q.semester));
+  if (q.q) {
+    const s = String(q.q).toLowerCase();
+    out = out.filter((r) => [r.name, r.roll].some((v) => String(v || '').toLowerCase().includes(s)));
   }
-  const students = Object.values(byStudent).map((s) => {
-    const { gpa, failing } = studentRisk(s.results);
-    return { studentId: s.studentId, roll: s.roll, name: s.name, session: s.session, program: s.program, gpa, courses: s.results.length, failing, eligible: gpa >= 2.0 && failing === 0, status: gpa >= 2.0 && failing === 0 ? 'Eligible' : 'Pending' };
-  }).sort((a, b) => b.gpa - a.gpa);
-  res.json({ promotions: students });
+  return out;
+}
+
+router.get('/promotions', FOCAL_OR_GOV, asyncHandler(async (req, res) => {
+  const scopeIds = req.scope.unscoped ? null : req.scope.studentIds;
+  const { rows, settings } = await promotionSvc.buildPromotionList({ studentIds: scopeIds });
+  const filtered = filterPromotionRows(rows, req.query);
+  const lists = { eligible: [], failed: [], dropped: [], pending: [] };
+  for (const r of filtered) (lists[r.list] || lists.pending).push(r);
+  const distinct = (k) => [...new Set(rows.map((r) => r[k]).filter((v) => v != null && v !== ''))].sort();
+  res.json({
+    lists,
+    promotions: filtered, // back-compat flat list
+    stats: Object.fromEntries(Object.entries(lists).map(([k, v]) => [k, v.length])),
+    filters: { departments: distinct('department'), programs: distinct('program'), semesters: distinct('semester').map(Number).sort((a, b) => a - b) },
+    settings,
+  });
+}));
+
+router.post('/promotions/apply', FOCAL, validate([
+  body('studentIds').isArray({ min: 1, max: 500 }).withMessage('Select at least one student.'),
+]), asyncHandler(async (req, res) => {
+  const ids = [...new Set(req.body.studentIds.map(String))];
+  if (!req.scope.unscoped) {
+    const allowed = new Set(req.scope.studentIds);
+    if (ids.some((id) => !allowed.has(id))) throw httpError(403, 'One or more students are outside your department.');
+  }
+  const { rows } = await promotionSvc.buildPromotionList({ studentIds: ids });
+  const results = [];
+  for (const id of ids) {
+    const row = rows.find((r) => r.studentId === id);
+    if (!row) { results.push({ studentId: id, skipped: 'not_found' }); continue; }
+    if (row.list === 'pending') { results.push({ studentId: id, skipped: 'results_pending' }); continue; }
+    if (row.decided) { results.push({ studentId: id, skipped: 'already_decided' }); continue; }
+    const r = await promotionSvc.applyDecision(row, req.lmsUser.id);
+    results.push(r);
+    if (!r.skipped) {
+      const msg = row.status === 'DROPPED' || row.status === 'REMOVED'
+        ? `Your semester ${row.semester} result has been finalised: ${row.label}. ${row.reasons.join('; ')}.`
+        : row.status === 'REPEAT'
+          ? `You must repeat semester ${row.semester}: ${row.reasons.join('; ')}.`
+          : `You have been promoted to semester ${r.toSemester} (${row.label}).${row.failedCourses.length ? ` Failed course(s) marked for the Special Exam: ${row.failedCourses.map((f) => f.code).join(', ')}.` : ''}`;
+      await notify(id, { title: 'Semester promotion', message: msg, type: row.list === 'dropped' ? 'WARNING' : 'INFO', link: '/student/results' });
+      realtime.emitTo([id], 'promotion', { outcome: row.status, toSemester: r.toSemester });
+    }
+  }
+  const applied = results.filter((r) => !r.skipped);
+  await audit(req, 'FOCAL_PROMOTION_APPLY', 'LmsPromotionRecord', null, { after: { count: applied.length, results } });
+  realtime.emitTo([req.lmsUser.id], 'promotions:changed', { count: applied.length });
+  res.json({ applied: applied.length, skipped: results.length - applied.length, results });
+}));
+
+router.get('/promotions/history', FOCAL_OR_GOV, asyncHandler(async (req, res) => {
+  const where = req.scope.unscoped ? {} : { studentId: { in: req.scope.studentIds.length ? req.scope.studentIds : ['__none__'] } };
+  const recs = await prisma.lmsPromotionRecord.findMany({ where, orderBy: { createdAt: 'desc' }, take: 300 });
+  const names = await nameMap([...recs.map((r) => r.studentId), ...recs.map((r) => r.decidedById)]);
+  res.json({ items: recs.map((r) => ({ ...r, student: names[r.studentId] || r.studentId, decidedBy: names[r.decidedById] || r.decidedById, failedCourses: safeJson(r.failedCourses, []) })) });
+}));
+
+router.get('/special-exams', FOCAL_OR_GOV, asyncHandler(async (req, res) => {
+  const where = req.scope.unscoped ? {} : { studentId: { in: req.scope.studentIds.length ? req.scope.studentIds : ['__none__'] } };
+  const rows = await prisma.lmsSpecialExamCandidate.findMany({ where, orderBy: { createdAt: 'desc' } });
+  const [names, courses] = await Promise.all([
+    nameMap(rows.map((r) => r.studentId)),
+    prisma.lmsCourse.findMany({ where: { id: { in: [...new Set(rows.map((r) => r.courseId))] } }, select: { id: true, code: true, title: true, creditHours: true } }),
+  ]);
+  const cBy = new Map(courses.map((c) => [c.id, c]));
+  const term = await prisma.academicTerm.findFirst({ where: { isCurrent: true, isActive: true } });
+  const offs = term && courses.length ? await prisma.courseOffering.findMany({ where: { termId: term.id, isDeleted: false, courseId: { in: courses.map((c) => c.id) } }, select: { id: true, courseId: true } }) : [];
+  res.json({ items: rows.map((r) => ({ ...r, student: names[r.studentId] || r.studentId, course: cBy.get(r.courseId) || null, availableOfferingId: offs.find((o) => o.courseId === r.courseId)?.id || null })) });
+}));
+
+// Enrol a marked student into the course's current-term offering for the
+// Special Exam (registrationType RETAKE). Only additive.
+router.post('/special-exams/:id/enroll', FOCAL, asyncHandler(async (req, res) => {
+  const cand = await prisma.lmsSpecialExamCandidate.findUnique({ where: { id: parseInt(req.params.id, 10) } });
+  if (!cand) throw httpError(404, 'Special exam candidate not found');
+  if (!req.scope.unscoped && !req.scope.studentIds.includes(cand.studentId)) throw httpError(403, 'Student is outside your department.');
+  if (cand.status !== 'MARKED') throw httpError(409, `Already ${cand.status.toLowerCase()}.`);
+  const term = await prisma.academicTerm.findFirst({ where: { isCurrent: true, isActive: true } });
+  const off = term ? await prisma.courseOffering.findFirst({ where: { termId: term.id, isDeleted: false, courseId: cand.courseId } }) : null;
+  if (!off) throw httpError(409, 'This course has no offering in the current term to attach the Special Exam to.');
+  const existing = await prisma.courseRegistration.findUnique({ where: { offeringId_studentId: { offeringId: off.id, studentId: cand.studentId } } });
+  if (!existing) await prisma.courseRegistration.create({ data: { offeringId: off.id, studentId: cand.studentId, registrationType: 'RETAKE', status: 'ENROLLED' } });
+  else if (existing.status !== 'ENROLLED') await prisma.courseRegistration.update({ where: { id: existing.id }, data: { status: 'ENROLLED', withdrawnAt: null } });
+  const upd = await prisma.lmsSpecialExamCandidate.update({ where: { id: cand.id }, data: { status: 'ENROLLED', examOfferingId: off.id } });
+  await audit(req, 'FOCAL_SPECIAL_EXAM_ENROLL', 'LmsSpecialExamCandidate', cand.id, { after: { offeringId: off.id } });
+  await notify(cand.studentId, { title: 'Special Exam enrolment', message: 'You have been enrolled for the Special Exam of a failed course.', type: 'INFO', link: '/student/courses' });
+  res.json({ candidate: upd });
+}));
+
+router.get('/promotion-settings', FOCAL_OR_GOV, asyncHandler(async (req, res) => {
+  res.json({ settings: await promotionSvc.getSettings() });
+}));
+
+router.put('/promotion-settings', FOCAL, asyncHandler(async (req, res) => {
+  const before = await promotionSvc.getSettings();
+  const settings = await promotionSvc.saveSettings(req.body || {}, req.lmsUser.id);
+  await audit(req, 'FOCAL_PROMOTION_SETTINGS', 'SystemConfiguration', promotionSvc.SETTINGS_KEY, { before, after: settings });
+  res.json({ settings });
 }));
 
 // Retakes — registrations of type RETAKE + failing students.
