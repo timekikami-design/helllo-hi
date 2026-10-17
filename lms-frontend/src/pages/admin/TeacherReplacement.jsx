@@ -315,7 +315,7 @@ const TeacherReplacement = () => {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by teacher, course, section or reason…"
+            placeholder="Search by teacher, course or reason…"
             className="input-base pl-9 py-2 text-sm w-full"
           />
         </div>
@@ -338,7 +338,7 @@ const TeacherReplacement = () => {
               <thead className="bg-slate-50 dark:bg-slate-900/60 border-b border-app">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase text-muted-app">Replacement</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold uppercase text-muted-app">Course / Section</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase text-muted-app">Course</th>
                   <th className="px-4 py-3 text-center text-xs font-bold uppercase text-muted-app">Date / Slot</th>
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase text-muted-app">Reason</th>
                   <th className="px-4 py-3 text-center text-xs font-bold uppercase text-muted-app">Status</th>
@@ -358,7 +358,6 @@ const TeacherReplacement = () => {
                     </td>
                     <td className="px-4 py-3 text-app">
                       {r.courseLabel || <span className="text-muted-app italic">—</span>}
-                      {r.sectionLabel && <p className="text-xs text-muted-app">Section {r.sectionLabel}</p>}
                     </td>
                     <td className="px-4 py-3 text-center text-muted-app">
                       {r.date || "—"}<br />

@@ -266,17 +266,17 @@ const FeeRecords = () => {
                           {allSelected ? <CheckSquare size={16} /> : <Square size={16} />}
                         </button>
                       </th>
-                      <th className="py-3 px-4">Student</th><th className="py-3 px-4">Program</th><th className="py-3 px-4">Sem / Sec</th>
+                      <th className="py-3 px-4">Student</th><th className="py-3 px-4">Program</th><th className="py-3 px-4">Semester</th>
                       <th className="py-3 px-4 text-right">Paid</th><th className="py-3 px-4 text-right">Pending</th><th className="py-3 px-4">Status</th><th className="py-3 px-4 text-right">Actions</th>
                     </>
                   ) : tab === "students" ? (
                     <>
-                      <th className="py-3 px-4">Student</th><th className="py-3 px-4">Program</th><th className="py-3 px-4">Sem / Sec</th>
+                      <th className="py-3 px-4">Student</th><th className="py-3 px-4">Program</th><th className="py-3 px-4">Semester</th>
                       <th className="py-3 px-4 text-right">Paid</th><th className="py-3 px-4 text-right">Pending</th><th className="py-3 px-4">Status</th><th className="py-3 px-4 text-right">Actions</th>
                     </>
                   ) : tab === "blocked" ? (
                     <>
-                      <th className="py-3 px-4">Student</th><th className="py-3 px-4">Reason</th><th className="py-3 px-4">Sem / Sec</th>
+                      <th className="py-3 px-4">Student</th><th className="py-3 px-4">Reason</th><th className="py-3 px-4">Semester</th>
                       <th className="py-3 px-4">Blocked At</th><th className="py-3 px-4 text-right">Actions</th>
                     </>
                   ) : (
