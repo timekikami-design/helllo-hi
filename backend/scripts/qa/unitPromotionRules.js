@@ -55,6 +55,10 @@ eq(evaluate({ semester: 3, semesters: [...good3.slice(0, 2), S(3, [c(80), c(80),
 eq(evaluate({ semester: 1, semesters: [S(1, [c(50), c(50), c(50), c(50), c(50)])] }).failedCourses.length, 0, 'exactly 50% is a pass');
 eq(evaluate({ semester: 1, semesters: [S(1, [c(50), c(50), c(50), c(50), c(49.4)])] }).failedCourses.length, 1, '49.4% is a fail');
 
+const light = [c(80), c(80), c(80), c(80, 2)]; // 11-credit semester
+eq(evaluate({ semester: 1, semesters: [S(1, light)], semesterLoad: 11 }).status, 'ELIGIBLE', '11-credit semester fully passed → Eligible (threshold = load)');
+eq(evaluate({ semester: 1, semesters: [S(1, [c(80), c(80), c(80), c(40, 2)])], semesterLoad: 11 }).status, 'REPEAT', '11-credit semester with 9 cr passed → Repeat semester');
+eq(evaluate({ semester: 1, semesters: [S(1, [...semOf(5, 75), c(40)])], semesterLoad: 18 }).minCh, 12, '18-credit semester keeps the 12-credit rule');
 console.log('Professional-subject exception (configurable)');
 const prof = [S(1, [c(90), c(90), c(90), c(45, 3, { isProfessional: true }), c(45)])];
 eq(evaluate({ semester: 1, semesters: prof }).status, 'REPEAT', 'exception OFF: professional fail counts against credit hours');

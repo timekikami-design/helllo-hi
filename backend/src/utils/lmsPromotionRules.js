@@ -12,11 +12,14 @@
 //                     letterGrade, isProfessional}] }
 //    priorProbations number of probation terms already served
 //    maxSemesters   maximum duration of the program in semesters
+//    semesterLoad   credit hours of the semester in the Scheme of Study
 //
 //  Rules (spec):
 //   • Course pass = ≥ 50 % (lmsGrading.PASS_PERCENT).
 //   • Semester pass = credit hours PASSED ≥ 12 in semesters 1–2,
-//     ≥ 9 in semesters 3–8.
+//     ≥ 9 in semesters 3–8. If the semester's own scheme load is below
+//     that threshold (e.g. an 11-credit semester), every credit hour of
+//     the semester must be passed (threshold = min(rule, load)).
 //   • 1 → 2 on GPA, 2 → 3 on CGPA:
 //        ≥ 2.00 promoted · 1.50–1.99 probation · < 1.50 dropped.
 //   • Probation: first probation after semester 1; LAST probation if
@@ -74,15 +77,17 @@ function semesterCredits(courses, settings) {
  *   value:number,passedCh:number,minCh:number,failedCourses:Array,probations:number,
  *   nextSemester:number|null,reasons:string[]}}
  */
-function evaluate({ semester, semesters, priorProbations = 0, maxSemesters = 8, settings = {} }) {
+function evaluate({ semester, semesters, priorProbations = 0, maxSemesters = 8, settings = {}, semesterLoad = null }) {
   const cfg = { ...DEFAULT_SETTINGS, ...settings };
   const sem = Number(semester);
   const current = semesters.find((s) => Number(s.semester) === sem) || { courses: [] };
   const upTo = semesters.filter((s) => Number(s.semester) <= sem);
   const gpa = computeGPA(current.courses);
   const cgpa = computeGPA(upTo.flatMap((s) => s.courses));
-  const { passedCh } = semesterCredits(current.courses, cfg);
-  const minCh = sem <= 2 ? cfg.minPassCreditsEarly : cfg.minPassCreditsLate;
+  const { passedCh, attemptedCh } = semesterCredits(current.courses, cfg);
+  const ruleCh = sem <= 2 ? cfg.minPassCreditsEarly : cfg.minPassCreditsLate;
+  const loadCh = Number(semesterLoad) > 0 ? Number(semesterLoad) : attemptedCh;
+  const minCh = Math.min(ruleCh, loadCh);
   const failedCourses = current.courses.filter((c) => !passed(c)).map((c) => ({
     courseId: c.courseId, code: c.code, title: c.title, creditHours: c.creditHours,
     percent: c.percent, isProfessional: !!c.isProfessional,

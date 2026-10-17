@@ -60,7 +60,7 @@ async function buildPromotionList({ studentIds = null } = {}) {
     select: { id: true, username: true, profile: { select: { fullName: true, rollNumber: true, programShortForm: true, program: true, department: true, session: true } } },
   });
   const ids = students.map((s) => s.id);
-  const [results, standings, programs, specials] = await Promise.all([
+  const [results, standings, programs, specials, records] = await Promise.all([
     prisma.courseResult.findMany({
       where: { studentId: { in: ids }, workflowStage: { in: DECLARED } },
       include: { offering: { include: { course: { include: { semester: true, program: true } } } } },
@@ -68,6 +68,7 @@ async function buildPromotionList({ studentIds = null } = {}) {
     prisma.lmsStudentStanding.findMany({ where: { studentId: { in: ids } } }),
     prisma.lmsProgram.findMany({ where: { isDeleted: false } }),
     prisma.lmsSpecialExamCandidate.findMany({ where: { studentId: { in: ids } } }),
+    prisma.lmsPromotionRecord.findMany({ where: { studentId: { in: ids } }, orderBy: { createdAt: 'desc' } }),
   ]);
   const standingBy = new Map(standings.map((s) => [s.studentId, s]));
   const progBy = new Map(programs.map((p) => [p.shortForm || p.code, p]));
@@ -82,6 +83,7 @@ async function buildPromotionList({ studentIds = null } = {}) {
       courseId: r.offering.course.id, offeringId: r.offeringId, code: r.offering.course.code, title: r.offering.course.title,
       creditHours: r.offering.course.creditHours, percent: r.totalPercent, gradePoints: r.gradePoints, letterGrade: r.letterGrade,
       isProfessional: profCodes.has(String(r.offering.course.code).toUpperCase()),
+      resultAt: r.updatedAt,
     });
   }
 
@@ -106,19 +108,28 @@ async function buildPromotionList({ studentIds = null } = {}) {
     }
     const thisSem = semesters.find((x) => x.semester === current);
     // Every scheme course of the current semester must have a declared result.
-    let expected = 0;
+    let expected = 0; let semesterLoad = null;
     if (program) {
       const { courseIds } = await resolveSemesterCourseIds(program.id, current, await prisma.lmsSemester.findFirst({ where: { programId: program.id, number: current, isDeleted: false }, include: { courses: { where: { isDeleted: false } } } }));
       expected = courseIds.length;
+      if (courseIds.length) {
+        const cs = await prisma.lmsCourse.findMany({ where: { id: { in: courseIds } }, select: { creditHours: true } });
+        semesterLoad = cs.reduce((a, x) => a + (Number(x.creditHours) || 0), 0);
+      }
     }
     if (!thisSem || (expected && thisSem.courses.length < expected)) {
       rows.push({ ...base, status: 'PENDING', label: 'Results pending', list: 'pending', declared: thisSem ? thisSem.courses.length : 0, expected, gpa: null, cgpa: null, failedCourses: [], reasons: ['Semester results are not fully declared yet'] });
       continue;
     }
-    const ev = rules.evaluate({ semester: current, semesters, priorProbations: standing?.probations || 0, maxSemesters, settings });
+    const ev = rules.evaluate({ semester: current, semesters, priorProbations: standing?.probations || 0, maxSemesters, settings, semesterLoad });
     const sp = specials.filter((x) => x.studentId === s.id);
+    // Already decided for this semester (e.g. Repeat) with no newer result since?
+    const latestResult = Math.max(...thisSem.courses.map((x) => new Date(x.resultAt).getTime()));
+    const prev = records.find((x) => x.studentId === s.id && x.fromSemester === current);
+    const decided = !!(prev && new Date(prev.createdAt).getTime() >= latestResult);
     rows.push({
-      ...base, ...ev, list: rules.listOf(ev.status), promotable: rules.PROMOTABLE.includes(ev.status),
+      ...base, ...ev, list: rules.listOf(ev.status), promotable: rules.PROMOTABLE.includes(ev.status), decided,
+      decidedAt: decided ? prev.createdAt : null,
       failedCourses: ev.failedCourses.map((f) => ({ ...f, specialExam: sp.find((x) => x.courseId === f.courseId)?.status || null })),
       specialExams: sp.map((x) => ({ courseId: x.courseId, semester: x.semester, status: x.status })),
     });
