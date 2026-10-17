@@ -64,16 +64,21 @@ async function request(path, { method = 'GET', body, token } = {}) {
 //   → POST /api/lms/auth/login
 //   → on full-token success: save token + role to localStorage
 //   → returns the raw response so callers can branch on requiresPasswordChange
-async function login(username, password) {
+async function login(username, password, captcha = {}) {
   const data = await request('/lms/auth/login', {
     method: 'POST',
-    body: { username, password },
+    body: { username, password, captchaId: captcha.captchaId, captchaAnswer: captcha.captchaAnswer },
   });
   if (data && data.token) {
     localStorage.setItem(TOKEN_KEY, data.token);
     localStorage.setItem(ROLE_KEY, data.role);
   }
   return data;
+}
+
+// getCaptcha() — Section 1: fresh server-generated LMS login captcha.
+async function getCaptcha() {
+  return request(`/lms/auth/captcha?_t=${Date.now()}`);
 }
 
 // logout()
@@ -148,6 +153,7 @@ function clearTempToken() { sessionStorage.removeItem(TEMP_TOKEN_KEY); }
 
 const authService = {
   login,
+  getCaptcha,
   logout,
   getToken,
   getRole,

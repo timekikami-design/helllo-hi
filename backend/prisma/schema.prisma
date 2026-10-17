@@ -3299,3 +3299,18 @@ model LmsDepartmentCoordinator {
   @@index([departmentId])
   @@index([lmsUserId])
 }
+
+// ============================================================
+// LMS CAPTCHA CHALLENGE (Section 1) — LMS-only, independent of the
+// Admissions `CaptchaChallenge` table. Server-generated, server-verified,
+// single-use, short-lived. Additive.
+// ============================================================
+model LmsCaptchaChallenge {
+  id         String   @id
+  answerHash String
+  used       Boolean  @default(false)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([expiresAt])
+}

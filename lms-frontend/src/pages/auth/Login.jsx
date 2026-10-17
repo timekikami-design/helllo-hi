@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   User, Lock, Eye, EyeOff, ArrowRight,
-  CheckCircle2, ShieldCheck as ShieldIcon, Lock as LockIcon,
+  CheckCircle2, ShieldCheck as ShieldIcon, Lock as LockIcon, RotateCw,
 } from "lucide-react";
 import ThemeToggle from "../../components/common/ThemeToggle";
 import { useAuth, BACKEND_ROLE_TO_FRONTEND } from "../../context/AuthContext";
@@ -53,6 +53,25 @@ const Login = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  // Section 1 — server-generated, single-use LMS login captcha.
+  const [captcha, setCaptcha] = useState({ captchaId: "", question: "" });
+  const [captchaAnswer, setCaptchaAnswer] = useState("");
+  const [captchaLoading, setCaptchaLoading] = useState(true);
+  const [captchaError, setCaptchaError] = useState("");
+  const refreshCaptcha = useCallback(async () => {
+    setCaptchaLoading(true);
+    setCaptchaAnswer("");
+    try {
+      const c = await authService.getCaptcha();
+      setCaptcha({ captchaId: c.captchaId, question: c.question });
+    } catch (e) {
+      setCaptcha({ captchaId: "", question: "" });
+      setCaptchaError("Could not load the security check. Click refresh to try again.");
+    } finally {
+      setCaptchaLoading(false);
+    }
+  }, []);
+  useEffect(() => { refreshCaptcha(); }, [refreshCaptcha]);
   const { login } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -63,9 +82,16 @@ const Login = () => {
       toast("Please enter your username and password.", { type: "error" });
       return;
     }
+    if (!captcha.captchaId || !captchaAnswer.trim()) {
+      setCaptchaError("Please solve the security check to continue.");
+      toast("Please solve the security check (captcha) to continue.", { type: "error" });
+      if (!captcha.captchaId) refreshCaptcha();
+      return;
+    }
+    setCaptchaError("");
     setLoading(true);
     try {
-      const data = await authService.login(username.trim(), password);
+      const data = await authService.login(username.trim(), password, { captchaId: captcha.captchaId, captchaAnswer: captchaAnswer.trim() });
 
       // Forced first-login password change.
       if (data && data.requiresPasswordChange) {
@@ -106,6 +132,10 @@ const Login = () => {
     } catch (err) {
       // Surface the backend error message through the existing toast UI.
       toast(err.message || "Invalid credentials.", { type: "error", title: "Login Failed" });
+      if (err.data && err.data.code === "CAPTCHA_INVALID") setCaptchaError(err.message);
+      // The challenge is single-use (consumed server-side on every attempt) —
+      // always issue a fresh one after a failed login.
+      refreshCaptcha();
     } finally {
       setLoading(false);
     }
@@ -238,6 +268,32 @@ const Login = () => {
                         {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                       </button>
                     </div>
+                  </div>
+
+                  {/* Security check (captcha) — Section 1 */}
+                  <div>
+                    <label htmlFor="captchaAnswer" className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted-app block mb-1">
+                      Security Check
+                    </label>
+                    <div className="flex items-stretch gap-2">
+                      <div data-testid="captcha-question" aria-live="polite"
+                        className="flex-1 min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 px-3 py-2.5 text-[13px] font-semibold text-app select-none tracking-wide">
+                        {captchaLoading ? "Loading…" : (captcha.question || "Unavailable")}
+                      </div>
+                      <button type="button" onClick={refreshCaptcha} disabled={captchaLoading || loading}
+                        aria-label="Get a new security question" title="Get a new question"
+                        className="px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-primary-600 disabled:opacity-50">
+                        <RotateCw size={15} className={captchaLoading ? "animate-spin" : ""} />
+                      </button>
+                      <input id="captchaAnswer" type="text" inputMode="numeric" autoComplete="off"
+                        value={captchaAnswer}
+                        onChange={(e) => { setCaptchaAnswer(e.target.value.replace(/[^\d-]/g, "")); setCaptchaError(""); }}
+                        placeholder="Answer" aria-invalid={!!captchaError}
+                        className={`input-base !w-28 px-3 py-2.5 rounded-xl shadow-sm text-center ${captchaError ? "border-rose-400" : ""}`} />
+                    </div>
+                    {captchaError && (
+                      <p role="alert" data-testid="captcha-error" className="text-[11.5px] text-rose-600 dark:text-rose-400 mt-1">{captchaError}</p>
+                    )}
                   </div>
 
                   {/* Remember + forgot */}

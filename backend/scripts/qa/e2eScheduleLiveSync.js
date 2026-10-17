@@ -3,7 +3,7 @@ const BASE = process.argv.slice(2).find((a) => /^https?:/.test(a)) || 'http://lo
 const API = `${BASE}/api/lms/academic`;
 let pass = 0; let fail = 0;
 const ok = (c, m, x) => { if (c) { pass += 1; console.log('  ✔', m); } else { fail += 1; console.log('  ✘', m, x !== undefined ? JSON.stringify(x).slice(0, 300) : ''); } };
-const login = async (u) => (await (await fetch(`${BASE}/api/lms/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: 'Lms@1234' }) })).json()).token;
+const login = async (u) => (await require('./lmsLogin').lmsLogin(BASE, u)).token;
 const call = async (t, m, p, b) => { const r = await fetch(`${API}${p}`, { method: m, headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' }, body: b ? JSON.stringify(b) : undefined }); return { status: r.status, data: await r.json().catch(() => null) }; };
 const localHM = (d) => { const x = new Date(new Date(d).getTime() + 300 * 60000); return { dow: x.getUTCDay(), hm: `${String(x.getUTCHours()).padStart(2, '0')}:${String(x.getUTCMinutes()).padStart(2, '0')}` }; };
 (async () => {

@@ -22,8 +22,7 @@ function routesOf(prefix) {
 }
 (async () => {
   for (const [role, prefixes] of Object.entries(ROUTERS)) {
-    const r = await fetch(`${BASE}/api/lms/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: USERS[role], password: 'Lms@1234' }) });
-    const j = await r.json();
+    const j = await require('./lmsLogin').lmsLogin(BASE, USERS[role]);
     if (!j.token) { console.log(role, 'LOGIN_FAILED', JSON.stringify(j).slice(0, 120)); continue; }
     for (const p of prefixes) for (const route of routesOf(p)) {
       const res = await fetch(`${BASE}/api/lms/academic/${p}${route}`, { headers: { Authorization: `Bearer ${j.token}` } });
