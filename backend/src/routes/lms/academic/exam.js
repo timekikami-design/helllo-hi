@@ -26,6 +26,7 @@ const { audit } = require('../../../utils/lmsAudit');
 const { notify, notifyMany } = require('../../../utils/lmsNotify');
 const { computeGPA, gradeFromPercent, buildResultGrades, PASS_PERCENT } = require('../../../utils/lmsGrading');
 const { displayName, nameMap } = require('../../../utils/lmsWorkflow');
+const realtime = require('../../../utils/lmsRealtime');
 const { uploadExamPaper, uploadExamProfilePhoto } = require('../../../middleware/upload');
 
 const router = express.Router();
@@ -1064,7 +1065,7 @@ router.get('/reports/:kind', EXAM_OR_GOV, asyncHandler(async (req, res) => {
     if (semester) rows = rows.filter((r) => String(r.semester) === String(semester));
     if (session) rows = rows.filter((r) => r.session === session);
     if (batch) rows = rows.filter((r) => String(r.batch) === String(batch));
-    return res.json({ report: 'incomplete', rows, departments });
+    return res.json({ report: 'incomplete', term: term?.title || null, rows, departments });
   }
 
   if (kind === 'absentees') {
@@ -2325,25 +2326,71 @@ router.get('/quick-messages', EXAM_OR_GOV, asyncHandler(async (req, res) => {
   });
 }));
 
-router.post('/quick-messages', EXAM, validate([
-  body('recipientId').isString().notEmpty(),
-  body('body').isString().notEmpty(),
-]), asyncHandler(async (req, res) => {
-  const { recipientId, subject, body: text } = req.body;
+/**
+ * Deliver one Exam Controller → Teacher reminder: persists the thread
+ * message, creates the bell notification (deep-linked to the course marks
+ * tab when an offering is given) and pushes it live over the teacher SSE.
+ */
+async function sendExamReminder(req, { recipientId, offeringId, subject, body: text }) {
   const recipient = await prisma.lmsUser.findUnique({ where: { id: recipientId } });
   if (!recipient) throw httpError(404, 'Recipient not found');
+  let offering = null;
+  if (offeringId != null && offeringId !== '') {
+    offering = await prisma.courseOffering.findUnique({
+      where: { id: Number(offeringId) },
+      include: { course: { include: { program: true, semester: true } } },
+    });
+    if (!offering || offering.isDeleted) throw httpError(404, 'Course offering not found');
+    if (offering.teacherId !== recipientId) throw httpError(400, 'This teacher is not assigned to the selected course');
+  }
+  const courseLabel = offering?.course ? `${offering.course.code} ${offering.course.title}` : null;
+  const ctx = offering ? {
+    offeringId: offering.id,
+    course: courseLabel,
+    program: offering.course?.program?.shortForm || offering.course?.program?.code || null,
+    semester: offering.course?.semester ? String(offering.course.semester.number) : null,
+  } : null;
+  const title = (subject && String(subject).trim()) || (courseLabel ? `Incomplete result: ${courseLabel}` : 'Pending marks reminder');
+  const link = offering ? `/teacher/offerings/${offering.id}?tab=marks&scope=marks` : '/teacher/results-submission';
   const msg = await prisma.lmsThreadMessage.create({
-    data: {
-      senderId: req.lmsUser.id, recipientId, subject: subject || 'Pending marks reminder',
-      body: text, category: 'EXAM_REMINDER',
-    },
+    data: { senderId: req.lmsUser.id, recipientId, subject: title, body: text, category: 'EXAM_REMINDER' },
   });
-  await notify(recipientId, {
-    title: subject || 'Pending marks reminder',
-    message: text, type: 'WARNING',
+  const notif = await notify(recipientId, { title, message: text, type: 'WARNING', link });
+  realtime.emitTo([recipientId], 'notification', {
+    id: notif?.id || null, title, message: text, type: 'WARNING', link,
+    isRead: false, createdAt: notif?.createdAt || new Date(), context: ctx,
   });
-  await audit(req, 'EXAM_QUICK_MESSAGE', 'LmsThreadMessage', String(msg.id), { after: { recipientId } });
+  await audit(req, 'EXAM_QUICK_MESSAGE', 'LmsThreadMessage', String(msg.id), { after: { recipientId, offeringId: ctx?.offeringId || null } });
+  return msg;
+}
+
+router.post('/quick-messages', EXAM, validate([
+  body('recipientId').isString().notEmpty(),
+  body('body').isString().trim().notEmpty(),
+]), asyncHandler(async (req, res) => {
+  const msg = await sendExamReminder(req, req.body);
   res.status(201).json({ message: msg });
+}));
+
+// Send reminders to a whole group (every teacher/course of a program ›
+// semester group). Items are delivered independently; one failure never
+// aborts the rest and is reported per item.
+router.post('/quick-messages/bulk', EXAM, validate([
+  body('items').isArray({ min: 1, max: 500 }),
+  body('items.*.recipientId').isString().notEmpty(),
+  body('items.*.body').isString().trim().notEmpty(),
+]), asyncHandler(async (req, res) => {
+  const results = [];
+  for (const it of req.body.items) {
+    try {
+      const msg = await sendExamReminder(req, it);
+      results.push({ recipientId: it.recipientId, offeringId: it.offeringId ?? null, ok: true, id: msg.id });
+    } catch (e) {
+      results.push({ recipientId: it.recipientId, offeringId: it.offeringId ?? null, ok: false, error: e.message });
+    }
+  }
+  const sent = results.filter((r) => r.ok).length;
+  res.status(201).json({ sent, failed: results.length - sent, results });
 }));
 
 // Teachers who have offerings with pending (incomplete / unpublished) results.

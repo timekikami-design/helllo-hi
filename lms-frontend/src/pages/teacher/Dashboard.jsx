@@ -11,6 +11,7 @@ import EmptyState from "../../components/common/EmptyState";
 import useApi from "../../hooks/useApi";
 import api from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
+import IncompleteResultsPanel from "../../components/teacher/IncompleteResultsPanel";
 
 const FEATURES = [
   { label: "My Courses", icon: BookOpen, to: "/teacher/subjects", color: "from-blue-500 to-indigo-600" },
@@ -52,6 +53,8 @@ const TeacherDashboard = () => {
             <StatCard title="Pending Grading" value={stats.pendingGrading ?? 0} icon="ClipboardCheck" color="amber" delay={0.1} onClick={() => navigate("/teacher/assignments")} />
             <StatCard title="Quiz Reviews" value={stats.pendingQuizGrading ?? 0} icon="FileQuestion" color="purple" delay={0.15} onClick={() => navigate("/teacher/quizzes")} />
           </div>
+
+          <IncompleteResultsPanel />
 
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 mb-6">
             <h3 className="font-display font-bold text-lg text-slate-900 dark:text-slate-100 mb-4">Quick Actions</h3>
