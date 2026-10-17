@@ -563,7 +563,14 @@ const focal = {
   // Enrollment lifecycle
   enrollments: () => get('/lms/academic/focal/enrollments'),
   enrollmentAction: (id, body) => put(`/lms/academic/focal/enrollments/${id}/action`, body),
-  promotions: () => get('/lms/academic/focal/promotions'),
+  promotions: (params = '') => get(`/lms/academic/focal/promotions${params}`),
+  // Sections 10 + 11 — AUST promotion rules
+  applyPromotions: (studentIds) => post('/lms/academic/focal/promotions/apply', { studentIds }),
+  promotionHistory: () => get('/lms/academic/focal/promotions/history'),
+  specialExams: () => get('/lms/academic/focal/special-exams'),
+  enrollSpecialExam: (id) => post(`/lms/academic/focal/special-exams/${id}/enroll`),
+  promotionSettings: () => get('/lms/academic/focal/promotion-settings'),
+  savePromotionSettings: (body) => put('/lms/academic/focal/promotion-settings', body),
   retakes: () => get('/lms/academic/focal/retakes'),
   withdraws: () => get('/lms/academic/focal/withdraws'),
   restoreWithdraw: (id) => put(`/lms/academic/focal/withdraws/${id}/restore`),
