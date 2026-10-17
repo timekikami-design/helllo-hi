@@ -8,8 +8,8 @@ const { lmsLogin } = require('../../backend/scripts/qa/lmsLogin.js');
 const API = process.env.QA_BASE || 'http://localhost:5000';
 const UI = process.env.QA_UI || 'http://localhost:3001';
 
-async function openAs(browser, username, p) {
-  const l = await lmsLogin(API, username);
+async function openAs(browser, username, p, password) {
+  const l = await lmsLogin(API, username, password);
   if (!l.token) throw new Error(`login failed ${username} ${JSON.stringify(l)}`);
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
   await ctx.addInitScript(([t, r]) => { localStorage.setItem('lms_token', t); localStorage.setItem('lms_role', r); }, [l.token, l.role]);
