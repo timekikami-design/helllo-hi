@@ -3404,3 +3404,64 @@ model LmsFeeInstallment {
   @@index([studentId])
   @@index([concessionId])
 }
+
+// ============================================================
+// S10/S11 — LMS STUDENT ACADEMIC STANDING. One row per student: the
+// semester they are currently in and their standing (probation count,
+// dropped / removed). Written ONLY by the Focal Person promotion
+// workflow. LMS-only; the Admission System never reads or writes it.
+// ============================================================
+model LmsStudentStanding {
+  id              Int      @id @default(autoincrement())
+  studentId       String   @unique                  // LmsUser.id
+  currentSemester Int
+  // ACTIVE | DROPPED | REMOVED | COMPLETED
+  status          String   @default("ACTIVE")
+  probations      Int      @default(0)
+  noReadmission   Boolean  @default(false)
+  updatedById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+}
+
+// History of every promotion decision (who, when, from → to, outcome).
+model LmsPromotionRecord {
+  id           Int      @id @default(autoincrement())
+  studentId    String
+  fromSemester Int
+  toSemester   Int?
+  // ELIGIBLE | PROBATION | LAST_PROBATION | FAILED_COURSES | REPEAT | DROPPED | REMOVED
+  outcome      String
+  gpa          Float
+  cgpa         Float
+  passedCh     Int
+  failedCourses String  @default("[]")             // JSON [{courseId, code, title, percent}]
+  enrolled     Int      @default(0)                // registrations created in the next semester
+  decidedById  String
+  createdAt    DateTime @default(now())
+
+  @@index([studentId])
+  @@index([fromSemester])
+}
+
+// Failed course carried forward for the Special Exam (S11).
+model LmsSpecialExamCandidate {
+  id           Int      @id @default(autoincrement())
+  studentId    String
+  courseId     Int                                 // LmsCourse.id
+  offeringId   Int?                                // CourseOffering.id it was failed in
+  semester     Int
+  percent      Float
+  // MARKED | ENROLLED | CLEARED
+  status       String   @default("MARKED")
+  examOfferingId Int?                              // offering the Special Exam is attached to
+  markedById   String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([studentId, courseId, semester])
+  @@index([studentId])
+  @@index([status])
+}
