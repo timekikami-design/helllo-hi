@@ -15,7 +15,7 @@ import CascadeFilters, { emptyCascade, applyCascade } from "../../components/com
 
 const EXAM_TYPES = ["MID", "FINAL", "QUIZ", "RETAKE", "SPECIAL"];
 
-const emptyEntry = () => ({ courseCode: "", courseTitle: "", section: "", date: "", startTime: "", endTime: "" });
+const emptyEntry = () => ({ courseCode: "", courseTitle: "", date: "", startTime: "", endTime: "" });
 
 const ExamDatesheets = () => {
   const { toast } = useToast();
@@ -163,7 +163,7 @@ const ExamDatesheets = () => {
   // §1.2 — inline manual entry editing / deleting (DRAFT/PUBLISHED only, not LOCKED).
   const startEdit = (sheetId, e) => {
     setEditing({ sheetId, entryId: e.id });
-    setDraft({ courseCode: e.courseCode || "", courseTitle: e.courseTitle || "", section: e.section || "", date: e.date || "", startTime: e.startTime || "", endTime: e.endTime || "" });
+    setDraft({ courseCode: e.courseCode || "", courseTitle: e.courseTitle || "", date: e.date || "", startTime: e.startTime || "", endTime: e.endTime || "" });
   };
   const cancelEdit = () => { setEditing(null); setDraft(emptyEntry()); };
   const saveEdit = async () => {
@@ -285,7 +285,7 @@ const ExamDatesheets = () => {
                       {d.entries.length === 0 ? <EmptyState message="No slots in this date sheet." /> : (
                         <table className="w-full text-sm">
                           <thead className="surface border-b border-app"><tr>
-                            {["Course", "Semester", "Section", "Date", "Time", isLocked ? null : "Actions"].filter(Boolean).map((h) => <th key={h} className="px-4 py-2 text-left text-[10px] font-bold uppercase text-muted-app">{h}</th>)}
+                            {["Course", "Semester", "Date", "Time", isLocked ? null : "Actions"].filter(Boolean).map((h) => <th key={h} className="px-4 py-2 text-left text-[10px] font-bold uppercase text-muted-app">{h}</th>)}
                           </tr></thead>
                           <tbody className="divide-y divide-app">
                             {d.entries.map((e) => {
@@ -300,7 +300,6 @@ const ExamDatesheets = () => {
                                       </div>
                                     </td>
                                     <td className="px-2 py-1"><span className="text-xs text-muted-app">{e.semester || "—"}</span></td>
-                                    <td className="px-2 py-1"><input value={draft.section} onChange={(ev) => setDraft({ ...draft, section: ev.target.value })} className="input-base text-xs w-16" /></td>
                                     <td className="px-2 py-1"><input type="date" value={draft.date} onChange={(ev) => setDraft({ ...draft, date: ev.target.value })} className="input-base text-xs w-32" /></td>
                                     <td className="px-2 py-1">
                                       <div className="flex gap-1">
@@ -321,7 +320,6 @@ const ExamDatesheets = () => {
                                 <tr key={e.id} className="hover:surface">
                                   <td className="px-4 py-2 text-xs font-semibold text-app">{e.courseCode ? `${e.courseCode} ${e.courseTitle || ""}` : (e.courseTitle || "—")}</td>
                                   <td className="px-4 py-2 text-xs text-app">{e.semester || "—"}</td>
-                                  <td className="px-4 py-2 text-xs text-app">{e.section || "—"}</td>
                                   <td className="px-4 py-2 text-xs text-app">{e.date}</td>
                                   <td className="px-4 py-2 text-xs text-muted-app">{e.startTime || "—"}{e.endTime ? `–${e.endTime}` : ""}</td>
                                   {!isLocked && (
@@ -420,14 +418,13 @@ const ExamDatesheets = () => {
           <div className="border border-app rounded-xl overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="surface border-b border-app"><tr>
-                {["Course Code", "Course Title", "Section", "Date", "Start", "End", ""].map((h) => <th key={h} className="px-2 py-2 text-left text-[10px] font-bold uppercase text-muted-app">{h}</th>)}
+                {["Course Code", "Course Title", "Date", "Start", "End", ""].map((h) => <th key={h} className="px-2 py-2 text-left text-[10px] font-bold uppercase text-muted-app">{h}</th>)}
               </tr></thead>
               <tbody className="divide-y divide-app">
                 {manualEntries.map((row, i) => (
                   <tr key={i}>
                     <td className="px-1 py-1"><input value={row.courseCode} onChange={(e) => updateManualRow(i, "courseCode", e.target.value)} className="input-base text-xs w-24" /></td>
                     <td className="px-1 py-1"><input value={row.courseTitle} onChange={(e) => updateManualRow(i, "courseTitle", e.target.value)} className="input-base text-xs w-32" /></td>
-                    <td className="px-1 py-1"><input value={row.section} onChange={(e) => updateManualRow(i, "section", e.target.value)} className="input-base text-xs w-16" /></td>
                     <td className="px-1 py-1"><input type="date" value={row.date} onChange={(e) => updateManualRow(i, "date", e.target.value)} className="input-base text-xs w-32" /></td>
                     <td className="px-1 py-1"><input type="time" value={row.startTime} onChange={(e) => updateManualRow(i, "startTime", e.target.value)} className="input-base text-xs w-24" /></td>
                     <td className="px-1 py-1"><input type="time" value={row.endTime} onChange={(e) => updateManualRow(i, "endTime", e.target.value)} className="input-base text-xs w-24" /></td>

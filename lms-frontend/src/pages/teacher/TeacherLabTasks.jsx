@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import {
   FlaskConical, Users, Calendar, Award, CheckCircle2, Clock,
-  Search, Filter, Plus, X, Trash2, Save, Download, FileText, BookOpen, Layers,
+  Search, Plus, X, Trash2, Save, Download, FileText, BookOpen, Layers,
 } from "lucide-react";
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -65,7 +65,6 @@ const TeacherLabTasks = () => {
 
   const [search, setSearch] = useState("");
   const [semesterFilter, setSemesterFilter] = useState("all");
-  const [sectionFilter, setSectionFilter] = useState("all");
   const [programFilter, setProgramFilter] = useState("all");
 
   const [createFor, setCreateFor] = useState(null); // offering row for create modal
@@ -82,11 +81,6 @@ const TeacherLabTasks = () => {
     for (const t of labTasks) if (t.program) m[t.program.id] = t.program;
     return Object.values(m);
   }, [labTasks]);
-  const sections = useMemo(() => {
-    const m = {};
-    for (const t of labTasks) for (const s of t.sections || []) m[s.id] = s;
-    return Object.values(m);
-  }, [labTasks]);
 
   // Distinct lab offerings (for the "New Lab Task" course picker).
   // Prefer the dedicated `labOfferings` list from the API — it includes EVERY
@@ -101,7 +95,7 @@ const TeacherLabTasks = () => {
     for (const t of labTasks) {
       if (!m[t.offeringId]) m[t.offeringId] = {
         offeringId: t.offeringId, courseCode: t.courseCode, courseTitle: t.courseTitle,
-        program: t.program, semester: t.semester, sections: t.sections || [],
+        program: t.program, semester: t.semester,
       };
     }
     return Object.values(m);
@@ -119,16 +113,11 @@ const TeacherLabTasks = () => {
     return labTasks.filter((t) => {
       if (semesterFilter !== "all" && String(t.semester?.id) !== semesterFilter) return false;
       if (programFilter !== "all" && String(t.program?.id) !== programFilter) return false;
-      if (sectionFilter !== "all") {
-        const inSection = t.sectionId ? String(t.sectionId) === sectionFilter
-          : (t.sections || []).some((s) => String(s.id) === sectionFilter);
-        if (!inSection) return false;
-      }
       if (preselectedOffering && String(t.offeringId) !== preselectedOffering) return false;
       if (q && !`${t.title} ${t.courseCode} ${t.courseTitle}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [labTasks, search, semesterFilter, programFilter, sectionFilter, preselectedOffering]);
+  }, [labTasks, search, semesterFilter, programFilter, preselectedOffering]);
 
   const clearOfferingFilter = () => { params.delete("offeringId"); setParams(params, { replace: true }); };
 
@@ -136,7 +125,7 @@ const TeacherLabTasks = () => {
     <div>
       <PageHeader
         title="Lab Tasks"
-        subtitle="Upload lab tasks, review submissions and upload marks — filter by semester, section and program"
+        subtitle="Upload lab tasks, review submissions and upload marks — filter by semester and program"
         icon="FlaskConical"
         breadcrumb={["Teacher", "Lab Tasks"]}
         actions={
@@ -168,9 +157,9 @@ const TeacherLabTasks = () => {
             <StatCard title="Pending Grading" value={stats.pending} icon="Clock" color="amber" delay={0.15} />
           </div>
 
-          {/* Filters — Semester / Section / Program (Req 1.2) */}
+          {/* Filters — Semester / Program (Req 1.2) */}
           <div className="card-base p-4 mb-5">
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid sm:grid-cols-3 gap-3">
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-wider text-muted-app block mb-1">Semester</label>
                 <div className="relative">
@@ -178,16 +167,6 @@ const TeacherLabTasks = () => {
                   <select value={semesterFilter} onChange={(e) => setSemesterFilter(e.target.value)} className="input-base w-full pl-9 text-sm">
                     <option value="all">All Semesters</option>
                     {semesters.map((s) => <option key={s.id} value={String(s.id)}>{s.title || `Semester ${s.number}`}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-app block mb-1">Section</label>
-                <div className="relative">
-                  <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-app pointer-events-none" />
-                  <select value={sectionFilter} onChange={(e) => setSectionFilter(e.target.value)} className="input-base w-full pl-9 text-sm">
-                    <option value="all">All Sections</option>
-                    {sections.map((s) => <option key={s.id} value={String(s.id)}>Section {s.name}</option>)}
                   </select>
                 </div>
               </div>
@@ -315,15 +294,12 @@ function CreateLabTaskModal({ offerings, initial, onClose, onSaved }) {
   const [description, setDescription] = useState("");
   const [totalMarks, setTotalMarks] = useState(100);
   const [dueDate, setDueDate] = useState("");
-  const [sectionId, setSectionId] = useState("");
   const [allowLate, setAllowLate] = useState(true);
   const [isPublished, setIsPublished] = useState(true);
   const [file, setFile] = useState(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
-  const currentOffering = offerings.find((o) => String(o.offeringId) === String(offeringId));
-  const availableSections = currentOffering?.sections || [];
 
   const submit = async () => {
     setErr("");
@@ -336,7 +312,6 @@ function CreateLabTaskModal({ offerings, initial, onClose, onSaved }) {
       fd.append("description", description);
       fd.append("totalMarks", String(totalMarks));
       fd.append("dueDate", dueDate);
-      if (sectionId) fd.append("sectionId", sectionId);
       fd.append("allowLate", String(allowLate));
       fd.append("isPublished", String(isPublished));
       if (file) fd.append("file", file);
@@ -360,7 +335,7 @@ function CreateLabTaskModal({ offerings, initial, onClose, onSaved }) {
           {err && <div className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-900/20 rounded-lg p-2">{err}</div>}
           <div>
             <label className="text-xs font-bold text-muted-app block mb-1">Lab Course</label>
-            <select value={offeringId} onChange={(e) => { setOfferingId(e.target.value); setSectionId(""); }} className="input-base w-full text-sm">
+            <select value={offeringId} onChange={(e) => { setOfferingId(e.target.value); }} className="input-base w-full text-sm">
               {offerings.map((o) => <option key={o.offeringId} value={o.offeringId}>{o.courseCode} — {o.courseTitle}</option>)}
             </select>
           </div>
@@ -381,13 +356,6 @@ function CreateLabTaskModal({ offerings, initial, onClose, onSaved }) {
               <label className="text-xs font-bold text-muted-app block mb-1">Due Date</label>
               <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="input-base w-full text-sm" />
             </div>
-          </div>
-          <div>
-            <label className="text-xs font-bold text-muted-app block mb-1">Section (optional)</label>
-            <select value={sectionId} onChange={(e) => setSectionId(e.target.value)} className="input-base w-full text-sm">
-              <option value="">All sections</option>
-              {availableSections.map((s) => <option key={s.id} value={s.id}>Section {s.name}</option>)}
-            </select>
           </div>
           <div>
             <label className="text-xs font-bold text-muted-app block mb-1">Attachment (optional)</label>
@@ -530,7 +498,6 @@ function SubmissionsModal({ task, onClose, onGraded }) {
                   <tr className="text-left text-[10px] uppercase tracking-wider text-muted-app border-b border-app">
                     <th className="py-2 px-2">Roll No</th>
                     <th className="py-2 px-2">Name</th>
-                    <th className="py-2 px-2">Section</th>
                     <th className="py-2 px-2">Submission</th>
                     <th className="py-2 px-2">Marks</th>
                     <th className="py-2 px-2"></th>
@@ -541,7 +508,6 @@ function SubmissionsModal({ task, onClose, onGraded }) {
                     <tr key={r.studentId} className="border-b border-app/60">
                       <td className="py-2 px-2 font-mono text-xs">{r.rollNumber}</td>
                       <td className="py-2 px-2 font-semibold text-app">{r.name}</td>
-                      <td className="py-2 px-2">{r.section || "—"}</td>
                       <td className="py-2 px-2">
                         {r.submission ? (
                           <div className="flex items-center gap-2">

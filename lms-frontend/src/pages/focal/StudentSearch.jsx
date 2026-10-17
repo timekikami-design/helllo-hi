@@ -73,8 +73,6 @@ const StudentSearch = () => {
   const t = detail && !detail.error ? detail : null;
   const cgpa = t?.cgpa ?? 0;
   const semGpa = t?.gpa ?? 0;
-  // Section is captured per-registration; surface the most recent one.
-  const section = t?.enrollmentHistory?.[0]?.section || "—";
   const semester = t?.enrollmentHistory?.[0]?.term || t?.profile?.session || "—";
 
   return (
@@ -158,7 +156,7 @@ const StudentSearch = () => {
               </div>
             </div>
 
-            {/* ---- Identity grid (Req 3: Name, Reg#, Program, Semester, Section, Department …) ---- */}
+            {/* ---- Identity grid (Req 3: Name, Reg#, Program, Semester, Department …) ---- */}
             <Section icon={User} title="Student Profile">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-app">
                 {[
@@ -167,7 +165,6 @@ const StudentSearch = () => {
                   ["Roll #", t.roll],
                   ["Program", t.profile?.program],
                   ["Semester / Session", semester],
-                  ["Section", section],
                   ["Department", t.profile?.department],
                   ["Father", t.profile?.fatherName],
                   ["CNIC", t.profile?.cnic],
@@ -301,11 +298,10 @@ const StudentSearch = () => {
               {(t.enrollmentHistory || []).length === 0 ? <Empty msg="No enrollment records." /> : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-[560px]">
-                    <thead className="bg-slate-50 dark:bg-slate-800/50"><tr><Th>Course</Th><Th>Section</Th><Th>Term</Th><Th>Type</Th><Th>Status</Th><Th>Registered</Th></tr></thead>
+                    <thead className="bg-slate-50 dark:bg-slate-800/50"><tr><Th>Course</Th><Th>Term</Th><Th>Type</Th><Th>Status</Th><Th>Registered</Th></tr></thead>
                     <tbody>{t.enrollmentHistory.map((e, i) => (
                       <tr key={i} className="border-t border-app">
                         <Td className="text-xs">{e.course}</Td>
-                        <Td>{e.section || "—"}</Td>
                         <Td className="text-xs">{e.term || "—"}</Td>
                         <Td className="text-xs">{e.type}</Td>
                         <Td><span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300">{e.status}</span></Td>

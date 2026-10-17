@@ -30,7 +30,6 @@ const ExamGazette = () => {
       department: g.department,
       program: g.programShortForm || g.program,
       semester: g.semester,
-      section: g.section,
     })),
     [allGazettes, cascade]
   );
@@ -49,7 +48,6 @@ const ExamGazette = () => {
     const q = new URLSearchParams();
     if (norm(cascade.program)) q.set("program", norm(cascade.program));
     if (norm(cascade.semester)) q.set("semester", norm(cascade.semester));
-    if (norm(cascade.section)) q.set("section", norm(cascade.section));
     const s = q.toString();
     return s ? `?${s}` : "";
   }, [cascade]);
@@ -63,7 +61,6 @@ const ExamGazette = () => {
         department: norm(cascade.department) || undefined,
         program: norm(cascade.program) || undefined,
         semester: norm(cascade.semester) || undefined,
-        section: norm(cascade.section) || undefined,
       });
       toast?.(`Gazette built — ${res.gazette.totalStudents} student(s), ${res.gazette.passCount} pass`, { type: "success" });
       refreshAll();
@@ -94,8 +91,8 @@ const ExamGazette = () => {
 
   const downloadScope = async () => {
     try {
-      const p = norm(cascade.program), s = norm(cascade.semester), sec = norm(cascade.section);
-      const name = `gazette${p ? `-${p}` : ""}${s ? `-sem${s}` : ""}${sec ? `-${sec}` : ""}.csv`;
+      const p = norm(cascade.program), s = norm(cascade.semester);
+      const name = `gazette${p ? `-${p}` : ""}${s ? `-sem${s}` : ""}.csv`;
       await api.exam.downloadGazette(scopeParams(), name);
       toast?.("Gazette downloaded", { type: "success" });
     } catch (e) { toast?.(e?.message || "Download failed", { type: "error" }); }
@@ -125,9 +122,9 @@ const ExamGazette = () => {
         <CascadeFilters
           value={cascade}
           onChange={setCascade}
-          fields={["department", "program", "semester", "section"]}
+          fields={["department", "program", "semester"]}
           extraRows={allGazettes}
-          rowMap={(g) => ({ department: g.department, program: g.programShortForm || g.program, semester: g.semester, section: g.section })}
+          rowMap={(g) => ({ department: g.department, program: g.programShortForm || g.program, semester: g.semester })}
           showReset
         />
         <div className="flex flex-wrap items-center gap-2 mt-3">
@@ -168,7 +165,7 @@ const ExamGazette = () => {
             <table className="w-full text-sm">
               <thead className="surface border-b border-app">
                 <tr>
-                  {["Title", "Dept", "Program", "Sem", "Sec", "Students", "Pass / Fail", "Status", "Actions"].map((h) => (
+                  {["Title", "Dept", "Program", "Sem", "Students", "Pass / Fail", "Status", "Actions"].map((h) => (
                     <th key={h} className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-muted-app">{h}</th>
                   ))}
                 </tr>
@@ -180,7 +177,6 @@ const ExamGazette = () => {
                     <td className="px-3 py-2 text-xs text-app">{g.department || "—"}</td>
                     <td className="px-3 py-2 text-xs text-app">{g.programShortForm || g.program || "—"}</td>
                     <td className="px-3 py-2 text-xs text-app text-center">{g.semester || "—"}</td>
-                    <td className="px-3 py-2 text-xs text-app text-center">{g.section || "—"}</td>
                     <td className="px-3 py-2 text-xs text-app text-center">{g.totalStudents}</td>
                     <td className="px-3 py-2 text-xs text-app text-center">{g.passCount} / {g.failCount}</td>
                     <td className="px-3 py-2"><StatusBadge status={g.status} /></td>

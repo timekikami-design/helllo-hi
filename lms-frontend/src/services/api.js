@@ -604,7 +604,7 @@ const focal = {
   // Reports & analytics
   report: (kind) => get(`/lms/academic/focal/reports/${kind}`),
   // Comprehensive Reports & Analytics module (Requirement #5).
-  // tab ∈ enrollment|attendance|assignment|quizzes|midterm|semester|course|section|program|performance
+  // tab ∈ enrollment|attendance|assignment|quizzes|midterm|semester|course|program|performance
   report2: (tab, params = {}) => {
     const qs = new URLSearchParams(
       Object.entries(params).filter(([, v]) => v != null && v !== '' && v !== 'all'),
