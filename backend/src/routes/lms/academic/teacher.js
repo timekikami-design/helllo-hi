@@ -79,6 +79,73 @@ router.get('/events', asyncHandler(async (req, res) => {
 router.use(lmsAuth);
 router.use(lmsRequireRole('Teacher', 'CourseCoordinator'));
 
+// ============================================================
+// NOTIFICATIONS — teacher in-app notification feed (bell). Exam
+// Controller reminders about incomplete results land here and are
+// also pushed live over the /events SSE stream ('notification').
+// ============================================================
+router.get('/notifications', asyncHandler(async (req, res) => {
+  const userId = req.lmsUser.id;
+  const [items, unread] = await Promise.all([
+    prisma.lmsNotification.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 100 }),
+    prisma.lmsNotification.count({ where: { userId, isRead: false } }),
+  ]);
+  res.json({ notifications: items, unread });
+}));
+
+router.put('/notifications/read-all', asyncHandler(async (req, res) => {
+  const userId = req.lmsUser.id;
+  await prisma.lmsNotification.updateMany({ where: { userId, isRead: false }, data: { isRead: true } });
+  res.json({ success: true });
+}));
+
+router.put('/notifications/:id/read', asyncHandler(async (req, res) => {
+  const userId = req.lmsUser.id;
+  const id = parseInt(req.params.id, 10);
+  const n = await prisma.lmsNotification.findFirst({ where: { id, userId } });
+  if (!n) throw httpError(404, 'Notification not found');
+  await prisma.lmsNotification.update({ where: { id }, data: { isRead: true } });
+  res.json({ success: true });
+}));
+
+// ============================================================
+// INCOMPLETE RESULTS — the teacher's own current-term offerings that
+// still have enrolled students without a PUBLISHED result. Same rule as
+// the Exam Controller "Incomplete Results" report so both sides agree.
+// ============================================================
+router.get('/incomplete-results', asyncHandler(async (req, res) => {
+  const term = await prisma.academicTerm.findFirst({ where: { isCurrent: true, isActive: true } });
+  const offerings = await prisma.courseOffering.findMany({
+    where: { teacherId: req.lmsUser.id, termId: term ? term.id : -1, isDeleted: false },
+    include: {
+      course: { include: { program: true, semester: true } },
+      registrations: { where: { status: 'ENROLLED' }, select: { studentId: true } },
+      results: { select: { studentId: true, status: true } },
+    },
+  });
+  const items = [];
+  for (const o of offerings) {
+    const published = new Set(o.results.filter((r) => r.status === 'PUBLISHED').map((r) => r.studentId));
+    const drafts = new Set(o.results.filter((r) => r.status !== 'PUBLISHED').map((r) => r.studentId));
+    const pendingIds = o.registrations.map((r) => r.studentId).filter((id) => !published.has(id));
+    if (!pendingIds.length) continue;
+    items.push({
+      offeringId: o.id,
+      course: o.course ? `${o.course.code} ${o.course.title}` : `Offering #${o.id}`,
+      courseCode: o.course?.code || null,
+      department: o.course?.program?.department || null,
+      program: o.course?.program?.shortForm || o.course?.program?.code || null,
+      semester: o.course?.semester ? String(o.course.semester.number) : null,
+      enrolled: o.registrations.length,
+      pending: pendingIds.length,
+      draft: pendingIds.filter((id) => drafts.has(id)).length,
+      noResult: pendingIds.filter((id) => !drafts.has(id)).length,
+      link: `/teacher/offerings/${o.id}?tab=marks&scope=marks`,
+    });
+  }
+  res.json({ term: term?.title || null, items });
+}));
+
 // --- helper: ensure the current teacher owns the offering ---
 async function getOwnedOffering(req, offeringId) {
   const offering = await prisma.courseOffering.findFirst({
@@ -2503,7 +2570,6 @@ router.get('/schedule', asyncHandler(async (req, res) => {
       courseTitle: s.offering.course.title,
       startTime: s.startTime,
       endTime: s.endTime,
-      room: s.room,
       mode: s.mode,
       slotType: s.slotType || 'THEORY',
     });

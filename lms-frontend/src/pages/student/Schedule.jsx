@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useMemo } from "react";
-import { Clock, Video, BookOpen, MapPin } from "lucide-react";
+import { Clock, Video, BookOpen } from "lucide-react";
 import PageHeader from "../../components/common/PageHeader";
 import { Skeleton } from "../../components/common/Skeleton";
 import ErrorState from "../../components/common/ErrorState";
@@ -64,7 +64,6 @@ const Schedule = () => {
                     <p className="text-[10px] font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1"><Clock size={10} /> {c.startTime}–{c.endTime}</p>
                     <p className="text-xs font-bold text-primary-700 mt-1">{c.courseCode}</p>
                     <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-tight">{c.courseTitle}{c.slotType === "LAB" ? " (Lab)" : ""}</p>
-                    {c.room && <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1"><MapPin size={9} /> {c.room}</p>}
                     <p className="text-[10px] text-slate-500 dark:text-slate-400">{c.teacher}</p>
                   </div>
                 ))}

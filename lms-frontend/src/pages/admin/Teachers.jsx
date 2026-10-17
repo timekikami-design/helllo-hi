@@ -1,6 +1,6 @@
 import {
   Search, Mail, UserCog, BookOpen, Users, CheckCircle2, XCircle, Plus, Pencil,
-  Trash2, Eye, GraduationCap, Phone, MapPin, IdCard, Layers, Building2,
+  Trash2, Eye, GraduationCap, Phone, MapPin, IdCard, Building2,
   KeyRound, Camera, AlertTriangle, Award,
 } from "lucide-react";
 import { useState, useMemo, useEffect, useRef } from "react";
@@ -161,7 +161,7 @@ const Teachers = () => {
     <div>
       <PageHeader
         title="Course Instructors"
-        subtitle="Manage instructor profiles — personal info, assigned subjects, sections & courses. All data is live from the database."
+        subtitle="Manage instructor profiles — personal info, assigned subjects & courses. All data is live from the database."
         icon="UserCog"
         breadcrumb={["Coordinator", "Course Instructors"]}
         actions={
@@ -214,7 +214,6 @@ const Teachers = () => {
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-app">Designation</th>
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-app">Department</th>
                   <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-muted-app">Courses</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-muted-app">Sections</th>
                   <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-muted-app">Students</th>
                   <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-muted-app">Status</th>
                   <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider text-muted-app">Actions</th>
@@ -236,7 +235,6 @@ const Teachers = () => {
                     <td className="px-4 py-3 text-muted-app">{t.designation || <span className="opacity-40">—</span>}</td>
                     <td className="px-4 py-3">{t.department ? <Badge color="violet">{t.department}</Badge> : <span className="opacity-40">—</span>}</td>
                     <td className="px-4 py-3 text-center font-bold text-app">{t.offerings}</td>
-                    <td className="px-4 py-3 text-center font-bold text-app">{t.sections}</td>
                     <td className="px-4 py-3 text-center font-bold text-app">{t.students}</td>
                     <td className="px-4 py-3 text-center">
                       {t.isActive ? <Badge color="emerald">Active</Badge> : <Badge color="slate">Inactive</Badge>}
@@ -381,11 +379,11 @@ const Teachers = () => {
             <div className="space-y-2">
               <button onClick={() => confirmDelete(false)} disabled={saving} className="w-full surface border border-app rounded-xl p-3 text-left hover:border-primary-400 transition">
                 <p className="font-semibold text-app flex items-center gap-2"><XCircle size={15} className="text-slate-500" /> Deactivate (soft delete)</p>
-                <p className="text-xs text-muted-app mt-0.5">Disables login; preserves offerings, sections & history.</p>
+                <p className="text-xs text-muted-app mt-0.5">Disables login; preserves offerings & history.</p>
               </button>
               <button onClick={() => confirmDelete(true)} disabled={saving} className="w-full surface border border-rose-200 dark:border-rose-900 rounded-xl p-3 text-left hover:border-rose-400 transition">
                 <p className="font-semibold text-rose-600 flex items-center gap-2"><Trash2 size={15} /> Permanently delete</p>
-                <p className="text-xs text-muted-app mt-0.5">Unassigns from courses/sections, then removes the account.</p>
+                <p className="text-xs text-muted-app mt-0.5">Unassigns from courses, then removes the account.</p>
               </button>
             </div>
             <button onClick={() => setDeleting(null)} disabled={saving} className="btn-secondary w-full">Cancel</button>
@@ -459,9 +457,8 @@ const ViewInstructorModal = ({ id, onClose, onEdit, onPhoto }) => {
           </div>
 
           {/* Workload */}
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <StatBox label="Courses" value={w.offerings ?? 0} icon={BookOpen} />
-            <StatBox label="Sections" value={w.sections ?? 0} icon={Layers} />
             <StatBox label="Students" value={w.students ?? 0} icon={Users} />
             <StatBox label="Credits" value={w.totalCredits ?? 0} icon={GraduationCap} />
           </div>
@@ -484,9 +481,9 @@ const ViewInstructorModal = ({ id, onClose, onEdit, onPhoto }) => {
             </div>
           </div>
 
-          {/* Assigned subjects / sections / courses */}
+          {/* Assigned subjects / courses */}
           <div>
-            <p className="text-xs font-bold uppercase text-secondary-app mb-2">Assigned Subjects, Sections & Courses</p>
+            <p className="text-xs font-bold uppercase text-secondary-app mb-2">Assigned Subjects & Courses</p>
             {detail.assignments?.length ? (
               <div className="space-y-2">
                 {detail.assignments.map((a) => (
@@ -501,15 +498,6 @@ const ViewInstructorModal = ({ id, onClose, onEdit, onPhoto }) => {
                         <span className="flex items-center gap-1"><Users size={12} /> {a.students}</span>
                       </span>
                     </div>
-                    {a.sections?.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {a.sections.map((s) => (
-                          <span key={s.id} className="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-muted-app border border-app">
-                            Sec {s.name} · {s.enrolled}/{s.capacity}{s.room ? ` · ${s.room}` : ""}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>

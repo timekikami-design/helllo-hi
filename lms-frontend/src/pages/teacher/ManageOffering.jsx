@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft, Users, CalendarCheck, FileText, FileQuestion, Award, Megaphone,
@@ -129,33 +129,29 @@ function StudentsTab({ offeringId }) {
   const { toast } = useToast();
   const { data, loading, error, reload } = useApi(() => api.teacher.students(offeringId), [offeringId]);
   const students = useMemo(() => data?.students || [], [data]);
-  const [filters, setFilters] = useState({ search: "", section: "", cnic: "", phone: "" });
+  const [filters, setFilters] = useState({ search: "", cnic: "", phone: "" });
   const [profile, setProfile] = useState(null);
 
-  const sections = useMemo(() => [...new Set(students.map((s) => s.section).filter(Boolean))], [students]);
 
   const filtered = useMemo(() => {
     const like = (v, t) => String(v || "").toLowerCase().includes(t.toLowerCase());
     return students.filter((s) => {
       if (filters.search && !(like(s.name, filters.search) || like(s.rollNumber, filters.search))) return false;
-      if (filters.section && s.section !== filters.section) return false;
       if (filters.cnic && !like(s.cnic, filters.cnic)) return false;
       if (filters.phone && !(like(s.phone, filters.phone) || like(s.whatsapp, filters.phone))) return false;
       return true;
     });
   }, [students, filters]);
 
-  const exportExcel = async (scope) => {
+  const exportExcel = async () => {
     try {
-      const params = scope === "section" && filters.section ? `?section=${encodeURIComponent(filters.section)}` : "";
-      await api.teacher.exportStudentsExcel(offeringId, params, `students${params ? "-" + filters.section : ""}.xlsx`);
+      await api.teacher.exportStudentsExcel(offeringId, "", "students.xlsx");
       toast("Excel exported", { type: "success" });
     } catch (e) { toast(e.message, { type: "error" }); }
   };
   const exportPdf = async (scope, roll) => {
     try {
       let params = "";
-      if (scope === "section" && filters.section) params = `?section=${encodeURIComponent(filters.section)}`;
       if (scope === "individual" && roll) params = `?studentRoll=${encodeURIComponent(roll)}`;
       await api.teacher.exportStudentsPdf(offeringId, params, `students${roll ? "-" + roll : ""}.pdf`);
       toast("PDF exported", { type: "success" });
@@ -174,15 +170,11 @@ function StudentsTab({ offeringId }) {
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} placeholder="Name or Roll No" className="input-base w-full pl-8 text-sm" />
         </div>
-        <select value={filters.section} onChange={(e) => setFilters({ ...filters, section: e.target.value })} className="input-base text-sm">
-          <option value="">All Sections</option>
-          {sections.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
         <input value={filters.cnic} onChange={(e) => setFilters({ ...filters, cnic: e.target.value })} placeholder="CNIC" className="input-base text-sm w-32" />
         <input value={filters.phone} onChange={(e) => setFilters({ ...filters, phone: e.target.value })} placeholder="Phone" className="input-base text-sm w-32" />
         <div className="flex gap-1.5 ml-auto">
-          <button onClick={() => exportExcel(filters.section ? "section" : "course")} className="btn-secondary text-xs"><FileSpreadsheet size={13} /> Excel</button>
-          <button onClick={() => exportPdf(filters.section ? "section" : "course")} className="btn-secondary text-xs"><FileDown size={13} /> PDF</button>
+          <button onClick={() => exportExcel()} className="btn-secondary text-xs"><FileSpreadsheet size={13} /> Excel</button>
+          <button onClick={() => exportPdf("course")} className="btn-secondary text-xs"><FileDown size={13} /> PDF</button>
         </div>
       </div>
 
@@ -192,7 +184,7 @@ function StudentsTab({ offeringId }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-50 dark:bg-slate-900 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">
-              <th className="px-4 py-3">Roll No</th><th className="px-4 py-3">Name</th><th className="px-4 py-3">CNIC</th><th className="px-4 py-3">Phone</th><th className="px-4 py-3">Section</th><th className="px-4 py-3">Status</th><th className="px-4 py-3"></th>
+              <th className="px-4 py-3">Roll No</th><th className="px-4 py-3">Name</th><th className="px-4 py-3">CNIC</th><th className="px-4 py-3">Phone</th><th className="px-4 py-3">Status</th><th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody>
@@ -202,7 +194,6 @@ function StudentsTab({ offeringId }) {
                 <td className="px-4 py-3 font-semibold text-app">{s.name}</td>
                 <td className="px-4 py-3 text-xs">{s.cnic || "—"}</td>
                 <td className="px-4 py-3 text-xs">{s.phone || "—"}</td>
-                <td className="px-4 py-3">{s.section || "—"}</td>
                 <td className="px-4 py-3"><Badge color="emerald" size="sm">{(s.status || "").toLowerCase()}</Badge></td>
                 <td className="px-4 py-3 text-right whitespace-nowrap">
                   <button onClick={() => setProfile(s)} className="text-primary-600 text-xs font-semibold hover:underline mr-3">Profile</button>
@@ -230,7 +221,7 @@ function StudentsTab({ offeringId }) {
               {[
                 ["Father Name", profile.fatherName], ["CNIC", profile.cnic], ["Phone", profile.phone],
                 ["WhatsApp", profile.whatsapp], ["Email", profile.email], ["Gender", profile.gender],
-                ["Date of Birth", profile.dateOfBirth], ["Section", profile.section], ["Program", profile.program],
+                ["Date of Birth", profile.dateOfBirth], ["Program", profile.program],
                 ["Address", profile.address],
               ].map(([k, v]) => (
                 <div key={k}><dt className="text-[10px] uppercase tracking-wide text-muted-app font-semibold">{k}</dt><dd className="text-app">{v || "—"}</dd></div>
@@ -247,11 +238,9 @@ function StudentsTab({ offeringId }) {
 function AttendanceTab({ offeringId }) {
   const { toast } = useToast();
   const { data, loading, error, reload } = useApi(() => api.teacher.sessions(offeringId), [offeringId]);
-  const { data: offData } = useApi(() => api.teacher.offering(offeringId), [offeringId]);
   const sessionsRaw = useMemo(() => data?.sessions || [], [data]);
-  const sectionOptions = useMemo(() => (offData?.offering?.sections || []).map((s) => s.name), [offData]);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ date: "", topic: "", durationMin: 60, section: "" });
+  const [form, setForm] = useState({ date: "", topic: "", durationMin: 60 });
   const [roster, setRoster] = useState(null); // { session, records[] }
   const [marks, setMarks] = useState({});
   const [saving, setSaving] = useState(false);
@@ -263,9 +252,9 @@ function AttendanceTab({ offeringId }) {
     if (!form.date) { toast("Pick a date", { type: "error" }); return; }
     setCreating(true);
     try {
-      await api.teacher.createSession(offeringId, { date: form.date, topic: form.section ? `${form.topic ? form.topic + " · " : ""}Section ${form.section}` : form.topic, durationMin: form.durationMin });
+      await api.teacher.createSession(offeringId, { date: form.date, topic: form.topic, durationMin: form.durationMin });
       toast("Session created", { type: "success" });
-      setForm({ date: "", topic: "", durationMin: 60, section: "" });
+      setForm({ date: "", topic: "", durationMin: 60 });
       await reload();
     } catch (e) { toast(e.message, { type: "error" }); }
     finally { setCreating(false); }
@@ -304,14 +293,6 @@ function AttendanceTab({ offeringId }) {
         <h3 className="font-bold text-app mb-3">New Session</h3>
         <div className="flex flex-wrap gap-3 items-end">
           <div><label className="text-xs text-muted-app">Date</label><input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="input-base block mt-1" /></div>
-          {sectionOptions.length > 0 && (
-            <div><label className="text-xs text-muted-app">Section</label>
-              <select value={form.section} onChange={(e) => setForm({ ...form, section: e.target.value })} className="input-base block mt-1">
-                <option value="">All</option>
-                {sectionOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-          )}
           <div className="flex-1 min-w-[160px]"><label className="text-xs text-muted-app">Topic</label><input value={form.topic} onChange={(e) => setForm({ ...form, topic: e.target.value })} placeholder="Lecture topic" className="input-base block mt-1 w-full" /></div>
           <div><label className="text-xs text-muted-app">Minutes</label><input type="number" value={form.durationMin} onChange={(e) => setForm({ ...form, durationMin: e.target.value })} className="input-base block mt-1 w-24" /></div>
           <button onClick={createSession} disabled={creating} className="btn-primary text-sm">{creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Create</button>
@@ -388,6 +369,7 @@ function AssignmentsTab({ offeringId }) {
   const [subFor, setSubFor] = useState(null); // assignment for submissions view
   const [subs, setSubs] = useState([]);
   const [grades, setGrades] = useState({});
+  const dirtyGrades = useRef(new Set()); // Section 4 — typed-but-ungraded submissions
   const [qFor, setQFor] = useState(null); // assignment for questions modal
 
   const create = async () => {
@@ -419,15 +401,23 @@ function AssignmentsTab({ offeringId }) {
     try {
       const res = await api.teacher.submissions(a.id);
       setSubs(res.submissions || []);
-      const g = {};
-      (res.submissions || []).forEach((s) => { if (s.marks != null) g[s.id] = s.marks; });
-      setGrades(g);
+      // Section 4 — keep marks the teacher typed but has not graded yet when
+      // the list refreshes after grading another submission.
+      setGrades((prev) => {
+        const g = {};
+        (res.submissions || []).forEach((s) => {
+          if (dirtyGrades.current.has(s.id)) g[s.id] = prev[s.id];
+          else if (s.marks != null) g[s.id] = s.marks;
+        });
+        return g;
+      });
     } catch (e) { toast(e.message, { type: "error" }); }
   };
 
   const grade = async (submissionId) => {
     try {
       await api.teacher.gradeSubmission(submissionId, { marks: parseFloat(grades[submissionId]), feedback: "" });
+      dirtyGrades.current.delete(submissionId);
       toast("Graded — marks now visible to student", { type: "success" });
       await openSubs(subFor); await reload();
     } catch (e) { toast(e.message, { type: "error" }); }
@@ -504,7 +494,7 @@ function AssignmentsTab({ offeringId }) {
                   </div>
                   <div className="flex items-center gap-2">
                     {s.filePath && <a href={fileUrl(s.filePath)} target="_blank" rel="noreferrer" className="text-primary-600 text-xs"><Download size={14} /></a>}
-                    <input type="number" value={grades[s.id] ?? ""} onChange={(e) => setGrades((g) => ({ ...g, [s.id]: e.target.value }))} placeholder="Marks" className="input-base w-20 text-sm" />
+                    <input type="number" value={grades[s.id] ?? ""} onChange={(e) => { dirtyGrades.current.add(s.id); setGrades((g) => ({ ...g, [s.id]: e.target.value })); }} placeholder="Marks" className="input-base w-20 text-sm" />
                     <span className="text-xs text-muted-app">/{subFor.totalMarks}</span>
                     <button onClick={() => grade(s.id)} className="btn-primary text-xs">Grade</button>
                   </div>

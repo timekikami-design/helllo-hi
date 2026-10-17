@@ -31,6 +31,7 @@ const { displayName, nameMap } = require('../../../utils/lmsWorkflow');
 const {
   resolveStudentPositions, generateChallansForAnnouncement, getActiveBlocks, studentMatchesScope,
 } = require('../../../utils/provostFinance');
+const feeEngine = require('../../../utils/lmsFeeEngine');
 
 const router = express.Router();
 router.use(lmsAuth);
@@ -446,18 +447,27 @@ router.put('/fee-approvals/:id', PROVOST, validate([
   const challan = await prisma.lmsFeeChallan.findUnique({ where: { id } });
   if (!challan) throw httpError(404, 'Fee record not found');
   const action = req.body.action;
+  // S7.2 — a challan with a payment submission is decided on the submission.
+  const pendingSub = await prisma.lmsFeePaymentSubmission.findFirst({ where: { challanId: id, status: 'PENDING' } });
+  if (pendingSub) throw httpError(409, 'This fee has a payment submission awaiting review. Decide it under Payment Submissions.');
+  if (action === 'reject' && String(req.body.reason || '').trim().length < 5) throw httpError(400, 'A rejection reason (at least 5 characters) is required.');
   const before = { status: challan.status };
   const data = action === 'approve'
     ? { status: 'PAID', paidAt: new Date(), paymentRef: req.body.reference || `PROV-${Date.now()}` }
     : { status: 'OVERDUE' };
   const updated = await prisma.lmsFeeChallan.update({ where: { id }, data });
   await audit(req, action === 'approve' ? 'PROVOST_FEE_APPROVE' : 'PROVOST_FEE_REJECT', 'LmsFeeChallan', id, { before, after: { status: updated.status } });
+  let block = null;
+  if (action === 'approve') {
+    block = await require('./provostFees').unblockIfClear(req, challan.studentId, `Auto-unblocked on approval of ${challan.challanNo}`);
+  }
   await notify(challan.studentId, {
     title: action === 'approve' ? 'Fee payment approved' : 'Fee payment rejected',
-    message: `${challan.title} (${challan.challanNo}) was ${action === 'approve' ? 'approved' : 'rejected'}.`,
-    type: action === 'approve' ? 'SUCCESS' : 'WARNING',
+    message: `${challan.title} (${challan.challanNo}) was ${action === 'approve' ? 'approved' : `rejected. Reason: ${String(req.body.reason).trim()}`}.${block && block.unblocked ? ' Your account has been unblocked.' : ''}`,
+    type: action === 'approve' ? 'SUCCESS' : 'WARNING', link: '/student/account',
   });
-  res.json({ success: true, status: updated.status });
+  feeEngine.pushFeeUpdate(challan.studentId, { challanId: id, challanStatus: updated.status });
+  res.json({ success: true, status: updated.status, block });
 }));
 
 // ============================================================
@@ -1087,20 +1097,36 @@ router.get('/finance/announcements', PROVOST, asyncHandler(async (req, res) => {
 router.post('/finance/announcements', PROVOST, validate([
   body('feeType').isIn(['SEMESTER', 'EXAMINATION']).withMessage('feeType must be SEMESTER or EXAMINATION.'),
   body('title').isString().trim().isLength({ min: 3 }).withMessage('Title is required (min 3 chars).'),
-  body('amount').isNumeric().withMessage('Amount is required.'),
   body('scope').optional().isIn(['UNIVERSITY', 'DEPARTMENT', 'PROGRAM', 'SEMESTER']),
+  body('dueDate').matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/).withMessage('A deadline (YYYY-MM-DD) is required.'),
 ]), asyncHandler(async (req, res) => {
   const {
-    feeType, title, description, amount, dueDate,
+    feeType, title, description, dueDate,
     scope = 'UNIVERSITY', department, program, semester,
   } = req.body;
+  // S7.1 — the semester fee amount is NOT accepted from the client: each
+  // student's amount is read (read-only) from their Admission fee record.
+  // Examination fees are not part of the Admission fee structure and keep
+  // a Provost-entered amount.
+  let amount = 0;
+  if (feeType === 'EXAMINATION') {
+    amount = Number(req.body.amount);
+    if (!(amount > 0)) throw httpError(400, 'Enter the examination fee amount.');
+  } else if (req.body.amount != null && req.body.amount !== '') {
+    throw httpError(400, "Semester fee amounts come from each student's Admission fee record and cannot be entered or edited.");
+  }
+  if (dueDate < feeEngine.today()) throw httpError(400, 'The deadline cannot be in the past.');
+  const SC = String(scope).toUpperCase();
+  if (SC === 'DEPARTMENT' && !department) throw httpError(400, 'Select a department.');
+  if (['PROGRAM', 'SEMESTER'].includes(SC) && !program) throw httpError(400, 'Select a program.');
+  if (SC === 'SEMESTER' && !semester) throw httpError(400, 'Select a semester.');
 
   const ann = await prisma.lmsFeeAnnouncement.create({
     data: {
       feeType,
       title: String(title).trim(),
       description: description ? String(description) : null,
-      amount: Number(amount),
+      amount: Number(amount) || 0,
       dueDate: dueDate || null,
       scope: String(scope).toUpperCase(),
       department: department || null,
@@ -1113,26 +1139,55 @@ router.post('/finance/announcements', PROVOST, validate([
 
   // Auto-generate challans into matching students' Account Books.
   const positions = await resolveStudentPositions();
-  const { count, totalBilled } = await generateChallansForAnnouncement(ann, positions);
+  let count = 0; let totalBilled = 0; const skipped = [];
+  if (feeType === 'EXAMINATION') {
+    ({ count, totalBilled } = await generateChallansForAnnouncement(ann, positions));
+    const matchedIds = [...positions.values()].filter((pos) => studentMatchesScope(pos, ann)).map((pos) => pos.studentId);
+    for (const sid of matchedIds) {
+      await notify(sid, { title: 'New Examination Fee', message: `${title}: ${feeEngine.dueNotice(amount, dueDate)}`, type: 'FEE', link: '/student/account' });
+      feeEngine.pushFeeUpdate(sid, { announcement: ann.id });
+    }
+  } else {
+    const term = await currentTerm();
+    for (const pos of positions.values()) {
+      if (!studentMatchesScope(pos, ann)) continue;
+      // One semester fee per student per semester (no double billing).
+      const dup = pos.semester != null ? await prisma.lmsFeeChallan.findFirst({
+        where: { studentId: pos.studentId, feeType: 'SEMESTER', semester: pos.semester, sourceAnnouncementId: { not: null } },
+      }) : null;
+      if (dup) { skipped.push({ studentId: pos.studentId, reason: 'already_billed_this_semester' }); continue; }
+      const base = await feeEngine.resolveBaseFee(pos.studentId, pos);
+      if (!base) { skipped.push({ studentId: pos.studentId, reason: 'no_admission_fee_record' }); continue; }
+      const challan = await prisma.lmsFeeChallan.create({
+        data: {
+          studentId: pos.studentId, termId: term ? term.id : null,
+          challanNo: `CH-${ann.id}-${pos.studentId.slice(-6)}-${Date.now().toString().slice(-5)}`,
+          title: ann.title, lineItems: '[]', totalAmount: base.amount, dueDate, status: 'UNPAID',
+          feeType: 'SEMESTER', program: pos.program || null, department: pos.department || null,
+          semester: pos.semester != null ? pos.semester : null, description: ann.description || null,
+          sourceAnnouncementId: ann.id,
+        },
+      });
+      const concessions = await prisma.lmsFeeConcession.findMany({ where: { studentId: pos.studentId }, orderBy: { grantedAt: 'asc' } });
+      const r = await feeEngine.repriceChallan(challan, { base: base.amount, concessions });
+      const net = r.changed ? r.net : base.amount;
+      const firstInst = await prisma.lmsFeeInstallment.findFirst({ where: { challanId: challan.id }, orderBy: { seq: 'asc' } });
+      count += 1; totalBilled += net;
+      await notify(pos.studentId, {
+        title: 'New Semester Fee',
+        message: `${title}${description ? ` — ${description}` : ''}. ${feeEngine.dueNotice(firstInst ? firstInst.amount : net, firstInst ? firstInst.dueDate : dueDate)}`,
+        type: 'FEE', link: '/student/account',
+      });
+      feeEngine.pushFeeUpdate(pos.studentId, { announcement: ann.id, challanId: challan.id });
+    }
+  }
   const updated = await prisma.lmsFeeAnnouncement.update({
     where: { id: ann.id },
     data: { studentCount: count, totalBilled },
   });
 
-  // Notify the matched students so they immediately see the fee.
-  const matchedIds = [...positions.values()]
-    .filter((pos) => studentMatchesScope(pos, ann))
-    .map((pos) => pos.studentId);
-  if (matchedIds.length) {
-    await notifyMany(matchedIds, {
-      title: feeType === 'EXAMINATION' ? 'New Examination Fee' : 'New Semester Fee',
-      message: `${title} — Rs. ${Number(amount).toLocaleString('en-PK')}${dueDate ? `, due ${dueDate}` : ''}. Please pay from your Account Book.`,
-      type: 'FEE',
-    });
-  }
-
-  await audit(req, 'PROVOST_FEE_ANNOUNCE', 'LmsFeeAnnouncement', updated.id, { after: { title, feeType, scope, count } });
-  res.status(201).json({ announcement: updated, challansCreated: count, totalBilled });
+  await audit(req, 'PROVOST_FEE_ANNOUNCE', 'LmsFeeAnnouncement', updated.id, { after: { title, feeType, scope, count, skipped: skipped.length } });
+  res.status(201).json({ announcement: updated, challansCreated: count, totalBilled, skipped });
 }));
 
 router.delete('/finance/announcements/:id', PROVOST, asyncHandler(async (req, res) => {
@@ -1431,9 +1486,10 @@ router.post('/finance/students/:id/block', PROVOST, validate([
   // works for non-finance use — block is enforced at finance/account level).
   await notify(studentId, {
     title: 'Account Blocked — Fee Pending',
-    message: `Your account has been blocked. Reason: ${block.reason}. Please clear your dues to continue.`,
-    type: 'FEE',
+    message: `${feeEngine.BLOCK_MESSAGE} Reason: ${block.reason}.`,
+    type: 'FEE', link: '/student/account',
   });
+  feeEngine.pushBlockState(studentId, true);
   await audit(req, 'PROVOST_STUDENT_BLOCK', 'LmsStudentBlock', block.id, { after: { studentId, reason: block.reason } });
   res.status(201).json({ block });
 }));
@@ -1460,6 +1516,7 @@ router.post('/finance/students/:id/unblock', PROVOST, asyncHandler(async (req, r
     message: 'Your account has been unblocked. You may continue from your current semester.',
     type: 'FEE',
   });
+  feeEngine.pushBlockState(studentId, false);
   await audit(req, 'PROVOST_STUDENT_UNBLOCK', 'LmsStudentBlock', updated.id, {
     after: { studentId, resumeSemester: updated.semester },
   });
@@ -1509,9 +1566,10 @@ router.post('/finance/students/bulk-block', PROVOST, validate([
     });
     await notify(studentId, {
       title: 'Account Blocked — Fee Pending',
-      message: `Your account has been blocked. Reason: ${reason}. Please clear your dues to continue.`,
-      type: 'FEE',
+      message: `${feeEngine.BLOCK_MESSAGE} Reason: ${reason}.`,
+      type: 'FEE', link: '/student/account',
     }).catch(() => {});
+    feeEngine.pushBlockState(studentId, true);
     blocked.push({ studentId, blockId: block.id });
   }
   await audit(req, 'PROVOST_STUDENT_BULK_BLOCK', 'LmsStudentBlock', null, {
@@ -1559,6 +1617,7 @@ router.post('/finance/students/bulk-unblock', PROVOST, validate([
       message: 'Your account has been unblocked. You may continue from your current semester.',
       type: 'FEE',
     }).catch(() => {});
+    feeEngine.pushBlockState(studentId, false);
     restored.push({ studentId, semester: updated.semester });
   }
   await audit(req, 'PROVOST_STUDENT_BULK_UNBLOCK', 'LmsStudentBlock', null, {

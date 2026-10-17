@@ -1,7 +1,7 @@
 // ============================================================
 //  PROVOST — Student Fee Records & Management
 //  Requirements 5,6,7,8,9,13,14,15:
-//   - Complete fee records (dept/program/semester/section)
+//   - Complete fee records (dept/program/semester)
 //   - Advanced student search
 //   - Complete student profile (info + fee history + txns + block history)
 //   - Pending fees / Submitted fees modules
@@ -55,7 +55,6 @@ const buildQuery = (f) => {
   if (f.department) p.set("department", f.department);
   if (f.program) p.set("program", f.program);
   if (f.semester) p.set("semester", f.semester);
-  if (f.section) p.set("section", f.section);
   const s = p.toString();
   return s ? `?${s}` : "";
 };
@@ -63,7 +62,7 @@ const buildQuery = (f) => {
 const FeeRecords = () => {
   const { toast } = useToast();
   const [tab, setTab] = useState("students");
-  const [filters, setFilters] = useState({ q: "", department: "", program: "", semester: "", section: "" });
+  const [filters, setFilters] = useState({ q: "", department: "", program: "", semester: "" });
   const qs = useMemo(() => buildQuery(filters), [filters]);
 
   const { data: opts } = useApi(() => api.provost.feeMgmt.filterOptions(), []);
@@ -173,7 +172,7 @@ const FeeRecords = () => {
       const res = await api.provost.feeMgmt.unblock(unblockTarget.studentId, { note: unblockNote.trim() || undefined });
       const cont = res?.continuation;
       toast(
-        cont ? `${unblockTarget.name} unblocked — resumes Semester ${cont.semester}, Section ${cont.section}` : `${unblockTarget.name} unblocked`,
+        cont ? `${unblockTarget.name} unblocked — resumes Semester ${cont.semester}` : `${unblockTarget.name} unblocked`,
         { type: "success" }
       );
       setUnblockTarget(null); setUnblockNote("");
@@ -183,7 +182,7 @@ const FeeRecords = () => {
   };
 
   const setField = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
-  const clearFilters = () => setFilters({ q: "", department: "", program: "", semester: "", section: "" });
+  const clearFilters = () => setFilters({ q: "", department: "", program: "", semester: "" });
 
   return (
     <div>
@@ -220,10 +219,6 @@ const FeeRecords = () => {
           <select value={filters.semester} onChange={(e) => setField("semester", e.target.value)} className="input-base text-sm lg:w-32">
             <option value="">All Semesters</option>
             {(opts?.semesters || []).map((s) => <option key={s} value={s}>Sem {s}</option>)}
-          </select>
-          <select value={filters.section} onChange={(e) => setField("section", e.target.value)} className="input-base text-sm lg:w-28">
-            <option value="">All Sections</option>
-            {(opts?.sections || []).map((s) => <option key={s} value={s}>Sec {s}</option>)}
           </select>
           <button onClick={clearFilters} className="btn-secondary text-sm px-3 flex items-center gap-1"><Filter size={14} /> Clear</button>
         </div>
@@ -271,17 +266,17 @@ const FeeRecords = () => {
                           {allSelected ? <CheckSquare size={16} /> : <Square size={16} />}
                         </button>
                       </th>
-                      <th className="py-3 px-4">Student</th><th className="py-3 px-4">Program</th><th className="py-3 px-4">Sem / Sec</th>
+                      <th className="py-3 px-4">Student</th><th className="py-3 px-4">Program</th><th className="py-3 px-4">Semester</th>
                       <th className="py-3 px-4 text-right">Paid</th><th className="py-3 px-4 text-right">Pending</th><th className="py-3 px-4">Status</th><th className="py-3 px-4 text-right">Actions</th>
                     </>
                   ) : tab === "students" ? (
                     <>
-                      <th className="py-3 px-4">Student</th><th className="py-3 px-4">Program</th><th className="py-3 px-4">Sem / Sec</th>
+                      <th className="py-3 px-4">Student</th><th className="py-3 px-4">Program</th><th className="py-3 px-4">Semester</th>
                       <th className="py-3 px-4 text-right">Paid</th><th className="py-3 px-4 text-right">Pending</th><th className="py-3 px-4">Status</th><th className="py-3 px-4 text-right">Actions</th>
                     </>
                   ) : tab === "blocked" ? (
                     <>
-                      <th className="py-3 px-4">Student</th><th className="py-3 px-4">Reason</th><th className="py-3 px-4">Sem / Sec</th>
+                      <th className="py-3 px-4">Student</th><th className="py-3 px-4">Reason</th><th className="py-3 px-4">Semester</th>
                       <th className="py-3 px-4">Blocked At</th><th className="py-3 px-4 text-right">Actions</th>
                     </>
                   ) : (
@@ -307,7 +302,7 @@ const FeeRecords = () => {
                           <p className="text-xs text-muted-app">{r.roll} · {r.cnic}</p>
                         </td>
                         <td className="py-3 px-4 text-muted-app">{r.program}</td>
-                        <td className="py-3 px-4 text-muted-app">Sem {r.semester} / {r.section}</td>
+                        <td className="py-3 px-4 text-muted-app">Sem {r.semester}</td>
                         <td className="py-3 px-4 text-right text-emerald-600 font-semibold">{fmtMoney(r.paid)}</td>
                         <td className="py-3 px-4 text-right text-amber-600 font-semibold">{fmtMoney(r.pending)}</td>
                         <td className="py-3 px-4"><span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${statusChip(r.feeStatus)}`}>{r.feeStatus}</span></td>
@@ -329,7 +324,7 @@ const FeeRecords = () => {
                           <p className="text-xs text-muted-app">{r.roll} · {r.cnic}</p>
                         </td>
                         <td className="py-3 px-4 text-muted-app">{r.program}</td>
-                        <td className="py-3 px-4 text-muted-app">Sem {r.semester} / {r.section}</td>
+                        <td className="py-3 px-4 text-muted-app">Sem {r.semester}</td>
                         <td className="py-3 px-4 text-right text-emerald-600 font-semibold">{fmtMoney(r.paid)}</td>
                         <td className="py-3 px-4 text-right text-amber-600 font-semibold">{fmtMoney(r.pending)}</td>
                         <td className="py-3 px-4"><span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${statusChip(r.feeStatus)}`}>{r.feeStatus}</span></td>
@@ -348,7 +343,7 @@ const FeeRecords = () => {
                       <>
                         <td className="py-3 px-4"><p className="font-semibold text-app">{r.name}</p><p className="text-xs text-muted-app">{r.roll} · {r.program}</p></td>
                         <td className="py-3 px-4 text-muted-app max-w-xs truncate">{r.reason}</td>
-                        <td className="py-3 px-4 text-muted-app">Sem {r.semester} / {r.section}</td>
+                        <td className="py-3 px-4 text-muted-app">Sem {r.semester}</td>
                         <td className="py-3 px-4 text-muted-app">{fmtDateTime(r.blockedAt)}</td>
                         <td className="py-3 px-4 text-right">
                           <button onClick={() => setUnblockTarget({ studentId: r.studentId, name: r.name })} className="px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-semibold hover:bg-emerald-100 flex items-center gap-1 ml-auto"><UserCheck size={12} /> Unblock</button>
@@ -357,7 +352,7 @@ const FeeRecords = () => {
                     ) : (
                       <>
                         <td className="py-3 px-4 font-mono text-xs text-muted-app">{r.challanNo}</td>
-                        <td className="py-3 px-4"><p className="font-semibold text-app">{r.student}</p><p className="text-xs text-muted-app">{r.roll} · Sem {r.semester}/{r.section}</p></td>
+                        <td className="py-3 px-4"><p className="font-semibold text-app">{r.student}</p><p className="text-xs text-muted-app">{r.roll} · Sem {r.semester}</p></td>
                         <td className="py-3 px-4"><p className="text-app">{r.title}</p><p className="text-xs text-muted-app">{r.feeType}</p></td>
                         <td className="py-3 px-4 text-right font-semibold text-app">{fmtMoney(r.amount)}</td>
                         <td className="py-3 px-4"><span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${statusChip(r.status)}`}>{r.status}</span></td>
@@ -390,7 +385,7 @@ const FeeRecords = () => {
                   {profile.blocked && <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">BLOCKED</span>}
                 </h3>
                 <p className="text-sm text-muted-app">{profile.student?.roll} · {profile.student?.programName || profile.student?.program}</p>
-                <p className="text-xs text-muted-app">{profile.student?.department} · Semester {profile.student?.semester} · Section {profile.student?.section}</p>
+                <p className="text-xs text-muted-app">{profile.student?.department} · Semester {profile.student?.semester}</p>
               </div>
             </div>
 
@@ -456,7 +451,7 @@ const FeeRecords = () => {
                         <p className="font-semibold text-app">{b.reason}</p>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${b.active ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"}`}>{b.active ? "ACTIVE" : "RESOLVED"}</span>
                       </div>
-                      <p className="text-xs text-muted-app mt-1">Blocked: {fmtDateTime(b.blockedAt)} · Sem {b.semester}/{b.section}</p>
+                      <p className="text-xs text-muted-app mt-1">Blocked: {fmtDateTime(b.blockedAt)} · Sem {b.semester}</p>
                       {b.unblockedAt && <p className="text-xs text-muted-app">Unblocked: {fmtDateTime(b.unblockedAt)}{b.unblockNote ? ` · ${b.unblockNote}` : ""}</p>}
                     </div>
                   ))}
@@ -478,7 +473,7 @@ const FeeRecords = () => {
       {/* Block Modal */}
       <Modal open={!!blockTarget} onClose={() => { setBlockTarget(null); setBlockReason(""); }} title="Block Student" icon="UserMinus" maxWidth="max-w-md">
         <div className="space-y-3">
-          <p className="text-sm text-app">Block <span className="font-bold">{blockTarget?.name}</span>? The student's semester, section and enrollment are preserved and will be restored on unblock.</p>
+          <p className="text-sm text-app">Block <span className="font-bold">{blockTarget?.name}</span>? The student's semester and enrollment are preserved and will be restored on unblock.</p>
           <div>
             <label className="text-xs font-semibold text-app mb-1 block">Reason</label>
             <textarea rows="3" value={blockReason} onChange={(e) => setBlockReason(e.target.value)} className="input-base w-full text-sm" placeholder="e.g. Non-payment of semester fee after due date" />
@@ -493,7 +488,7 @@ const FeeRecords = () => {
       {/* Unblock Modal */}
       <Modal open={!!unblockTarget} onClose={() => { setUnblockTarget(null); setUnblockNote(""); }} title="Unblock Student" icon="UserCheck" maxWidth="max-w-md">
         <div className="space-y-3">
-          <p className="text-sm text-app">Unblock <span className="font-bold">{unblockTarget?.name}</span>? The student will continue from the exact same semester, section and academic position.</p>
+          <p className="text-sm text-app">Unblock <span className="font-bold">{unblockTarget?.name}</span>? The student will continue from the exact same semester and academic position.</p>
           <div>
             <label className="text-xs font-semibold text-app mb-1 block">Note (optional)</label>
             <textarea rows="2" value={unblockNote} onChange={(e) => setUnblockNote(e.target.value)} className="input-base w-full text-sm" placeholder="e.g. Fee cleared" />
@@ -508,7 +503,7 @@ const FeeRecords = () => {
       {/* Bulk Block Modal */}
       <Modal open={bulkBlockOpen} onClose={() => { setBulkBlockOpen(false); setBulkReason(""); }} title="Block Selected Students" icon="UserMinus" maxWidth="max-w-md">
         <div className="space-y-3">
-          <p className="text-sm text-app">Block <span className="font-bold">{selectedBlockable.length}</span> selected student(s) due to pending fees? Each student's semester, section and enrollment are preserved and restored on unblock.</p>
+          <p className="text-sm text-app">Block <span className="font-bold">{selectedBlockable.length}</span> selected student(s) due to pending fees? Each student's semester and enrollment are preserved and restored on unblock.</p>
           <div>
             <label className="text-xs font-semibold text-app mb-1 block">Reason</label>
             <textarea rows="3" value={bulkReason} onChange={(e) => setBulkReason(e.target.value)} className="input-base w-full text-sm" placeholder="e.g. Non-payment of semester fee after due date" />
@@ -523,7 +518,7 @@ const FeeRecords = () => {
       {/* Bulk Restore Modal */}
       <Modal open={bulkRestoreOpen} onClose={() => { setBulkRestoreOpen(false); setBulkNote(""); }} title="Restore Selected Students" icon="UserCheck" maxWidth="max-w-md">
         <div className="space-y-3">
-          <p className="text-sm text-app">Restore <span className="font-bold">{selectedRestorable.length}</span> selected blocked student(s)? Each student continues from the exact same semester, section and academic position.</p>
+          <p className="text-sm text-app">Restore <span className="font-bold">{selectedRestorable.length}</span> selected blocked student(s)? Each student continues from the exact same semester and academic position.</p>
           <div>
             <label className="text-xs font-semibold text-app mb-1 block">Note (optional)</label>
             <textarea rows="2" value={bulkNote} onChange={(e) => setBulkNote(e.target.value)} className="input-base w-full text-sm" placeholder="e.g. Fees cleared" />

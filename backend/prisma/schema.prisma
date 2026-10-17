@@ -3270,9 +3270,198 @@ model TeacherMarksPin {
   lmsUserId      String    @unique
   pinHash        String
   pinVersion     Int       @default(1)
+  // Section 2 — true while the stored PIN is a TEMPORARY PIN issued by a
+  // Super Admin reset. Verifying it never opens the Marks module; it only
+  // allows the teacher to set their own new PIN (which clears this flag).
+  isTemporary    Boolean   @default(false)
+  resetAt        DateTime?
+  resetById      Int?
   failedAttempts Int       @default(0)
   lockedUntil    DateTime?
   lastVerifiedAt DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+}
+
+// ============================================================
+// LMS DEPARTMENT COORDINATOR (Section 12) — LMS-ONLY assignment of an
+// EXISTING LMS account (Course Coordinator / Teacher) as a department's
+// Course Coordinator. Used when the Super Admin picks an LMS user that has
+// no Admissions `User` row, so the assignment is recorded on the LMS side
+// only (the Admissions Department / DepartmentStaff tables are untouched).
+// Additive and free-standing.
+// ============================================================
+model LmsDepartmentCoordinator {
+  id           Int      @id @default(autoincrement())
+  departmentId Int                                // Department.id (read-only reference)
+  lmsUserId    String                             // LmsUser.id
+  assignedById Int?                               // Admissions super_admin User.id
+  // LMS role the account had before being made Course Coordinator (e.g.
+  // "Teacher"), restored when the assignment is removed.
+  previousRole String?
+  createdAt    DateTime @default(now())
+
+  @@unique([departmentId, lmsUserId])
+  @@index([departmentId])
+  @@index([lmsUserId])
+}
+
+// ============================================================
+// LMS CAPTCHA CHALLENGE (Section 1) — LMS-only, independent of the
+// Admissions `CaptchaChallenge` table. Server-generated, server-verified,
+// single-use, short-lived. Additive.
+// ============================================================
+model LmsCaptchaChallenge {
+  id         String   @id
+  answerHash String
+  used       Boolean  @default(false)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+// ============================================================
+// S7.2 — LMS FEE PAYMENT SUBMISSION. A student's proof of payment for
+// an LmsFeeChallan (method, amount, transaction id, screenshot, date).
+// The Provost approves (challan → PAID) or rejects with a mandatory
+// reason the student can see; the student may then resubmit. LMS-only,
+// free-standing (no FK to Admission tables).
+// ============================================================
+model LmsFeePaymentSubmission {
+  id              Int      @id @default(autoincrement())
+  challanId       Int                               // LmsFeeChallan.id
+  studentId       String                            // LmsUser.id
+  // BANK | JAZZCASH | EASYPAISA
+  method          String
+  amount          Float
+  transactionId   String
+  paidOn          String                            // YYYY-MM-DD
+  screenshotPath  String
+  screenshotName  String?
+  // PENDING | APPROVED | REJECTED
+  status          String   @default("PENDING")
+  rejectionReason String?
+  reviewedById    String?
+  reviewedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([challanId])
+  @@index([studentId])
+  @@index([status])
+}
+
+// ============================================================
+// S9 — LMS FEE CONCESSION / INSTALLMENT PLAN / SCHOLARSHIP. Adjusts what
+// a student owes WITHOUT changing the Admission base fee. kind:
+//   CONCESSION  — fixed amount or percent off the semester fee
+//   SCHOLARSHIP — fixed amount or percent off (recorded separately)
+//   INSTALLMENT — splits the semester fee into N monthly instalments
+// Rows are never deleted: revoking sets isActive=false (full history).
+// ============================================================
+model LmsFeeConcession {
+  id               Int      @id @default(autoincrement())
+  studentId        String                           // LmsUser.id
+  kind             String                           // CONCESSION | SCHOLARSHIP | INSTALLMENT
+  title            String
+  // For CONCESSION / SCHOLARSHIP: exactly one of percent / amount.
+  percent          Float?
+  amount           Float?
+  // For INSTALLMENT: number of monthly instalments and first due date.
+  installments     Int?
+  firstDueDate     String?
+  // Optional semester restriction (null = every semester).
+  semester         Int?
+  note             String?
+  isActive         Boolean  @default(true)
+  grantedById      String
+  grantedAt        DateTime @default(now())
+  revokedById      String?
+  revokedAt        DateTime?
+  revokeReason     String?
+
+  @@index([studentId])
+  @@index([kind])
+  @@index([isActive])
+}
+
+// Instalment rows generated from an INSTALLMENT plan for one challan.
+model LmsFeeInstallment {
+  id           Int      @id @default(autoincrement())
+  concessionId Int                                   // LmsFeeConcession.id
+  challanId    Int                                   // LmsFeeChallan.id
+  studentId    String
+  seq          Int
+  amount       Float
+  dueDate      String
+  // UNPAID | PAID
+  status       String   @default("UNPAID")
+  paidAt       DateTime?
+  createdAt    DateTime @default(now())
+
+  @@index([challanId])
+  @@index([studentId])
+  @@index([concessionId])
+}
+
+// ============================================================
+// S10/S11 — LMS STUDENT ACADEMIC STANDING. One row per student: the
+// semester they are currently in and their standing (probation count,
+// dropped / removed). Written ONLY by the Focal Person promotion
+// workflow. LMS-only; the Admission System never reads or writes it.
+// ============================================================
+model LmsStudentStanding {
+  id              Int      @id @default(autoincrement())
+  studentId       String   @unique                  // LmsUser.id
+  currentSemester Int
+  // ACTIVE | DROPPED | REMOVED | COMPLETED
+  status          String   @default("ACTIVE")
+  probations      Int      @default(0)
+  noReadmission   Boolean  @default(false)
+  updatedById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+}
+
+// History of every promotion decision (who, when, from → to, outcome).
+model LmsPromotionRecord {
+  id           Int      @id @default(autoincrement())
+  studentId    String
+  fromSemester Int
+  toSemester   Int?
+  // ELIGIBLE | PROBATION | LAST_PROBATION | FAILED_COURSES | REPEAT | DROPPED | REMOVED
+  outcome      String
+  gpa          Float
+  cgpa         Float
+  passedCh     Int
+  failedCourses String  @default("[]")             // JSON [{courseId, code, title, percent}]
+  enrolled     Int      @default(0)                // registrations created in the next semester
+  decidedById  String
+  createdAt    DateTime @default(now())
+
+  @@index([studentId])
+  @@index([fromSemester])
+}
+
+// Failed course carried forward for the Special Exam (S11).
+model LmsSpecialExamCandidate {
+  id           Int      @id @default(autoincrement())
+  studentId    String
+  courseId     Int                                 // LmsCourse.id
+  offeringId   Int?                                // CourseOffering.id it was failed in
+  semester     Int
+  percent      Float
+  // MARKED | ENROLLED | CLEARED
+  status       String   @default("MARKED")
+  examOfferingId Int?                              // offering the Special Exam is attached to
+  markedById   String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([studentId, courseId, semester])
+  @@index([studentId])
+  @@index([status])
 }

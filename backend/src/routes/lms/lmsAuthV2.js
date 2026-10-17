@@ -30,6 +30,7 @@ const {
 } = require('../../utils/loginSecurity');
 const { autoEnrollStudent } = require('../../services/autoEnrollService');
 const { logActivity } = require('../../utils/activityLog');
+const lmsCaptcha = require('../../utils/lmsCaptcha');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -99,10 +100,35 @@ async function buildSuperAdminHandoff(lmsUser) {
 }
 
 // ------------------------------------------------------------
-// POST /api/lms/auth/login
+// GET /api/lms/auth/captcha — Section 1: fresh LMS login captcha.
+// ------------------------------------------------------------
+router.get('/captcha', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(await lmsCaptcha.issue());
+  } catch (e) {
+    console.error('LMS captcha error:', e);
+    res.status(500).json({ error: 'Could not generate the security check. Please try again.' });
+  }
+});
+
+// ------------------------------------------------------------
+// POST /api/lms/auth/login   { username, password, captchaId, captchaAnswer }
 // ------------------------------------------------------------
 router.post('/login', async (req, res) => {
   try {
+    // Section 1 — server-side captcha gate. Runs BEFORE any account lookup so
+    // a wrong / empty / expired / reused captcha never reaches password
+    // verification (and never counts toward the account lockout).
+    const captchaError = await lmsCaptcha.verify(req.body.captchaId, req.body.captchaAnswer);
+    if (captchaError) {
+      await recordLoginAttempt({
+        system: 'lms', actorType: 'lms_user', username: String(req.body.username || req.body.email || '').trim(),
+        success: false, reason: 'captcha_failed', req,
+      }).catch(() => {});
+      return res.status(400).json({ error: captchaError, code: 'CAPTCHA_INVALID' });
+    }
+
     // Accept the identifier from `username` (preferred) or `email` for clients
     // that send an explicit email field. The same field may itself contain an
     // email address — the lookup below resolves either form.

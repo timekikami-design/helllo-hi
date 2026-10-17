@@ -3,6 +3,8 @@ import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "../../context/AuthContext";
+import FeeBlockGate from "../student/FeeBlockGate";
 
 const DashboardLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -11,6 +13,8 @@ const DashboardLayout = () => {
     return localStorage.getItem("aust_sidebar_collapsed") === "true";
   });
   const location = useLocation();
+  const { user } = useAuth();
+  const isStudent = user?.role === "student";
 
   useEffect(() => {
     localStorage.setItem("aust_sidebar_collapsed", String(collapsed));
@@ -40,7 +44,7 @@ const DashboardLayout = () => {
             transition={{ duration: 0.25 }}
             className="flex-1 px-4 lg:px-8 py-6 max-w-[1700px] w-full mx-auto"
           >
-            <Outlet />
+            {isStudent ? <FeeBlockGate><Outlet /></FeeBlockGate> : <Outlet />}
           </motion.main>
         </AnimatePresence>
         <footer className="px-4 lg:px-8 py-4 text-center text-xs text-muted-app border-t border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-950/60 backdrop-blur">

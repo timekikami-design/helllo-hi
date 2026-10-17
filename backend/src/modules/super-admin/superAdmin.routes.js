@@ -24,6 +24,8 @@ const reports = require('./superAdminReports.service');
 const adm = require('./admissionsGovernance.controller');
 const lmsAct = require('./lmsAcademicActions.controller');
 const lmsGov = require('./lmsGovernance.controller');
+const lmsCoord = require('./lmsCoordinator.controller');
+const marksPinAdmin = require('./marksPinAdmin.controller');
 
 const router = express.Router();
 
@@ -165,5 +167,14 @@ router.patch('/lms/rechecks/:id', lmsGov.updateRecheck);
 router.get('/lms/surveys', lmsGov.listSurveys);
 router.patch('/lms/surveys/:id/toggle', lmsGov.toggleSurvey);
 router.get('/lms/surveys/:id/results', lmsGov.surveyResults);
+
+// ---- LMS Course Coordinator assignment (Section 12, LMS-only writes) ----
+router.get('/lms/course-coordinators', lmsCoord.listCoordinators);
+router.post('/lms/course-coordinators', lmsCoord.assignCoordinator);
+router.delete('/lms/course-coordinators/:id', lmsCoord.unassignCoordinator);
+
+// ---- Teacher Marks PIN reset (Section 2, Super Admin only) ---------------
+router.get('/lms/marks-pins', marksPinAdmin.listTeacherPins);
+router.post('/lms/marks-pins/:lmsUserId/reset', marksPinAdmin.resetTeacherPin);
 
 module.exports = router;

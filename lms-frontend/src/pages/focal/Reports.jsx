@@ -16,8 +16,8 @@ import { useToast } from "../../context/ToastContext";
 
 /* =========================================================================
  * Focal Person → Reports & Analytics  (Requirement #5 — complete redesign)
- * Backed by GET /lms/academic/focal/reports2/:tab  with Program / Semester /
- * Section filters. 10 professional report tabs, real-time data only.
+ * Backed by GET /lms/academic/focal/reports2/:tab  with Program / Semester
+ * filters. 9 professional report tabs, real-time data only.
  * ======================================================================= */
 
 // Cell renderers ----------------------------------------------------------
@@ -37,7 +37,7 @@ const TABS = [
     id: "enrollment", label: "A. Enrollment", icon: ClipboardList,
     cols: [
       { k: "roll", h: "Roll #", mono: true }, { k: "student", h: "Student", bold: true },
-      { k: "program", h: "Program" }, { k: "semester", h: "Sem" }, { k: "section", h: "Sec" },
+      { k: "program", h: "Program" }, { k: "semester", h: "Sem" },
       { k: "course", h: "Course" }, { k: "teacher", h: "Teacher" },
       { k: "status", h: "Status", render: statusBadge }, { k: "term", h: "Term" },
       { k: "registeredAt", h: "Registered", render: fmtDate },
@@ -53,7 +53,7 @@ const TABS = [
     id: "attendance", label: "B. Attendance", icon: CalendarCheck,
     cols: [
       { k: "roll", h: "Roll #", mono: true }, { k: "student", h: "Student", bold: true },
-      { k: "program", h: "Program" }, { k: "semester", h: "Sem" }, { k: "section", h: "Sec" },
+      { k: "program", h: "Program" }, { k: "semester", h: "Sem" },
       { k: "course", h: "Course" }, { k: "teacher", h: "Teacher" },
       { k: "present", h: "Present", render: num }, { k: "total", h: "Total", render: num },
       { k: "attendancePct", h: "Attendance", render: pct },
@@ -69,7 +69,7 @@ const TABS = [
     id: "assignment", label: "C. Assignment", icon: FileText,
     cols: [
       { k: "roll", h: "Roll #", mono: true }, { k: "student", h: "Student", bold: true },
-      { k: "program", h: "Program" }, { k: "semester", h: "Sem" }, { k: "section", h: "Sec" },
+      { k: "program", h: "Program" }, { k: "semester", h: "Sem" },
       { k: "course", h: "Course" }, { k: "teacher", h: "Teacher" }, { k: "title", h: "Assignment" },
       { k: "status", h: "Status", render: statusBadge },
       { k: "marks", h: "Marks", render: (v, r) => <span className="font-mono">{v != null ? `${v}/${r.total ?? "?"}` : "—"}</span> },
@@ -86,7 +86,7 @@ const TABS = [
     id: "quizzes", label: "D. Quizzes", icon: HelpCircle,
     cols: [
       { k: "roll", h: "Roll #", mono: true }, { k: "student", h: "Student", bold: true },
-      { k: "program", h: "Program" }, { k: "semester", h: "Sem" }, { k: "section", h: "Sec" },
+      { k: "program", h: "Program" }, { k: "semester", h: "Sem" },
       { k: "course", h: "Course" }, { k: "teacher", h: "Teacher" }, { k: "title", h: "Quiz" },
       { k: "status", h: "Status", render: statusBadge },
       { k: "obtained", h: "Score", render: (v, r) => <span className="font-mono">{v != null ? `${v}/${r.total ?? "?"}` : "—"}</span> },
@@ -103,7 +103,7 @@ const TABS = [
     id: "midterm", label: "E. Mid-Term", icon: GraduationCap,
     cols: [
       { k: "roll", h: "Roll #", mono: true }, { k: "student", h: "Student", bold: true },
-      { k: "program", h: "Program" }, { k: "semester", h: "Sem" }, { k: "section", h: "Sec" },
+      { k: "program", h: "Program" }, { k: "semester", h: "Sem" },
       { k: "course", h: "Course" }, { k: "teacher", h: "Teacher" },
       { k: "marks", h: "Marks", render: (v, r) => <span className="font-mono">{v ?? "—"}/{r.total ?? 100}</span> },
       { k: "grade", h: "Grade", render: gradeBadge },
@@ -139,23 +139,11 @@ const TABS = [
     ],
   },
   {
-    id: "section", label: "H. Section", icon: Users,
-    cols: [
-      { k: "section", h: "Section", bold: true }, { k: "students", h: "Students", render: num },
-      { k: "courses", h: "Courses", render: num }, { k: "programs", h: "Programs" },
-      { k: "enrolledRegistrations", h: "Enrollments", render: num },
-    ],
-    kpis: (s) => [
-      { title: "Sections", value: s.sections ?? 0, icon: "Users", color: "blue" },
-      { title: "—", value: "", hide: true }, { title: "—", value: "", hide: true }, { title: "—", value: "", hide: true },
-    ],
-  },
-  {
-    id: "program", label: "I. Program", icon: Building2,
+    id: "program", label: "H. Program", icon: Building2,
     cols: [
       { k: "program", h: "Program", bold: true }, { k: "programTitle", h: "Title" },
       { k: "students", h: "Students", render: num }, { k: "courses", h: "Courses", render: num },
-      { k: "sections", h: "Sections", render: num }, { k: "enrolledRegistrations", h: "Enrollments", render: num },
+      { k: "enrolledRegistrations", h: "Enrollments", render: num },
     ],
     kpis: (s) => [
       { title: "Programs", value: s.programs ?? 0, icon: "Building2", color: "blue" },
@@ -163,10 +151,10 @@ const TABS = [
     ],
   },
   {
-    id: "performance", label: "J. Performance", icon: TrendingUp,
+    id: "performance", label: "I. Performance", icon: TrendingUp,
     cols: [
       { k: "roll", h: "Roll #", mono: true }, { k: "student", h: "Student", bold: true },
-      { k: "program", h: "Program" }, { k: "semester", h: "Sem" }, { k: "section", h: "Sec" },
+      { k: "program", h: "Program" }, { k: "semester", h: "Sem" },
       { k: "cgpa", h: "CGPA", render: cgpaCell }, { k: "gpa", h: "GPA", render: cgpaCell },
       { k: "avgPercent", h: "Avg %", render: pct }, { k: "attendancePct", h: "Attend", render: pct },
       { k: "assignmentPerf", h: "Asg %", render: pct }, { k: "quizPerf", h: "Quiz %", render: pct },
@@ -197,19 +185,18 @@ const FocalReports = () => {
   const [search, setSearch] = useState("");
   const [program, setProgram] = useState("all");
   const [semester, setSemester] = useState("all");
-  const [section, setSection] = useState("all");
 
   // Reset secondary filters when switching tabs (filter options differ).
   useEffect(() => { setSearch(""); }, [tab]);
 
   const { data, loading, error, reload } = useApi(
-    () => api.focal.report2(tab, { program, semester, section }),
-    [tab, program, semester, section]
+    () => api.focal.report2(tab, { program, semester }),
+    [tab, program, semester]
   );
 
   const def = TABS.find((t) => t.id === tab);
   const rows = useMemo(() => (Array.isArray(data?.rows) ? data.rows : []), [data]);
-  const filterOptions = data?.filterOptions || { programs: [], semesters: [], sections: [] };
+  const filterOptions = data?.filterOptions || { programs: [], semesters: [] };
   const summary = data?.summary || {};
 
   const filtered = useMemo(() => {
@@ -250,7 +237,6 @@ const FocalReports = () => {
     const activeFilters = [
       program !== "all" ? `Program: ${program}` : null,
       semester !== "all" ? `Semester: ${semester}` : null,
-      section !== "all" ? `Section: ${section}` : null,
       search.trim() ? `Search: ${search.trim()}` : null,
     ].filter(Boolean).join(" · ") || "All records";
     const generatedAt = new Date().toLocaleString();
@@ -315,8 +301,8 @@ const FocalReports = () => {
   const exportPDF = () => openPrintWindow(true, `${def?.label || "Report"} ready — choose "Save as PDF" in the print dialog.`);
   const printReport = () => openPrintWindow(true);
 
-  const resetFilters = () => { setProgram("all"); setSemester("all"); setSection("all"); setSearch(""); };
-  const hasActiveFilter = program !== "all" || semester !== "all" || section !== "all" || search.trim();
+  const resetFilters = () => { setProgram("all"); setSemester("all"); setSearch(""); };
+  const hasActiveFilter = program !== "all" || semester !== "all" || search.trim();
 
   return (
     <div>
@@ -366,12 +352,11 @@ const FocalReports = () => {
         </div>
       </div>
 
-      {/* ---- Filters: Program / Semester / Section + search ---- */}
+      {/* ---- Filters: Program / Semester + search ---- */}
       <div className="card-base p-4 mb-4">
         <div className="flex items-end gap-3 flex-wrap">
           <FilterSelect label="Program" value={program} onChange={setProgram} options={filterOptions.programs} placeholder="All Programs" />
           <FilterSelect label="Semester" value={semester} onChange={setSemester} options={filterOptions.semesters} placeholder="All Semesters" />
-          <FilterSelect label="Section" value={section} onChange={setSection} options={filterOptions.sections} placeholder="All Sections" />
           <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
             <label className="text-[10px] font-bold uppercase tracking-wider text-muted-app">Search</label>
             <div className="relative">

@@ -20,11 +20,10 @@ const TermResultsView = ({ component, title, subtitle, icon, breadcrumbLabel }) 
   const departments = useMemo(() => filterData?.departments || [], [filterData]);
   const programs = useMemo(() => filterData?.programs || [], [filterData]);
   const semestersByProgram = useMemo(() => filterData?.semestersByProgram || {}, [filterData]);
-  const allSections = useMemo(() => filterData?.sections || [], [filterData]);
   const allCourses = useMemo(() => filterData?.courses || [], [filterData]);
   const sessions = useMemo(() => filterData?.sessions || [], [filterData]);
 
-  const [f, setF] = useState({ session: "", department: "", program: "", semester: "", section: "", courseId: "" });
+  const [f, setF] = useState({ session: "", department: "", program: "", semester: "", courseId: "" });
   const programObj = useMemo(() => programs.find((p) => p.shortForm === f.program || p.code === f.program), [programs, f.program]);
   const semesterOpts = useMemo(() => (programObj?.code ? (semestersByProgram[programObj.code] || []) : []), [programObj, semestersByProgram]);
   const courseOpts = useMemo(() => allCourses.filter((c) => {
@@ -45,7 +44,6 @@ const TermResultsView = ({ component, title, subtitle, icon, breadcrumbLabel }) 
     if (f.department) q.set("department", f.department);
     if (f.program) q.set("program", f.program);
     if (f.semester) q.set("semester", f.semester);
-    if (f.section) q.set("section", f.section);
     if (f.courseId) q.set("courseId", f.courseId);
     return `?${q.toString()}`;
   }, [component, f]);
@@ -107,13 +105,6 @@ const TermResultsView = ({ component, title, subtitle, icon, breadcrumbLabel }) 
             </select>
           </div>
           <div>
-            <label className="text-[10px] uppercase font-bold text-muted-app mb-1 block">Section</label>
-            <select value={f.section} onChange={(e) => setF({ ...f, section: e.target.value })} className="input-base w-full text-sm">
-              <option value="">All Sections</option>
-              {allSections.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div>
             <label className="text-[10px] uppercase font-bold text-muted-app mb-1 block">Course</label>
             <select value={f.courseId} onChange={(e) => setF({ ...f, courseId: e.target.value })} className="input-base w-full text-sm">
               <option value="">All Courses</option>
@@ -123,7 +114,7 @@ const TermResultsView = ({ component, title, subtitle, icon, breadcrumbLabel }) 
         </div>
         <div className="flex flex-wrap items-center gap-2 mt-3">
           <button onClick={load} disabled={loading} className="btn-secondary text-sm py-2 px-3 inline-flex items-center gap-2 disabled:opacity-50"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Apply / Reload</button>
-          <button onClick={() => setF({ session: "", department: "", program: "", semester: "", section: "", courseId: "" })} className="btn-secondary text-sm py-2 px-3">Clear</button>
+          <button onClick={() => setF({ session: "", department: "", program: "", semester: "", courseId: "" })} className="btn-secondary text-sm py-2 px-3">Clear</button>
         </div>
       </div>
 
@@ -146,7 +137,7 @@ const TermResultsView = ({ component, title, subtitle, icon, breadcrumbLabel }) 
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="surface border-b border-app"><tr>
-                    {["Roll", "Student", "Program", "Sem", "Sec", "Course", "Marks", "Max", "%", "Grade", "Status"].map((h) => <th key={h} className="px-3 py-2 text-left text-[10px] font-bold uppercase text-muted-app">{h}</th>)}
+                    {["Roll", "Student", "Program", "Sem", "Course", "Marks", "Max", "%", "Grade", "Status"].map((h) => <th key={h} className="px-3 py-2 text-left text-[10px] font-bold uppercase text-muted-app">{h}</th>)}
                   </tr></thead>
                   <tbody className="divide-y divide-app">
                     {filtered.map((r, i) => (
@@ -155,7 +146,6 @@ const TermResultsView = ({ component, title, subtitle, icon, breadcrumbLabel }) 
                         <td className="px-3 py-2 text-xs font-bold text-app whitespace-nowrap">{r.student}</td>
                         <td className="px-3 py-2 text-xs text-app">{r.program || "—"}</td>
                         <td className="px-3 py-2 text-xs text-app text-center">{r.semester || "—"}</td>
-                        <td className="px-3 py-2 text-xs text-app text-center">{r.section || "—"}</td>
                         <td className="px-3 py-2 text-xs text-app whitespace-nowrap">{r.course}</td>
                         <td className="px-3 py-2 text-xs text-app">{r.marks}</td>
                         <td className="px-3 py-2 text-xs text-muted-app">{r.max}</td>

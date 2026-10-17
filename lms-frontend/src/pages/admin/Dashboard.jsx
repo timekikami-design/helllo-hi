@@ -89,7 +89,6 @@ const AdminDashboard = () => {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard title="Total Programs" value={stats.totalPrograms ?? 0} icon="GraduationCap" color="indigo" delay={0} />
             <StatCard title="Total Courses" value={stats.totalCourses ?? 0} icon="BookOpen" color="purple" delay={0.03} />
-            <StatCard title="Total Sections" value={stats.totalSections ?? 0} icon="Layers" color="cyan" delay={0.06} />
             <StatCard title="Total Students" value={(stats.totalStudents ?? 0).toLocaleString()} icon="Users" color="blue" delay={0.09} />
             <StatCard title="Active Students" value={(stats.activeStudents ?? 0).toLocaleString()} icon="UserCheck" color="emerald" delay={0.12} />
             <StatCard title="Suspended Students" value={stats.suspendedStudents ?? 0} icon="UserX" color="rose" delay={0.15} />

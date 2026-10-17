@@ -121,7 +121,7 @@ const TeacherAssignment = () => {
     <div>
       <PageHeader
         title="Course Distribution"
-        subtitle="Distribute courses across sessions, sections & teachers using cascading selections — fully database-driven."
+        subtitle="Distribute courses across sessions & teachers using cascading selections — fully database-driven."
         icon="GitBranch"
         breadcrumb={["Coordinator", "Course Distribution"]}
         actions={
@@ -154,7 +154,7 @@ const TeacherAssignment = () => {
       ) : loading ? (
         <div className="card-base p-5 space-y-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
       ) : distributions.length === 0 ? (
-        <EmptyState icon="GitBranch" title="No distributions" description="Create a course distribution to assign courses to sessions, sections & teachers." />
+        <EmptyState icon="GitBranch" title="No distributions" description="Create a course distribution to assign courses to sessions & teachers." />
       ) : (
         <div className="card-base overflow-hidden">
           <div className="overflow-x-auto">
@@ -165,7 +165,6 @@ const TeacherAssignment = () => {
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase text-muted-app">Program</th>
                   <th className="px-4 py-3 text-center text-xs font-bold uppercase text-muted-app">Semester</th>
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase text-muted-app">Teacher</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold uppercase text-muted-app">Sections</th>
                   <th className="px-4 py-3 text-center text-xs font-bold uppercase text-muted-app">Students</th>
                   <th className="px-4 py-3 text-center text-xs font-bold uppercase text-muted-app">Status</th>
                   <th className="px-4 py-3 text-right text-xs font-bold uppercase text-muted-app">Actions</th>
@@ -190,7 +189,6 @@ const TeacherAssignment = () => {
                         </div>
                       ) : <Badge color="amber">Unassigned</Badge>}
                     </td>
-                    <td className="px-4 py-3 text-center text-app">{o.sections?.length ?? 0}</td>
                     <td className="px-4 py-3 text-center text-app">{o.students}</td>
                     <td className="px-4 py-3 text-center">
                       <button onClick={() => toggleStatus(o)} title="Toggle status">
@@ -222,7 +220,7 @@ const TeacherAssignment = () => {
         onCreated={() => { setCreateOpen(false); reload(); }}
       />
 
-      {/* EDIT DISTRIBUTION (teacher, section, semester, credit hours, course) */}
+      {/* EDIT DISTRIBUTION (teacher, semester, credit hours, course) */}
       <EditDistributionModal
         distribution={editing}
         onClose={() => setEditing(null)}
@@ -276,7 +274,7 @@ const TeacherAssignment = () => {
 
 // ------------------------------------------------------------
 // Create Distribution modal — cascading dropdowns:
-//   Program → Semester → Course (by semester) → Session → Teacher → Section
+//   Program → Semester → Course (by semester) → Session → Teacher
 // ------------------------------------------------------------
 const CreateDistributionModal = ({ open, onClose, programs, teachers, sessions, onCreated }) => {
   const { toast } = useToast();
@@ -287,9 +285,7 @@ const CreateDistributionModal = ({ open, onClose, programs, teachers, sessions, 
   const [courseId, setCourseId] = useState("");
   const [sessionId, setSessionId] = useState("");
   const [teacherId, setTeacherId] = useState("");
-  const [sectionName, setSectionName] = useState("A");
   const [capacity, setCapacity] = useState(150);
-  const [room, setRoom] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
@@ -297,7 +293,7 @@ const CreateDistributionModal = ({ open, onClose, programs, teachers, sessions, 
   useEffect(() => {
     if (open) {
       setProgramId(""); setSemesters([]); setSemesterId(""); setCourses([]); setCourseId("");
-      setTeacherId(""); setSectionName("A"); setCapacity(150); setRoom(""); setErr("");
+      setTeacherId(""); setCapacity(150); setErr("");
       const current = sessions.find((s) => s.isCurrent);
       setSessionId(current ? String(current.id) : (sessions[0] ? String(sessions[0].id) : ""));
     }
@@ -332,11 +328,10 @@ const CreateDistributionModal = ({ open, onClose, programs, teachers, sessions, 
     if (!programId) return "Select a program.";
     if (!courseId) return "Select a course.";
     if (!sessionId) return "Select a session / batch.";
-    if (sectionName && !sectionName.trim()) return "Section name cannot be blank.";
     const cap = capacity === "" ? null : parseInt(capacity, 10);
     if (cap != null && (!Number.isFinite(cap) || cap < 1)) return "Capacity must be a positive number.";
     return "";
-  }, [programId, courseId, sessionId, sectionName, capacity]);
+  }, [programId, courseId, sessionId, capacity]);
 
   const submit = async () => {
     setErr("");
@@ -348,9 +343,7 @@ const CreateDistributionModal = ({ open, onClose, programs, teachers, sessions, 
         courseId: parseInt(courseId, 10),
         sessionId: parseInt(sessionId, 10),
         teacherId: teacherId || undefined,
-        sectionName: sectionName?.trim() || undefined,
         capacity: capacity ? parseInt(capacity, 10) : undefined,
-        room: room?.trim() || undefined,
       });
       toast("Distribution created ✓", { type: "success" });
       onCreated?.();
@@ -439,15 +432,11 @@ const CreateDistributionModal = ({ open, onClose, programs, teachers, sessions, 
                   <td className={hintCls}>Optional — can be assigned after creation.</td>
                 </tr>
                 <tr className={rowCls}>
-                  <td className={labelCls}>Section</td>
+                  <td className={labelCls}>Capacity</td>
                   <td className="px-3 py-2.5">
-                    <div className="grid grid-cols-3 gap-2">
-                      <input value={sectionName} onChange={(e) => setSectionName(e.target.value)} placeholder="Section (A)" className="input-base w-full" />
-                      <input value={capacity} onChange={(e) => setCapacity(e.target.value)} type="number" min={1} placeholder="Capacity" className="input-base w-full" />
-                      <input value={room} onChange={(e) => setRoom(e.target.value)} placeholder="Room" className="input-base w-full" />
-                    </div>
+                    <input value={capacity} onChange={(e) => setCapacity(e.target.value)} type="number" min={1} placeholder="Capacity" className="input-base w-full" />
                   </td>
-                  <td className={hintCls}>Name · capacity · room for the first section.</td>
+                  <td className={hintCls}>Maximum students for this course.</td>
                 </tr>
               </tbody>
             </table>
@@ -466,7 +455,7 @@ const CreateDistributionModal = ({ open, onClose, programs, teachers, sessions, 
                     <th className="px-3 py-2 text-left text-[11px] font-bold uppercase text-muted-app">Course</th>
                     <th className="px-3 py-2 text-left text-[11px] font-bold uppercase text-muted-app">Session</th>
                     <th className="px-3 py-2 text-left text-[11px] font-bold uppercase text-muted-app">Teacher</th>
-                    <th className="px-3 py-2 text-center text-[11px] font-bold uppercase text-muted-app">Section</th>
+                    <th className="px-3 py-2 text-center text-[11px] font-bold uppercase text-muted-app">Capacity</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -475,7 +464,7 @@ const CreateDistributionModal = ({ open, onClose, programs, teachers, sessions, 
                     <td className="px-3 py-2.5 text-app">{selCourse ? `${selCourse.code} — ${selCourse.title}` : <span className="text-muted-app italic">—</span>}</td>
                     <td className="px-3 py-2.5 text-app">{selSession ? selSession.title : <span className="text-muted-app italic">—</span>}</td>
                     <td className="px-3 py-2.5 text-app">{selTeacher ? selTeacher.name : <Badge color="amber">Unassigned</Badge>}</td>
-                    <td className="px-3 py-2.5 text-center text-app">{sectionName?.trim() || "A"}{capacity ? ` · ${capacity}` : ""}{room?.trim() ? ` · ${room.trim()}` : ""}</td>
+                    <td className="px-3 py-2.5 text-center text-app">{capacity || "—"}</td>
                   </tr>
                 </tbody>
               </table>
@@ -493,7 +482,7 @@ const CreateDistributionModal = ({ open, onClose, programs, teachers, sessions, 
 };
 
 // ------------------------------------------------------------
-// Edit Distribution modal — edit Assigned Teacher, Section,
+// Edit Distribution modal — edit Assigned Teacher,
 // Semester, Credit Hours and the Course Assignment. All changes
 // persist immediately to the database on save.
 // ------------------------------------------------------------
@@ -504,9 +493,7 @@ const EditDistributionModal = ({ distribution, onClose, teachers, semesters, onS
   const [teacherId, setTeacherId] = useState("");
   const [semesterId, setSemesterId] = useState("");
   const [creditHours, setCreditHours] = useState("");
-  const [sectionName, setSectionName] = useState("");
   const [capacity, setCapacity] = useState("");
-  const [room, setRoom] = useState("");
   // Course Assignment — pick another course in the same program.
   const [courses, setCourses] = useState([]);
   const [courseId, setCourseId] = useState("");
@@ -528,9 +515,7 @@ const EditDistributionModal = ({ distribution, onClose, teachers, semesters, onS
     setSemesterId(distribution.semesterId ? String(distribution.semesterId) : "");
     setCreditHours(distribution.creditHours != null ? String(distribution.creditHours) : "");
     const primary = distribution.sections?.[0];
-    setSectionName(primary?.name || "");
     setCapacity(primary?.capacity != null ? String(primary.capacity) : "");
-    setRoom(primary?.room || "");
     setCourseId(distribution.courseId ? String(distribution.courseId) : "");
     // Load alternative courses for Course Assignment (same program).
     if (distribution.programId) {
@@ -552,9 +537,7 @@ const EditDistributionModal = ({ distribution, onClose, teachers, semesters, onS
         courseId: courseId ? parseInt(courseId, 10) : undefined,
         semesterId: semesterId ? parseInt(semesterId, 10) : "",
         creditHours: creditHours !== "" ? parseInt(creditHours, 10) : undefined,
-        sectionName: sectionName?.trim() || undefined,
         capacity: capacity !== "" ? parseInt(capacity, 10) : undefined,
-        room: room?.trim() ?? undefined,
       });
       toast("Distribution updated ✓", { type: "success" });
       onSaved?.();
@@ -595,14 +578,8 @@ const EditDistributionModal = ({ distribution, onClose, teachers, semesters, onS
             <Field label="Credit Hours">
               <input value={creditHours} onChange={(e) => setCreditHours(e.target.value)} type="number" min={0} max={12} placeholder="3" className="input-base w-full" />
             </Field>
-            <Field label="Section">
-              <input value={sectionName} onChange={(e) => setSectionName(e.target.value)} placeholder="A" className="input-base w-full" />
-            </Field>
-            <Field label="Section Capacity">
+            <Field label="Capacity">
               <input value={capacity} onChange={(e) => setCapacity(e.target.value)} type="number" min={1} placeholder="150" className="input-base w-full" />
-            </Field>
-            <Field label="Room (optional)">
-              <input value={room} onChange={(e) => setRoom(e.target.value)} placeholder="R-101" className="input-base w-full" />
             </Field>
           </div>
 

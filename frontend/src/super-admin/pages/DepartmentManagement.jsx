@@ -20,6 +20,7 @@ import api from '../../utils/api';
 import {
   PageHeader, Breadcrumb, Badge, useToast, FormModal, ConfirmationModal, Skeleton, EmptyState,
 } from '../components/ui';
+import LmsCoordinatorPanel from '../components/LmsCoordinatorPanel';
 
 // Phase 1 §2 — a department may hold MULTIPLE staff per role. Each role now
 // maps to a *list* form key ("*s") and a payload list key ("*List") plus the
@@ -355,6 +356,9 @@ const DepartmentManagement = () => {
                 <div><b>Course Coordinator(s):</b><br />{staffListNames(d, 'course_coordinator', 'courseCoordinator')}</div>
                 <div><b>Focal Person(s):</b><br />{staffListNames(d, 'focal_person', 'focalPerson')}</div>
               </div>
+
+              {/* Section 12 — assign an EXISTING LMS teacher/coordinator (LMS-only writes) */}
+              <LmsCoordinatorPanel department={d} />
 
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Programs ({d.programs?.length || 0})</div>

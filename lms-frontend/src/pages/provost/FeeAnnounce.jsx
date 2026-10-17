@@ -1,9 +1,11 @@
 // ============================================================
 //  PROVOST — Fee Announcement (Semester + Examination)
-//  Requirements 3 & 4: announce fees with scope selection
-//  (University / Department / Program / Semester / Section).
-//  Announcing auto-generates Account Book challans (req 11)
-//  and notifies matched students. 100% real DB data.
+//  Announce fees per University / Department / Program / Semester
+//  with a deadline. S7.1 — the SEMESTER fee amount is never entered
+//  here: each student's amount is read (read-only) from their
+//  Admission fee record and enforced on the server. Examination fees
+//  keep a Provost-entered amount. Announcing generates Account Book
+//  challans and notifies students "You must submit PKR X before …".
 // ============================================================
 import { useState } from "react";
 import { motion } from "framer-motion";
@@ -30,10 +32,9 @@ const SCOPES = [
   { value: "DEPARTMENT", label: "Department" },
   { value: "PROGRAM", label: "Program" },
   { value: "SEMESTER", label: "Semester (within a Program)" },
-  { value: "SECTION", label: "Section (within Program + Semester)" },
 ];
 
-const EMPTY = { title: "", description: "", amount: "", dueDate: "", scope: "UNIVERSITY", department: "", program: "", semester: "", section: "" };
+const EMPTY = { title: "", description: "", amount: "", dueDate: "", scope: "UNIVERSITY", department: "", program: "", semester: "" };
 
 const FeeAnnounce = () => {
   const { toast } = useToast();
@@ -49,17 +50,18 @@ const FeeAnnounce = () => {
   const items = data?.items || [];
   const stats = data?.stats || {};
   const setField = (key, val) => setForm((f) => ({ ...f, [key]: val }));
+  const isSemester = feeType === "SEMESTER";
 
   const openCreate = () => { setForm(EMPTY); setShowCreate(true); };
 
   const publish = async () => {
     if (!form.title || form.title.trim().length < 3) { toast("Title must be at least 3 characters", { type: "error" }); return; }
-    if (!form.amount || Number(form.amount) <= 0) { toast("Enter a valid amount", { type: "error" }); return; }
+    if (!isSemester && (!form.amount || Number(form.amount) <= 0)) { toast("Enter a valid amount", { type: "error" }); return; }
+    if (!form.dueDate) { toast("Select a deadline", { type: "error" }); return; }
     // Scope validation
-    if (["DEPARTMENT"].includes(form.scope) && !form.department) { toast("Select a department", { type: "error" }); return; }
-    if (["PROGRAM", "SEMESTER", "SECTION"].includes(form.scope) && !form.program) { toast("Select a program", { type: "error" }); return; }
-    if (["SEMESTER", "SECTION"].includes(form.scope) && !form.semester) { toast("Select a semester", { type: "error" }); return; }
-    if (form.scope === "SECTION" && !form.section) { toast("Select a section", { type: "error" }); return; }
+    if (form.scope === "DEPARTMENT" && !form.department) { toast("Select a department", { type: "error" }); return; }
+    if (["PROGRAM", "SEMESTER"].includes(form.scope) && !form.program) { toast("Select a program", { type: "error" }); return; }
+    if (form.scope === "SEMESTER" && !form.semester) { toast("Select a semester", { type: "error" }); return; }
 
     setSaving(true);
     try {
@@ -67,16 +69,16 @@ const FeeAnnounce = () => {
         feeType,
         title: form.title.trim(),
         description: form.description || undefined,
-        amount: Number(form.amount),
-        dueDate: form.dueDate || undefined,
+        amount: isSemester ? undefined : Number(form.amount),
+        dueDate: form.dueDate,
         scope: form.scope,
         department: form.department || undefined,
         program: form.program || undefined,
         semester: form.semester ? Number(form.semester) : undefined,
-        section: form.section || undefined,
       });
-      const count = res?.announcement?.studentCount ?? res?.studentCount ?? 0;
-      toast(`Fee announced — ${count} student account book(s) updated`, { type: "success" });
+      const count = res?.challansCreated ?? res?.announcement?.studentCount ?? 0;
+      const skipped = res?.skipped?.length || 0;
+      toast(`Fee announced — ${count} student account book(s) updated${skipped ? ` · ${skipped} skipped (already billed / no Admission fee record)` : ""}`, { type: "success" });
       setShowCreate(false);
       setForm(EMPTY);
       reload();
@@ -100,7 +102,6 @@ const FeeAnnounce = () => {
     }
   };
 
-  const isSemester = feeType === "SEMESTER";
   const accent = isSemester ? "from-indigo-500 to-blue-600" : "from-purple-500 to-fuchsia-600";
 
   return (
@@ -166,18 +167,17 @@ const FeeAnnounce = () => {
                       </div>
                       {a.description && <p className="text-xs text-muted-app mb-2 truncate">{a.description}</p>}
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
-                        <div><span className="text-muted-app">Amount:</span> <span className="font-bold text-app">{fmtMoney(a.amount)}</span></div>
+                        <div><span className="text-muted-app">Amount:</span> <span className="font-bold text-app">{a.feeType === "SEMESTER" ? "Per Admission fee record" : fmtMoney(a.amount)}</span></div>
                         <div><span className="text-muted-app">Scope:</span> <span className="font-semibold text-app">{a.scope}</span></div>
                         <div><span className="text-muted-app">Students:</span> <span className="font-semibold text-app">{a.studentCount}</span></div>
                         <div><span className="text-muted-app">Billed:</span> <span className="font-semibold text-app">{fmtMoney(a.totalBilled)}</span></div>
                         <div><span className="text-muted-app">Due:</span> <span className="font-semibold text-app">{fmtDate(a.dueDate)}</span></div>
                       </div>
-                      {(a.department || a.program || a.semester || a.section) && (
+                      {(a.department || a.program || a.semester) && (
                         <div className="flex flex-wrap gap-1.5 mt-2">
                           {a.department && <span className="text-[10px] px-2 py-0.5 rounded-full bg-app-subtle text-muted-app">Dept: {a.department}</span>}
                           {a.program && <span className="text-[10px] px-2 py-0.5 rounded-full bg-app-subtle text-muted-app">Prog: {a.program}</span>}
                           {a.semester && <span className="text-[10px] px-2 py-0.5 rounded-full bg-app-subtle text-muted-app">Sem: {a.semester}</span>}
-                          {a.section && <span className="text-[10px] px-2 py-0.5 rounded-full bg-app-subtle text-muted-app">Sec: {a.section}</span>}
                         </div>
                       )}
                       <div className="mt-3">
@@ -200,21 +200,25 @@ const FeeAnnounce = () => {
         <div className="space-y-3">
           <div>
             <label className="text-xs font-semibold text-app mb-1 block">Title</label>
-            <input value={form.title} onChange={(e) => setField("title", e.target.value)} className="input-base w-full text-sm" placeholder={isSemester ? "e.g. Fall 2026 Semester Fee" : "e.g. Final Exam Fee"} />
+            <input data-testid="ann-title" value={form.title} onChange={(e) => setField("title", e.target.value)} className="input-base w-full text-sm" placeholder={isSemester ? "e.g. Fall 2026 Semester Fee" : "e.g. Final Exam Fee"} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-app mb-1 block">Amount (Rs.)</label>
-              <input type="number" value={form.amount} onChange={(e) => setField("amount", e.target.value)} className="input-base w-full text-sm" placeholder="25000" />
+              <label className="text-xs font-semibold text-app mb-1 block">Amount</label>
+              {isSemester ? (
+                <div className="input-base w-full text-xs bg-app-subtle text-muted-app" data-testid="amount-locked">From each student's Admission fee record (cannot be edited)</div>
+              ) : (
+                <input type="number" value={form.amount} onChange={(e) => setField("amount", e.target.value)} className="input-base w-full text-sm" placeholder="2500" />
+              )}
             </div>
             <div>
-              <label className="text-xs font-semibold text-app mb-1 block">Due Date</label>
-              <input type="date" value={form.dueDate} onChange={(e) => setField("dueDate", e.target.value)} className="input-base w-full text-sm" />
+              <label className="text-xs font-semibold text-app mb-1 block">Deadline</label>
+              <input type="date" min={new Date().toISOString().slice(0, 10)} value={form.dueDate} onChange={(e) => setField("dueDate", e.target.value)} className="input-base w-full text-sm" data-testid="ann-deadline" />
             </div>
           </div>
           <div>
             <label className="text-xs font-semibold text-app mb-1 block">Scope</label>
-            <select value={form.scope} onChange={(e) => setField("scope", e.target.value)} className="input-base w-full text-sm">
+            <select data-testid="ann-scope" value={form.scope} onChange={(e) => setField("scope", e.target.value)} className="input-base w-full text-sm">
               {SCOPES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </div>
@@ -223,52 +227,42 @@ const FeeAnnounce = () => {
           {form.scope === "DEPARTMENT" && (
             <div>
               <label className="text-xs font-semibold text-app mb-1 block">Department</label>
-              <select value={form.department} onChange={(e) => setField("department", e.target.value)} className="input-base w-full text-sm">
+              <select data-testid="ann-department" value={form.department} onChange={(e) => setField("department", e.target.value)} className="input-base w-full text-sm">
                 <option value="">Select department…</option>
                 {(opts?.departments || []).map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
           )}
-          {["PROGRAM", "SEMESTER", "SECTION"].includes(form.scope) && (
+          {["PROGRAM", "SEMESTER"].includes(form.scope) && (
             <div>
               <label className="text-xs font-semibold text-app mb-1 block">Program</label>
-              <select value={form.program} onChange={(e) => setField("program", e.target.value)} className="input-base w-full text-sm">
+              <select data-testid="ann-program" value={form.program} onChange={(e) => setField("program", e.target.value)} className="input-base w-full text-sm">
                 <option value="">Select program…</option>
                 {(opts?.programs || []).map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
           )}
-          {["SEMESTER", "SECTION"].includes(form.scope) && (
+          {form.scope === "SEMESTER" && (
             <div>
               <label className="text-xs font-semibold text-app mb-1 block">Semester</label>
-              <select value={form.semester} onChange={(e) => setField("semester", e.target.value)} className="input-base w-full text-sm">
+              <select data-testid="ann-semester" value={form.semester} onChange={(e) => setField("semester", e.target.value)} className="input-base w-full text-sm">
                 <option value="">Select semester…</option>
                 {(opts?.semesters || []).map((s) => <option key={s} value={s}>Semester {s}</option>)}
               </select>
             </div>
           )}
-          {form.scope === "SECTION" && (
-            <div>
-              <label className="text-xs font-semibold text-app mb-1 block">Section</label>
-              <select value={form.section} onChange={(e) => setField("section", e.target.value)} className="input-base w-full text-sm">
-                <option value="">Select section…</option>
-                {(opts?.sections || []).map((s) => <option key={s} value={s}>Section {s}</option>)}
-              </select>
-            </div>
-          )}
-
           <div>
             <label className="text-xs font-semibold text-app mb-1 block">Description (optional)</label>
             <textarea rows="2" value={form.description} onChange={(e) => setField("description", e.target.value)} className="input-base w-full text-sm" placeholder="Details about this fee…" />
           </div>
 
           <div className="rounded-xl bg-app-subtle p-3 text-xs text-muted-app">
-            <i className="fas fa-info-circle mr-1" /> Announcing will automatically generate Account Book challans for all matching students and notify them in real time.
+            <i className="fas fa-info-circle mr-1" /> Announcing generates an Account Book challan for every matching student{isSemester ? " at the amount on their Admission fee record (less any concession / scholarship)" : ""} and notifies them: "You must submit PKR X before [deadline]".
           </div>
 
           <div className="flex gap-2 pt-2">
             <button onClick={() => setShowCreate(false)} className="btn-secondary flex-1">Cancel</button>
-            <button disabled={saving} onClick={publish} className="btn-primary flex-1 disabled:opacity-50">{saving ? "Announcing…" : "Announce Fee"}</button>
+            <button data-testid="ann-submit" disabled={saving} onClick={publish} className="btn-primary flex-1 disabled:opacity-50">{saving ? "Announcing…" : "Announce Fee"}</button>
           </div>
         </div>
       </Modal>

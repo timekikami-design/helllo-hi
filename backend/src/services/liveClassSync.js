@@ -84,7 +84,7 @@ async function syncSlot(slotId, { emit = true } = {}) {
         await prisma.liveClass.create({
           data: {
             offeringId: slot.offeringId, scheduleSlotId: slot.id, title,
-            description: `Auto-scheduled from the Weekly Schedule · ${slot.mode === 'ONLINE' ? 'Online' : `Room ${slot.room || 'TBA'}`}`,
+            description: `Auto-scheduled from the Weekly Schedule · ${slot.mode === 'ONLINE' ? 'Online' : 'On campus'}`,
             scheduledAt: at, durationMin: duration, status: 'SCHEDULED', hostId: slot.offering.teacherId || null,
           },
         });

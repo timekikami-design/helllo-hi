@@ -50,6 +50,10 @@ async function request(path, { method = 'GET', body, isForm = false } = {}) {
     // Never log the teacher out for it; surface the "Invalid PIN" message.
     const isMarksCredentialError = path.startsWith('/lms/academic/teacher/marks')
       && !(data && /session|authentication required|account not found/i.test(String(data.error || '')));
+    // S8 — a fee-blocked student: tell the app shell to show the block screen.
+    if (res.status === 403 && data && data.code === 'FEE_BLOCKED' && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('lms:fee-blocked', { detail: { message: data.error } }));
+    }
     if (res.status === 401 && !isMarksCredentialError) {
       // Session expired — clear and bounce to login.
       authService.logout(true);
@@ -95,6 +99,14 @@ async function download(path, filename = 'download') {
   a.click();
   a.remove();
   window.URL.revokeObjectURL(url);
+}
+
+/** Fetch an authenticated binary (e.g. a payment screenshot) as an object URL. */
+async function blobUrl(path) {
+  const token = authService.getToken();
+  const res = await fetch(`${API_BASE}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) throw new Error(`Could not load file (${res.status})`);
+  return window.URL.createObjectURL(await res.blob());
 }
 
 // Resolve an uploaded file path (e.g. "/uploads/..") to an absolute URL.
@@ -158,7 +170,7 @@ const student = {
   labTask: (id) => get(`/lms/academic/student/lab-tasks/${id}`),
   submitLabTask: (id, formData) => postForm(`/lms/academic/student/lab-tasks/${id}/submit`, formData),
   // Req 3.4 — Download (instead of Print) across the Results module
-  downloadTranscript: (filename = 'transcript.pdf') => download('/lms/academic/student/transcript/download', filename),
+  downloadTranscript: (filename = 'unofficial-transcript.pdf') => download('/lms/academic/student/transcript/download', filename),
   downloadResults: (filename = 'results-cumulative.pdf') => download('/lms/academic/student/results/download', filename),
   downloadTermResult: (termCode, filename) => download(`/lms/academic/student/results/download/term/${encodeURIComponent(termCode)}`, filename || `result-${termCode}.pdf`),
   // Profile (synchronized with the Admissions System)
@@ -203,6 +215,10 @@ const student = {
   // Fees / account
   fees: () => get('/lms/academic/student/fees'),
   payFee: (id, body = {}) => post(`/lms/academic/student/fees/${id}/pay`, body),
+  // S7.2 — payment proof (multipart: method, amount, transactionId, paidOn, screenshot)
+  submitFeeProof: (id, formData) => postForm(`/lms/academic/student/fees/${id}/submissions`, formData),
+  feeProofUrl: (sid) => `/lms/academic/student/fees/submissions/${sid}/screenshot`,
+  feeStatus: () => get('/lms/academic/student/fee-status'),
   // Notifications
   notifications: () => get('/lms/academic/student/notifications'),
   readNotification: (id) => put(`/lms/academic/student/notifications/${id}/read`),
@@ -241,6 +257,12 @@ const teacher = {
   // EventSource cannot set Authorization headers, so the token is passed
   // as a query param and verified server-side.
   eventsUrl: () => `${API_BASE}/lms/academic/teacher/events?token=${encodeURIComponent(authService.getToken() || '')}`,
+  // In-app notifications (bell) — exam reminders etc.
+  notifications: () => get('/lms/academic/teacher/notifications'),
+  readNotification: (id) => put(`/lms/academic/teacher/notifications/${id}/read`),
+  readAllNotifications: () => put('/lms/academic/teacher/notifications/read-all'),
+  // Own current-term courses with results not yet published.
+  incompleteResults: () => get('/lms/academic/teacher/incomplete-results'),
   offerings: (params = '') => get(`/lms/academic/teacher/offerings${params}`),
   offering: (id) => get(`/lms/academic/teacher/offerings/${id}`),
   students: (offeringId) => get(`/lms/academic/teacher/offerings/${offeringId}/students`),
@@ -541,7 +563,14 @@ const focal = {
   // Enrollment lifecycle
   enrollments: () => get('/lms/academic/focal/enrollments'),
   enrollmentAction: (id, body) => put(`/lms/academic/focal/enrollments/${id}/action`, body),
-  promotions: () => get('/lms/academic/focal/promotions'),
+  promotions: (params = '') => get(`/lms/academic/focal/promotions${params}`),
+  // Sections 10 + 11 — AUST promotion rules
+  applyPromotions: (studentIds) => post('/lms/academic/focal/promotions/apply', { studentIds }),
+  promotionHistory: () => get('/lms/academic/focal/promotions/history'),
+  specialExams: () => get('/lms/academic/focal/special-exams'),
+  enrollSpecialExam: (id) => post(`/lms/academic/focal/special-exams/${id}/enroll`),
+  promotionSettings: () => get('/lms/academic/focal/promotion-settings'),
+  savePromotionSettings: (body) => put('/lms/academic/focal/promotion-settings', body),
   retakes: () => get('/lms/academic/focal/retakes'),
   withdraws: () => get('/lms/academic/focal/withdraws'),
   restoreWithdraw: (id) => put(`/lms/academic/focal/withdraws/${id}/restore`),
@@ -575,7 +604,7 @@ const focal = {
   // Reports & analytics
   report: (kind) => get(`/lms/academic/focal/reports/${kind}`),
   // Comprehensive Reports & Analytics module (Requirement #5).
-  // tab ∈ enrollment|attendance|assignment|quizzes|midterm|semester|course|section|program|performance
+  // tab ∈ enrollment|attendance|assignment|quizzes|midterm|semester|course|program|performance
   report2: (tab, params = {}) => {
     const qs = new URLSearchParams(
       Object.entries(params).filter(([, v]) => v != null && v !== '' && v !== 'all'),
@@ -706,6 +735,7 @@ const exam = {
   quickMessages: () => get('/lms/academic/exam/quick-messages'),
   pendingTeachers: () => get('/lms/academic/exam/quick-messages/pending'),
   sendQuickMessage: (body) => post('/lms/academic/exam/quick-messages', body),
+  sendQuickMessagesBulk: (items) => post('/lms/academic/exam/quick-messages/bulk', { items }),
   // Results Compilation (was Marks Correction)
   compilationResults: (params = '') => get(`/lms/academic/exam/compilation/results${params}`),
   compileResults: (body) => post('/lms/academic/exam/compilation/compile', body),
@@ -789,6 +819,8 @@ const qec = {
 };
 
 const provost = {
+  // Real-time SSE stream (new payment submissions, concession changes).
+  eventsUrl: () => `${API_BASE}/lms/academic/provost/events?token=${encodeURIComponent(authService.getToken() || '')}`,
   // Dashboard, analytics & live counts
   dashboard: () => get('/lms/academic/provost/dashboard'),
   analytics: () => get('/lms/academic/provost/analytics'),
@@ -854,6 +886,15 @@ const provost = {
     unblock: (id, body) => post(`/lms/academic/provost/finance/students/${id}/unblock`, body),
     bulkBlock: (body) => post('/lms/academic/provost/finance/students/bulk-block', body),
     bulkUnblock: (body) => post('/lms/academic/provost/finance/students/bulk-unblock', body),
+    // S7.2 / S8 / S9
+    submissions: (params = '') => get(`/lms/academic/provost/finance/submissions${params}`),
+    submissionScreenshotUrl: (id) => `/lms/academic/provost/finance/submissions/${id}/screenshot`,
+    decideSubmission: (id, body) => put(`/lms/academic/provost/finance/submissions/${id}/decide`, body),
+    defaulters: (params = '') => get(`/lms/academic/provost/finance/defaulters${params}`),
+    concessions: (params = '') => get(`/lms/academic/provost/finance/concessions${params}`),
+    grantConcession: (body) => post('/lms/academic/provost/finance/concessions', body),
+    revokeConcession: (id, body) => post(`/lms/academic/provost/finance/concessions/${id}/revoke`, body),
+    feePreview: (id) => get(`/lms/academic/provost/finance/students/${id}/fee-preview`),
     report: (kind, params = '') => get(`/lms/academic/provost/finance/reports/${kind}${params}`),
     exportReport: (kind, format = 'csv') => download(
       `/lms/academic/provost/finance/reports/${kind}/export?format=${format}`,
@@ -904,6 +945,8 @@ const marks = {
   setupPin: (body) => post('/lms/academic/teacher/marks/pin/setup', body),
   unlock: (pin) => post('/lms/academic/teacher/marks/pin/unlock', { pin }),
   changePin: (body) => post('/lms/academic/teacher/marks/pin/change', body),
+  // Section 2 — complete a Super Admin reset (temporary PIN → own new PIN).
+  completeReset: (body) => post('/lms/academic/teacher/marks/pin/complete-reset', body),
   offerings: () => get('/lms/academic/teacher/marks/offerings'),
   gradebook: (offeringId) => get(`/lms/academic/teacher/marks/offerings/${offeringId}/gradebook`),
   setExamTotals: (offeringId, body) => put(`/lms/academic/teacher/marks/offerings/${offeringId}/exam-totals`, body),
@@ -935,6 +978,6 @@ const workflow = {
 student.resultRecord = () => get('/lms/academic/student/result-record');
 student.downloadTranscriptPdf = (kind, semester) => download(`/lms/academic/student/transcript/pdf/${kind}${semester ? `?semester=${semester}` : ''}`, `${kind}-transcript${semester ? `-sem${semester}` : ''}.pdf`);
 
-const api = { base: API_BASE, request, get, post, put, del, postForm, download, fileUrl, structure, student, teacher, coordinator, focal, exam, qec, provost, grievances, marks, workflow };
+const api = { base: API_BASE, request, get, post, put, del, postForm, download, blobUrl, fileUrl, structure, student, teacher, coordinator, focal, exam, qec, provost, grievances, marks, workflow };
 export default api;
 export { fileUrl };

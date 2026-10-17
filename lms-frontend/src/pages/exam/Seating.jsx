@@ -70,7 +70,7 @@ const Seating = () => {
     if (!attExam || !att?.records?.length) return;
     setAttBusy(true);
     try {
-      const records = att.records.map((r) => ({ studentId: r.studentId, status: r.status, remarks: r.remarks || undefined, room: r.room || undefined, seatNo: r.seatNo || undefined }));
+      const records = att.records.map((r) => ({ studentId: r.studentId, status: r.status, remarks: r.remarks || undefined, seatNo: r.seatNo || undefined }));
       const res = await api.exam.saveAttendance(attExam, { records });
       toast?.(`Verified ${res.updated} attendance record(s)`, { type: "success" });
       await loadAttendance(attExam);

@@ -55,6 +55,10 @@ async function lmsAuthenticate(req, res, next) {
 // ------------------------------------------------------------
 router.post('/login', async (req, res) => {
   try {
+    // Section 1 — the legacy LMS login is gated by the same server-side LMS
+    // captcha as /api/lms/auth/login (no captcha-free LMS login path remains).
+    const captchaError = await require('../../utils/lmsCaptcha').verify(req.body.captchaId, req.body.captchaAnswer);
+    if (captchaError) return res.status(400).json({ error: captchaError, code: 'CAPTCHA_INVALID' });
     const username = String(req.body.username || '').trim();
     const password = String(req.body.password || '');
     if (!username || !password) return res.status(400).json({ error: 'Username and password are required.' });

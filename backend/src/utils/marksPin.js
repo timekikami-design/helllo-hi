@@ -24,6 +24,8 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const prisma = require('./prisma');
 
+const crypto = require('crypto');
+
 const MAX_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;
 const SESSION_MINUTES = 10;
@@ -57,6 +59,9 @@ async function status(userId) {
   const locked = !!(rec && rec.lockedUntil && rec.lockedUntil > new Date());
   return {
     isSet: !!rec,
+    // Section 2 — a Super Admin reset issued a temporary PIN; the teacher must
+    // enter it and then set their own new PIN before the module opens.
+    mustReset: !!(rec && rec.isTemporary),
     locked,
     lockedUntil: locked ? rec.lockedUntil : null,
     attemptsRemaining: rec ? Math.max(0, MAX_ATTEMPTS - rec.failedAttempts) : MAX_ATTEMPTS,
@@ -79,6 +84,7 @@ async function setupPin(userId, { pin, confirmPin, password }) {
 async function changePin(userId, { currentPin, pin, confirmPin, password }) {
   const rec = await getRecord(userId);
   if (!rec) throw err(404, 'No Marks PIN is set yet.');
+  if (rec.isTemporary) throw err(409, 'Your PIN was reset. Enter the temporary PIN and set a new PIN.', { code: 'PIN_RESET_REQUIRED' });
   await verifyPin(userId, currentPin); // counts toward lockout
   const p = validatePinFormat(pin);
   if (String(confirmPin) !== p) throw err(400, 'PIN and confirmation do not match.');
@@ -123,8 +129,58 @@ async function verifyPin(userId, pin) {
 }
 
 async function unlock(userId, pin) {
+  const existing = await getRecord(userId);
+  // Section 2 — a temporary (reset) PIN never opens the Marks module.
+  if (existing && existing.isTemporary) {
+    throw err(409, 'Your Marks PIN was reset by the Super Admin. Enter the temporary PIN and set your own new PIN.', { code: 'PIN_RESET_REQUIRED' });
+  }
   const rec = await verifyPin(userId, pin);
   return { token: issueToken(userId, rec.pinVersion), expiresInSec: SESSION_MINUTES * 60 };
+}
+
+/**
+ * Section 2 — teacher completes a Super Admin reset: verify the temporary PIN
+ * (same lockout rules as a normal PIN), then store their own new PIN. The
+ * temporary PIN stops working immediately (hash replaced + pinVersion bumped).
+ */
+async function completeReset(userId, { tempPin, pin, confirmPin }) {
+  const rec = await getRecord(userId);
+  if (!rec || !rec.isTemporary) throw err(409, 'No PIN reset is pending for your account.', { code: 'NO_RESET_PENDING' });
+  await verifyPin(userId, tempPin); // wrong temp PIN → 401 "Invalid PIN" (counts toward lockout)
+  const p = validatePinFormat(pin);
+  if (String(confirmPin) !== p) throw err(400, 'PIN and confirmation do not match.');
+  if (String(tempPin) === p) throw err(400, 'Choose a new PIN that is different from the temporary PIN.');
+  const upd = await prisma.teacherMarksPin.update({
+    where: { lmsUserId: userId },
+    data: { pinHash: await bcrypt.hash(p, 10), pinVersion: { increment: 1 }, isTemporary: false, failedAttempts: 0, lockedUntil: null },
+  });
+  return { token: issueToken(userId, upd.pinVersion), expiresInSec: SESSION_MINUTES * 60 };
+}
+
+/** Generate a random, non-trivial 5-digit temporary PIN. */
+function generateTempPin() {
+  for (;;) {
+    const p = String(crypto.randomInt(0, 100000)).padStart(5, '0');
+    try { return validatePinFormat(p); } catch (_) { /* trivial — retry */ }
+  }
+}
+
+/**
+ * Section 2 — Super Admin resets a teacher's Marks PIN. Stores a hashed
+ * TEMPORARY PIN, clears the lockout / failed attempts and invalidates every
+ * open marks session. Returns the plaintext temp PIN ONCE (for the admin to copy).
+ */
+async function adminReset(userId, resetById) {
+  const tempPin = generateTempPin();
+  const pinHash = await bcrypt.hash(tempPin, 10);
+  const data = { pinHash, isTemporary: true, failedAttempts: 0, lockedUntil: null, resetAt: new Date(), resetById: resetById || null };
+  const existing = await getRecord(userId);
+  if (existing) {
+    await prisma.teacherMarksPin.update({ where: { lmsUserId: userId }, data: { ...data, pinVersion: { increment: 1 } } });
+  } else {
+    await prisma.teacherMarksPin.create({ data: { lmsUserId: userId, ...data } });
+  }
+  return { tempPin };
 }
 
 /**
@@ -144,7 +200,7 @@ function requireMarksSession(req, res, next) {
       throw err(423, 'Invalid Marks session. Re-enter your PIN.', { code: 'MARKS_PIN_REQUIRED' });
     }
     const rec = await getRecord(req.lmsUser.id);
-    if (!rec || rec.pinVersion !== decoded.v || (rec.lockedUntil && rec.lockedUntil > new Date())) {
+    if (!rec || rec.isTemporary || rec.pinVersion !== decoded.v || (rec.lockedUntil && rec.lockedUntil > new Date())) {
       throw err(423, 'Your Marks session is no longer valid. Re-enter your PIN.', { code: 'MARKS_PIN_REQUIRED' });
     }
     res.setHeader('X-Marks-Token', issueToken(req.lmsUser.id, rec.pinVersion));
@@ -156,4 +212,5 @@ function requireMarksSession(req, res, next) {
 module.exports = {
   MAX_ATTEMPTS, LOCK_MINUTES, SESSION_MINUTES,
   status, setupPin, changePin, unlock, verifyPin, requireMarksSession, validatePinFormat,
+  completeReset, adminReset,
 };

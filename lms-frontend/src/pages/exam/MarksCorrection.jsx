@@ -23,7 +23,7 @@ const ExamMarksCorrection = () => {
   /* RESULTS COMPILATION VIEW (real-time teacher-uploaded results)        */
   /* 1.4 — cascading smart filters via reusable CascadeFilters.           */
   /* ------------------------------------------------------------------ */
-  const [cascade, setCascade] = useState(emptyCascade()); // dept→program→semester→section→course
+  const [cascade, setCascade] = useState(emptyCascade()); // dept→program→semester→course
   const [statusF, setStatusF] = useState("all");
   const [cmpData, setCmpData] = useState(null);
   const [cmpLoading, setCmpLoading] = useState(false);
@@ -38,7 +38,6 @@ const ExamMarksCorrection = () => {
     if (norm(cascade.department)) q.set("department", cascade.department);
     if (norm(cascade.program)) q.set("program", cascade.program);
     if (norm(cascade.semester)) q.set("semester", cascade.semester);
-    if (norm(cascade.section)) q.set("section", cascade.section);
     if (statusF && statusF !== "all") q.set("status", statusF);
     const s = q.toString();
     return s ? `?${s}` : "";
@@ -67,9 +66,8 @@ const ExamMarksCorrection = () => {
   const compileScope = async () => {
     const program = norm(cascade.program);
     const semester = norm(cascade.semester);
-    const section = norm(cascade.section);
-    if (!program && !semester && !section) {
-      toast?.("Select at least Program, Semester or Section to define a compilation scope", { type: "warning" });
+    if (!program && !semester) {
+      toast?.("Select at least Program or Semester to define a compilation scope", { type: "warning" });
       return;
     }
     const draftInScope = cmpData?.draft ?? 0;
@@ -80,7 +78,7 @@ const ExamMarksCorrection = () => {
     if (!confirm(`Compile ${draftInScope} draft result(s) into Marks Collection for review?`)) return;
     setCompilingScope(true);
     try {
-      const res = await api.exam.compileResults({ program: program || undefined, semester: semester || undefined, section: section || undefined });
+      const res = await api.exam.compileResults({ program: program || undefined, semester: semester || undefined });
       setLastCompile(res); // §1.4.2 surface auto-gazette + transcript result
       const gz = res.gazette ? ` · Gazette "${res.gazette.title}" prepared` : "";
       toast?.(`Compiled ${res.compiled} result(s) into Marks Collection${gz}`, { type: "success" });
@@ -152,7 +150,6 @@ const ExamMarksCorrection = () => {
     if (norm(collectionCascade.department) && o.department !== collectionCascade.department) return false;
     if (norm(collectionCascade.program) && o.program !== collectionCascade.program) return false;
     if (norm(collectionCascade.semester) && String(o.semester) !== String(collectionCascade.semester)) return false;
-    if (norm(collectionCascade.section) && o.section !== collectionCascade.section) return false;
     return true;
   }), [offerings, collectionCascade]);
   const [sheet, setSheet] = useState(null);   // { offering, weights, rows }
@@ -254,7 +251,7 @@ const ExamMarksCorrection = () => {
           <CascadeFilters
             value={cascade}
             onChange={setCascade}
-            fields={["department", "program", "semester", "section"]}
+            fields={["department", "program", "semester"]}
           />
 
           <div className="card-base p-3 flex flex-wrap items-center gap-2">
@@ -326,7 +323,7 @@ const ExamMarksCorrection = () => {
                 <table className="w-full text-xs">
                   <thead className="surface border-b border-app">
                     <tr>
-                      {["Roll", "Student", "Program", "Sem", "Sec", "Course", "Assign", "Quiz", "Mid", "Final", "Total %", "Grade", "Status"].map((h) => (
+                      {["Roll", "Student", "Program", "Sem", "Course", "Assign", "Quiz", "Mid", "Final", "Total %", "Grade", "Status"].map((h) => (
                         <th key={h} className="px-2.5 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-muted-app">{h}</th>
                       ))}
                     </tr>
@@ -338,7 +335,6 @@ const ExamMarksCorrection = () => {
                         <td className="px-2.5 py-1.5 font-semibold text-app whitespace-nowrap">{r.student}</td>
                         <td className="px-2.5 py-1.5 text-app">{r.program || "—"}</td>
                         <td className="px-2.5 py-1.5 text-app text-center">{r.semester || "—"}</td>
-                        <td className="px-2.5 py-1.5 text-app text-center">{r.section || "—"}</td>
                         <td className="px-2.5 py-1.5 text-app whitespace-nowrap">{r.course || "—"}</td>
                         <td className="px-2.5 py-1.5 text-app text-center">{r.assignmentMarks ?? "—"}</td>
                         <td className="px-2.5 py-1.5 text-app text-center">{r.quizMarks ?? "—"}</td>
@@ -365,7 +361,7 @@ const ExamMarksCorrection = () => {
       {/* ============================= COLLECTION TAB ============================= */}
       {tab === "collection" && (
         <div className="space-y-4">
-          <CascadeFilters value={collectionCascade} onChange={(next) => { setCollectionCascade(next); setOfferingId(""); setSheet(null); setRows([]); }} fields={["department", "program", "semester", "section"]} />
+          <CascadeFilters value={collectionCascade} onChange={(next) => { setCollectionCascade(next); setOfferingId(""); setSheet(null); setRows([]); }} fields={["department", "program", "semester"]} />
           <div className="card-base p-4">
             <div className="grid md:grid-cols-3 gap-3 items-end">
               <div className="md:col-span-2">
@@ -377,7 +373,7 @@ const ExamMarksCorrection = () => {
                   disabled={offLoading}
                 >
                   <option value="">{offLoading ? "Loading offerings…" : "— Choose an offering —"}</option>
-                  {collectionOfferings.map((o) => <option key={o.id} value={o.id}>{o.label}{o.section ? ` · Section ${o.section}` : ""}</option>)}
+                  {collectionOfferings.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
                 </select>
               </div>
               <div className="flex gap-2">

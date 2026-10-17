@@ -58,6 +58,7 @@ export const NAV_GROUPS = [
       { to: '/super-admin/lms/fees', icon: 'fa-money-bill-wave', label: 'Fees & Finance' },
       { to: '/super-admin/lms/exams', icon: 'fa-pen-ruler', label: 'Exams & Rechecks' },
       { to: '/super-admin/lms/quality', icon: 'fa-clipboard-check', label: 'Quality & Surveys' },
+      { to: '/super-admin/lms/marks-pins', icon: 'fa-key', label: 'Teacher Marks PINs' },
     ],
   },
   {
