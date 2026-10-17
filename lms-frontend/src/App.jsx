@@ -157,6 +157,7 @@ import ProvostFeeAnnouncements from "./pages/provost/FeeAnnouncements";
 import ProvostExamFeeAnnouncements from "./pages/provost/ExamFeeAnnouncements";
 import ProvostFines from "./pages/provost/Fines";
 import ProvostDefaulters from "./pages/provost/Defaulters";
+import ProvostFeeConcessions from "./pages/provost/FeeConcessions";
 import ProvostFeeManagement from "./pages/provost/FeeManagement";
 import ProvostFeeAnnounce from "./pages/provost/FeeAnnounce";
 import ProvostFeeRecords from "./pages/provost/FeeRecords";
@@ -499,6 +500,7 @@ function App() {
         <Route path="fee-approvals" element={<ProvostFeeApprovals />} />
         <Route path="fines" element={<ProvostFines />} />
         <Route path="defaulters" element={<ProvostDefaulters />} />
+        <Route path="fee-concessions" element={<ProvostFeeConcessions />} />
         <Route path="grievances" element={<ProvostGrievances />} />
         <Route path="reports" element={<ProvostReports />} />
         <Route path="activity-logs" element={<ProvostActivityLogs />} />

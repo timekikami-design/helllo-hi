@@ -50,6 +50,10 @@ async function request(path, { method = 'GET', body, isForm = false } = {}) {
     // Never log the teacher out for it; surface the "Invalid PIN" message.
     const isMarksCredentialError = path.startsWith('/lms/academic/teacher/marks')
       && !(data && /session|authentication required|account not found/i.test(String(data.error || '')));
+    // S8 — a fee-blocked student: tell the app shell to show the block screen.
+    if (res.status === 403 && data && data.code === 'FEE_BLOCKED' && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('lms:fee-blocked', { detail: { message: data.error } }));
+    }
     if (res.status === 401 && !isMarksCredentialError) {
       // Session expired — clear and bounce to login.
       authService.logout(true);
@@ -95,6 +99,14 @@ async function download(path, filename = 'download') {
   a.click();
   a.remove();
   window.URL.revokeObjectURL(url);
+}
+
+/** Fetch an authenticated binary (e.g. a payment screenshot) as an object URL. */
+async function blobUrl(path) {
+  const token = authService.getToken();
+  const res = await fetch(`${API_BASE}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) throw new Error(`Could not load file (${res.status})`);
+  return window.URL.createObjectURL(await res.blob());
 }
 
 // Resolve an uploaded file path (e.g. "/uploads/..") to an absolute URL.
@@ -203,6 +215,10 @@ const student = {
   // Fees / account
   fees: () => get('/lms/academic/student/fees'),
   payFee: (id, body = {}) => post(`/lms/academic/student/fees/${id}/pay`, body),
+  // S7.2 — payment proof (multipart: method, amount, transactionId, paidOn, screenshot)
+  submitFeeProof: (id, formData) => postForm(`/lms/academic/student/fees/${id}/submissions`, formData),
+  feeProofUrl: (sid) => `/lms/academic/student/fees/submissions/${sid}/screenshot`,
+  feeStatus: () => get('/lms/academic/student/fee-status'),
   // Notifications
   notifications: () => get('/lms/academic/student/notifications'),
   readNotification: (id) => put(`/lms/academic/student/notifications/${id}/read`),
@@ -796,6 +812,8 @@ const qec = {
 };
 
 const provost = {
+  // Real-time SSE stream (new payment submissions, concession changes).
+  eventsUrl: () => `${API_BASE}/lms/academic/provost/events?token=${encodeURIComponent(authService.getToken() || '')}`,
   // Dashboard, analytics & live counts
   dashboard: () => get('/lms/academic/provost/dashboard'),
   analytics: () => get('/lms/academic/provost/analytics'),
@@ -861,6 +879,15 @@ const provost = {
     unblock: (id, body) => post(`/lms/academic/provost/finance/students/${id}/unblock`, body),
     bulkBlock: (body) => post('/lms/academic/provost/finance/students/bulk-block', body),
     bulkUnblock: (body) => post('/lms/academic/provost/finance/students/bulk-unblock', body),
+    // S7.2 / S8 / S9
+    submissions: (params = '') => get(`/lms/academic/provost/finance/submissions${params}`),
+    submissionScreenshotUrl: (id) => `/lms/academic/provost/finance/submissions/${id}/screenshot`,
+    decideSubmission: (id, body) => put(`/lms/academic/provost/finance/submissions/${id}/decide`, body),
+    defaulters: (params = '') => get(`/lms/academic/provost/finance/defaulters${params}`),
+    concessions: (params = '') => get(`/lms/academic/provost/finance/concessions${params}`),
+    grantConcession: (body) => post('/lms/academic/provost/finance/concessions', body),
+    revokeConcession: (id, body) => post(`/lms/academic/provost/finance/concessions/${id}/revoke`, body),
+    feePreview: (id) => get(`/lms/academic/provost/finance/students/${id}/fee-preview`),
     report: (kind, params = '') => get(`/lms/academic/provost/finance/reports/${kind}${params}`),
     exportReport: (kind, format = 'csv') => download(
       `/lms/academic/provost/finance/reports/${kind}/export?format=${format}`,
@@ -944,6 +971,6 @@ const workflow = {
 student.resultRecord = () => get('/lms/academic/student/result-record');
 student.downloadTranscriptPdf = (kind, semester) => download(`/lms/academic/student/transcript/pdf/${kind}${semester ? `?semester=${semester}` : ''}`, `${kind}-transcript${semester ? `-sem${semester}` : ''}.pdf`);
 
-const api = { base: API_BASE, request, get, post, put, del, postForm, download, fileUrl, structure, student, teacher, coordinator, focal, exam, qec, provost, grievances, marks, workflow };
+const api = { base: API_BASE, request, get, post, put, del, postForm, download, blobUrl, fileUrl, structure, student, teacher, coordinator, focal, exam, qec, provost, grievances, marks, workflow };
 export default api;
 export { fileUrl };

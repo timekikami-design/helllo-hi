@@ -15,6 +15,7 @@
 //  writes it. Mounted BEFORE the main provost router.
 // ============================================================
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const { body } = require('express-validator');
 const prisma = require('../../../utils/prisma');
 const { lmsAuth, lmsRequireRole } = require('../../../middleware/lmsAuth');
@@ -30,6 +31,20 @@ const { proofAbsPath } = require('../../../middleware/lmsFeeProofUpload');
 
 const router = express.Router();
 const PROVOST = [lmsAuth, lmsRequireRole('Provost')];
+
+// Real-time stream for the Provost (new payment submissions, concession
+// changes). EventSource cannot send headers, so the JWT comes as ?token=.
+router.get('/events', (req, res) => {
+  let decoded;
+  try { decoded = jwt.verify(String(req.query.token || ''), process.env.JWT_SECRET); } catch (_) { return res.status(401).json({ error: 'Invalid token' }); }
+  if (decoded.system !== 'lms' || decoded.role !== 'Provost') return res.status(401).json({ error: 'Invalid session' });
+  res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+  res.write(': connected\n\n');
+  realtime.addClient(decoded.userId, res);
+  const ping = setInterval(() => { try { res.write(': ping\n\n'); } catch (_) { /* closed */ } }, 25000);
+  req.on('close', () => { clearInterval(ping); realtime.removeClient(decoded.userId, res); });
+  return undefined;
+});
 
 const str = (v) => (v == null ? '' : String(v));
 const q = (req, k) => (req.query[k] != null && req.query[k] !== '' ? String(req.query[k]) : null);
