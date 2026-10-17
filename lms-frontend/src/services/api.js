@@ -45,7 +45,12 @@ async function request(path, { method = 'GET', body, isForm = false } = {}) {
   if (!res.ok) {
     // Marks session missing/expired → re-lock the Marks module immediately.
     if (res.status === 423 && data && data.code === 'MARKS_PIN_REQUIRED') marksSession.clear();
-    if (res.status === 401) {
+    // §3 — a wrong Marks PIN (or wrong verification password) inside the
+    // teacher Marks module also answers 401, but it is NOT a session expiry.
+    // Never log the teacher out for it; surface the "Invalid PIN" message.
+    const isMarksCredentialError = path.startsWith('/lms/academic/teacher/marks')
+      && !(data && /session|authentication required|account not found/i.test(String(data.error || '')));
+    if (res.status === 401 && !isMarksCredentialError) {
       // Session expired — clear and bounce to login.
       authService.logout(true);
     }

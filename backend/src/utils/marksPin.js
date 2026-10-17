@@ -116,7 +116,7 @@ async function verifyPin(userId, pin) {
       data: { failedAttempts: lock ? 0 : attempts, lockedUntil: lock ? new Date(Date.now() + LOCK_MINUTES * 60000) : null },
     });
     if (lock) throw err(423, `Too many wrong PIN attempts. The Marks module is locked for ${LOCK_MINUTES} minutes.`);
-    throw err(401, `Incorrect PIN. ${MAX_ATTEMPTS - attempts} attempt(s) remaining before lockout.`, { attemptsRemaining: MAX_ATTEMPTS - attempts });
+    throw err(401, `Invalid PIN. ${MAX_ATTEMPTS - attempts} attempt(s) remaining before lockout.`, { attemptsRemaining: MAX_ATTEMPTS - attempts, code: 'INVALID_PIN' });
   }
   await prisma.teacherMarksPin.update({ where: { lmsUserId: userId }, data: { failedAttempts: 0, lockedUntil: null, lastVerifiedAt: new Date() } });
   return rec;
