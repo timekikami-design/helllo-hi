@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import { Lock, Eye, EyeOff, ArrowRight, ShieldAlert, CheckCircle2 } from "lucide-react";
-import Logo from "../../components/common/Logo";
-import ThemeToggle from "../../components/common/ThemeToggle";
+import { CheckCircle2, Circle, AlertCircle } from "lucide-react";
+import { AuthLayout, AuthHeading } from "../../components/auth/AuthLayout";
+import { Field, PasswordInput, SubmitButton } from "../../components/auth/Field";
 import { useToast } from "../../context/ToastContext";
 import { useAuth, BACKEND_ROLE_TO_FRONTEND } from "../../context/AuthContext";
 import authService from "../../services/authService";
@@ -46,7 +45,6 @@ function validatePassword(pw) {
 }
 
 const ForceChangePassword = () => {
-  const [show, setShow] = useState(false);
   const [pw, setPw] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
@@ -106,72 +104,46 @@ const ForceChangePassword = () => {
     { ok: POLICY.special(pw), label: "One special character" },
   ];
 
+  const rules = [
+    ["At least 8 characters", POLICY.length(pw)],
+    ["One uppercase letter", POLICY.upper(pw)],
+    ["One number", POLICY.number(pw)],
+    ["One special character", POLICY.special(pw)],
+  ];
+  const mismatch = confirm.length > 0 && pw !== confirm;
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-app">
-      <div className="absolute top-5 right-5 z-50"><ThemeToggle /></div>
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md card-base p-8 shadow-2xl">
-        <Logo size="md" />
-        <div className="mt-8 text-center">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/30 flex items-center justify-center">
-            <ShieldAlert size={28} className="text-white" />
-          </div>
-          <h1 className="font-display font-extrabold text-2xl text-app mt-4">Set a New Password</h1>
-          <p className="text-muted-app mt-1 text-sm">
-            For your security, you must change the temporary password before continuing.
-          </p>
+    <AuthLayout statement="One last step before you begin.">
+      <AuthHeading eyebrow="First sign-in" title="Choose your password">
+        For your security, replace the temporary password issued by the university.
+      </AuthHeading>
+
+      {error && (
+        <div role="alert" className="mb-6 flex gap-3 rounded border border-[rgb(var(--error)/0.35)] bg-bad-soft px-4 py-3 text-[14px] leading-5 text-bad">
+          <AlertCircle size={16} className="mt-0.5 shrink-0" aria-hidden="true" /> <span>{error}</span>
         </div>
+      )}
 
-        {error && (
-          <div className="mt-5 rounded-xl border border-rose-200 dark:border-rose-900/40 bg-rose-50/80 dark:bg-rose-950/30 px-4 py-3 text-sm text-rose-700 dark:text-rose-300">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={submit} className="mt-5 space-y-4">
-          <div>
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-app block mb-1.5">New Password</label>
-            <div className="relative">
-              <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-              <input value={pw} onChange={(e) => setPw(e.target.value)} type={show ? "text" : "password"} className="input-base pl-10 pr-10" placeholder="••••••••" autoComplete="new-password" />
-              <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">
-                {show ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-app block mb-1.5">Confirm Password</label>
-            <div className="relative">
-              <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-              <input value={confirm} onChange={(e) => setConfirm(e.target.value)} type={show ? "text" : "password"} className="input-base pl-10" placeholder="••••••••" autoComplete="new-password" />
-            </div>
-            {confirm && (
-              <p className={`text-xs mt-1.5 flex items-center gap-1 ${pw === confirm ? "text-emerald-600" : "text-rose-600"}`}>
-                <CheckCircle2 size={12} /> {pw === confirm ? "Passwords match" : "Passwords don't match"}
-              </p>
-            )}
-          </div>
-
-          {pw && (
-            <ul className="grid grid-cols-2 gap-1.5">
-              {checks.map((c) => (
-                <li key={c.label} className={`text-xs flex items-center gap-1.5 ${c.ok ? "text-emerald-600" : "text-muted-app"}`}>
-                  <CheckCircle2 size={12} className={c.ok ? "text-emerald-500" : "text-slate-300 dark:text-slate-600"} />
-                  {c.label}
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <button disabled={loading} className="w-full btn-primary flex items-center justify-center gap-2 py-3 disabled:opacity-60">
-            {loading ? (
-              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <>Change Password & Continue <ArrowRight size={16} /></>
-            )}
-          </button>
-        </form>
-      </motion.div>
-    </div>
+      <form onSubmit={submit} noValidate className="space-y-1">
+        <Field id="new-password" label="New password" reserve={false} hint={null}>
+          {(a) => <PasswordInput inputProps={a} autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} />}
+        </Field>
+        <ul className="grid grid-cols-2 gap-x-4 gap-y-1 pt-2 pb-4" aria-label="Password requirements">
+          {rules.map(([label, ok]) => (
+            <li key={label} className={`flex items-center gap-1.5 text-[13px] leading-5 ${ok ? "text-ok" : "text-fg-muted"}`}>
+              {ok ? <CheckCircle2 size={14} aria-hidden="true" /> : <Circle size={14} aria-hidden="true" />}
+              <span>{label}<span className="sr-only">{ok ? " — met" : " — not met"}</span></span>
+            </li>
+          ))}
+        </ul>
+        <Field id="confirm-password" label="Confirm new password" error={mismatch ? "Passwords do not match" : ""}>
+          {(a) => <PasswordInput inputProps={a} autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />}
+        </Field>
+        <div className="pt-3">
+          <SubmitButton loading={loading} loadingText="Saving password…">Save password and continue</SubmitButton>
+        </div>
+      </form>
+    </AuthLayout>
   );
 };
 
