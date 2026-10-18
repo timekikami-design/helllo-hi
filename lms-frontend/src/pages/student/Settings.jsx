@@ -5,6 +5,7 @@ import { Skeleton } from "../../components/common/Skeleton";
 import ErrorState from "../../components/common/ErrorState";
 import api, { fileUrl } from "../../services/api";
 import { useToast } from "../../context/ToastContext";
+import ThemeToggle from "../../components/common/ThemeToggle";
 
 // Strong-password policy — mirrors the server-side rule in lmsAuthV2.js.
 const STRONG_PW = /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
@@ -50,7 +51,7 @@ const SecurityTab = ({ toast }) => {
 
   return (
     <div>
-      <h3 className="font-display font-bold text-xl mb-1 flex items-center gap-2"><KeyRound size={18} /> Security</h3>
+      <h3 className="text-[18px] font-semibold text-fg mb-1 flex items-center gap-2"><KeyRound size={18} /> Security</h3>
       <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">Update your account password.</p>
       <div className="space-y-4 max-w-md">
         <div>
@@ -124,7 +125,10 @@ const Settings = () => {
   const load = () => {
     setLoading(true);
     setError("");
-    Promise.all([api.student.profile(), api.student.settings()])
+    // settings() lazily creates the preference row server-side; two concurrent
+    // first visits can race on that insert, so retry once before failing.
+    const getSettings = () => api.student.settings().catch(() => api.student.settings());
+    Promise.all([api.student.profile(), getSettings()])
       .then(([p, s]) => {
         setProfile(p.profile);
         setSettings(s.settings);
@@ -293,27 +297,27 @@ const Settings = () => {
       <input ref={docFileRef} type="file" accept="image/*,.pdf,.doc,.docx" className="hidden" onChange={onPickDocument} />
 
       <div className="grid lg:grid-cols-4 gap-5">
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-2 sm:p-3 h-fit flex lg:block gap-2 overflow-x-auto">
+        <nav aria-label="Settings sections" className="h-fit flex lg:flex-col gap-1 overflow-x-auto border-b lg:border-b-0 border-line pb-2 lg:pb-0">
           {tabs.map((t) => {
             const isDocs = t.id === "documents";
             const hasMissing = incompleteDocs.length > 0;
             return (
-              <button key={t.id} onClick={() => setTab(t.id)} className={`shrink-0 lg:w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${tab === t.id ? "bg-primary-600 text-white shadow-sm" : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}>
+              <button key={t.id} onClick={() => setTab(t.id)} aria-current={tab === t.id ? "page" : undefined} className={`relative shrink-0 lg:w-full flex items-center gap-2.5 h-10 px-3 rounded text-[14px] font-medium transition-colors ${tab === t.id ? "bg-brand-soft text-brand lg:before:absolute lg:before:left-0 lg:before:top-2 lg:before:bottom-2 lg:before:w-0.5 lg:before:bg-brand" : "text-fg-secondary hover:bg-surface-muted hover:text-fg"}`}>
                 <t.icon size={16} /> <span className="whitespace-nowrap">{t.label}</span>
                 {isDocs && hasMissing && (
-                  <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full ${tab === t.id ? "bg-white/25 text-white" : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"}`}>{incompleteDocs.length}</span>
+                  <span className="ml-auto badge badge-warning tabular-nums" aria-label={`${incompleteDocs.length} documents missing`}>{incompleteDocs.length}</span>
                 )}
               </button>
             );
           })}
-        </div>
+        </nav>
 
-        <div className="lg:col-span-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-6">
+        <div className="lg:col-span-3 bg-surface rounded-lg border border-line p-5 sm:p-6">
           {tab === "profile" && (
             <div>
               <div className="flex items-start justify-between gap-3 mb-5 flex-wrap">
                 <div>
-                  <h3 className="font-display font-bold text-xl mb-1">Profile Information</h3>
+                  <h3 className="text-[18px] font-semibold text-fg mb-1">Profile Information</h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">Synchronized with the Admissions System. Academic fields are read-only.</p>
                 </div>
                 <button onClick={syncFromAdmissions} disabled={syncing} className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-60">
@@ -416,7 +420,7 @@ const Settings = () => {
             <div>
               <div className="flex items-start justify-between gap-3 mb-5 flex-wrap">
                 <div>
-                  <h3 className="font-display font-bold text-xl mb-1 flex items-center gap-2"><FileText size={18} className="text-primary-600" /> Documents</h3>
+                  <h3 className="text-[18px] font-semibold text-fg mb-1 flex items-center gap-2"><FileText size={18} className="text-primary-600" /> Documents</h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">Your admission documents. Submit any outstanding items below — they are saved instantly and your verification status updates automatically.</p>
                 </div>
                 <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full ${
@@ -486,7 +490,7 @@ const Settings = () => {
 
           {tab === "notifications" && (
             <div>
-              <h3 className="font-display font-bold text-xl mb-1">Notifications</h3>
+              <h3 className="text-[18px] font-semibold text-fg mb-1">Notifications</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">Manage your notification preferences {savingSettings && <span className="text-primary-600">· saving…</span>}</p>
               <div className="space-y-3">
                 {NOTIF_FIELDS.map((n) => (
@@ -501,7 +505,7 @@ const Settings = () => {
 
           {tab === "preferences" && (
             <div>
-              <h3 className="font-display font-bold text-xl mb-1">Preferences</h3>
+              <h3 className="text-[18px] font-semibold text-fg mb-1">Preferences</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">Customize your experience {savingSettings && <span className="text-primary-600">· saving…</span>}</p>
               <div className="space-y-4 max-w-md">
                 <div>
@@ -511,10 +515,9 @@ const Settings = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold mb-1 block">Theme</label>
-                  <select value={settings?.theme || "light"} onChange={(e) => saveSettings({ ...settings, theme: e.target.value })} className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-sm bg-white dark:bg-slate-900">
-                    <option value="light">Light</option><option value="dark">Dark</option><option value="auto">Auto</option>
-                  </select>
+                  <span className="field-label" id="theme-label">Appearance</span>
+                  <ThemeToggle variant="segmented" />
+                  <p className="field-help mt-2">System follows your device setting. Applied instantly on this device.</p>
                 </div>
               </div>
             </div>
