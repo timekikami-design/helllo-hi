@@ -175,7 +175,7 @@ const Dashboard = () => {
                   <div className="flex items-baseline justify-between text-[13px] mb-2">
                     <span className="text-fg-muted">
                       {(continueCourse.totalLectures ?? 0) > 0
-                        ? `${continueCourse.completedLectures ?? 0} of ${continueCourse.totalLectures} lectures completed`
+                        ? `Course progress · ${continueCourse.completedLectures ?? 0} of ${continueCourse.totalLectures} lectures watched`
                         : "Course progress"}
                     </span>
                     <span className="font-semibold tabular-nums text-fg">{Math.round(continueCourse.progress ?? 0)}%</span>
