@@ -102,7 +102,7 @@ const Library = () => {
         <div className="relative mb-5 max-w-md">
           <label htmlFor="lib-q" className="sr-only">Search resources</label>
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted pointer-events-none" aria-hidden="true" />
-          <input id="lib-q" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search resources" className="input-base !pl-9 !pr-9" />
+          <input id="lib-q" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search resources" className="input-base w-full !pl-9 !pr-9" />
           {q && <button type="button" onClick={() => setQ("")} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg"><X size={14} aria-hidden="true" /></button>}
         </div>
 

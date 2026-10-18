@@ -277,7 +277,7 @@ const Attendance = () => {
               return (
                 <li key={c.offeringId}>
                   <button type="button" onClick={() => setActive(c)}
-                    className="w-full text-left py-4 grid grid-cols-[1fr_auto] md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto] gap-x-6 gap-y-3 items-center hover:bg-surface-muted/60 -mx-2 px-2 rounded transition-colors">
+                    className="w-full text-left py-4 grid grid-cols-[1fr_auto] md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)_160px] gap-x-6 gap-y-3 items-center hover:bg-surface-muted/60 -mx-2 px-2 rounded transition-colors">
                     <div className="min-w-0">
                       <p className="text-[12px] text-fg-muted"><span className="font-semibold text-fg-secondary">{c.courseCode}</span> · {c.teacherName}</p>
                       <p className="text-[15px] font-medium text-fg truncate">{c.courseTitle}</p>
@@ -289,7 +289,7 @@ const Attendance = () => {
                       </div>
                       <AttendanceRail value={c.overallPercentage} tone={si.tone} label={`${c.courseCode} attendance`} />
                     </div>
-                    <span className={`inline-flex items-center gap-1.5 text-[13px] font-medium whitespace-nowrap ${si.cls}`}>
+                    <span className={`inline-flex items-center justify-end gap-1.5 text-[13px] font-medium whitespace-nowrap ${si.cls}`}>
                       <si.Icon size={14} aria-hidden="true" /> {c.status}
                       <ChevronRight size={16} className="text-fg-muted ml-1" aria-hidden="true" />
                     </span>

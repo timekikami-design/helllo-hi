@@ -140,7 +140,7 @@ const Quizzes = () => {
             <div className="relative w-full sm:w-72">
               <label htmlFor="quiz-q" className="sr-only">Search quizzes</label>
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted pointer-events-none" aria-hidden="true" />
-              <input id="quiz-q" type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by title or course" className="input-base !pl-9 !pr-9" />
+              <input id="quiz-q" type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by title or course" className="input-base w-full !pl-9 !pr-9" />
               {search && <button type="button" onClick={() => setSearch("")} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg"><X size={14} aria-hidden="true" /></button>}
             </div>
             <div role="radiogroup" aria-label="Show" className="inline-flex rounded border border-line bg-surface p-0.5">
