@@ -26,7 +26,10 @@ const RoleBanner = ({ icon, eyebrow, title, subtitle, actions, variant }) => {
   return (
     <header className="pb-6 mb-2 border-b border-line flex flex-col lg:flex-row lg:items-end justify-between gap-5">
       <div className="min-w-0">
-        <p className="eyebrow">{today}{eyebrow ? <> · {eyebrow}</> : null}</p>
+        <p className="eyebrow flex flex-wrap items-center gap-x-1.5 [&_svg]:hidden">
+          <span>{today}</span>
+          {eyebrow ? <><span aria-hidden="true">·</span><span className="inline-flex items-center gap-1">{eyebrow}</span></> : null}
+        </p>
         <p className="font-serif text-[30px] sm:text-[34px] leading-tight text-fg mt-1">
           {greeting()}{name ? `, ${name}` : ""}.
         </p>
