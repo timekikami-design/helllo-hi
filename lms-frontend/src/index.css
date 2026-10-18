@@ -354,6 +354,27 @@ table td { color: rgb(var(--text-primary)); }
 /* Recharts follows the theme */
 .recharts-text, .recharts-cartesian-axis-tick-value { fill: rgb(var(--text-muted)) !important; font-size: 12px; }
 .recharts-cartesian-grid line { stroke: rgb(var(--border)); }
+/* Chart palette — legacy hex series colours remapped onto the AUST palette
+   (navy, info, success, warning, brass, error). Attribute selectors catch
+   recharts' SVG presentation attributes without editing every chart. */
+.recharts-wrapper { --c1: var(--primary); --c2: var(--info); --c3: var(--success); --c4: var(--warning); --c5: var(--accent-decor); --c6: var(--error); }
+.recharts-wrapper [fill="#3b82f6"], .recharts-wrapper [fill="#2563eb"], .recharts-wrapper [fill="#6366f1"], .recharts-wrapper [fill="#8b5cf6"], .recharts-wrapper [fill="#a855f7"], .recharts-wrapper [fill="#8900ff"] { fill: rgb(var(--c1)); }
+.recharts-wrapper [stroke="#3b82f6"], .recharts-wrapper [stroke="#2563eb"], .recharts-wrapper [stroke="#6366f1"], .recharts-wrapper [stroke="#8b5cf6"], .recharts-wrapper [stroke="#a855f7"] { stroke: rgb(var(--c1)); }
+.recharts-wrapper [fill="#06b6d4"], .recharts-wrapper [fill="#00c2ff"], .recharts-wrapper [fill="#14b8a6"] { fill: rgb(var(--c2)); }
+.recharts-wrapper [stroke="#06b6d4"], .recharts-wrapper [stroke="#14b8a6"] { stroke: rgb(var(--c2)); }
+.recharts-wrapper [fill="#10b981"], .recharts-wrapper [fill="#22c55e"] { fill: rgb(var(--c3)); }
+.recharts-wrapper [stroke="#10b981"], .recharts-wrapper [stroke="#22c55e"] { stroke: rgb(var(--c3)); }
+.recharts-wrapper [fill="#f59e0b"], .recharts-wrapper [fill="#f97316"] { fill: rgb(var(--c4)); }
+.recharts-wrapper [stroke="#f59e0b"], .recharts-wrapper [stroke="#f97316"] { stroke: rgb(var(--c4)); }
+.recharts-wrapper [fill="#ec4899"], .recharts-wrapper [fill="#f43f5e"] { fill: rgb(var(--c5)); }
+.recharts-wrapper [fill="#ef4444"] { fill: rgb(var(--c6)); }
+.recharts-wrapper [stroke="#ef4444"], .recharts-wrapper [stroke="#f43f5e"] { stroke: rgb(var(--c6)); }
+.recharts-wrapper [fill="#eee6ff"] { fill: rgb(var(--primary-soft)); }
+.recharts-wrapper [stroke="#94a3b8"] { stroke: rgb(var(--border-strong)); }
+.recharts-wrapper [stroke="#e2e8f0"], .recharts-wrapper [stroke="#f1f5f9"] { stroke: rgb(var(--border)); }
+.recharts-wrapper stop[stop-color] { stop-color: rgb(var(--c1)); }
+.recharts-wrapper .recharts-area-area { fill-opacity: 0.12; }
+.recharts-legend-item-text { color: rgb(var(--text-secondary)) !important; }
 .recharts-default-tooltip { background: rgb(var(--surface-elevated)) !important; border: 1px solid rgb(var(--border)) !important; border-radius: 6px; box-shadow: var(--elev-2); color: rgb(var(--text-primary)) !important; }
 
 /* Sticky notes (Student → Sticky Notes) — paper tones from the palette */
