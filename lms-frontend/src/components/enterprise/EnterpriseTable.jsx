@@ -82,13 +82,14 @@ const EnterpriseTable = ({
         <div className="px-4 py-3 border-b border-app flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
           {searchable ? (
             <div className="relative w-full sm:max-w-xs">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted pointer-events-none" aria-hidden="true" />
               <input
                 type="text"
                 value={query}
                 onChange={(e) => { setQuery(e.target.value); setPage(1); }}
-                placeholder="Search records…"
-                className="input-base pl-9 py-2 text-sm"
+                aria-label="Search records"
+                placeholder="Search records"
+                className="input-base w-full !pl-9 text-[14px]"
               />
             </div>
           ) : <div />}
@@ -99,14 +100,18 @@ const EnterpriseTable = ({
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className={`${stickyHeader ? "sticky top-0" : ""} bg-slate-50 dark:bg-slate-900/80 backdrop-blur z-10`}>
+          <thead className={`${stickyHeader ? "sticky top-0" : ""} bg-surface-muted z-10`}>
             <tr>
               {columns.map((col) => (
                 <th
                   key={col.key}
+                  scope="col"
+                  aria-sort={sort.key === col.key ? (sort.dir === "asc" ? "ascending" : "descending") : undefined}
+                  tabIndex={col.sortable !== false ? 0 : undefined}
+                  onKeyDown={(e) => { if (col.sortable !== false && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); handleSort(col.key, col.sortable); } }}
                   onClick={() => handleSort(col.key, col.sortable)}
-                  className={`text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-app whitespace-nowrap select-none ${
-                    col.sortable !== false ? "cursor-pointer hover:text-primary-600 dark:hover:text-primary-400" : ""
+                  className={`text-left px-4 py-3 text-[12px] font-medium uppercase tracking-[0.06em] text-fg-muted border-b border-line whitespace-nowrap select-none ${
+                    col.sortable !== false ? "cursor-pointer hover:text-fg" : ""
                   } ${col.className || ""}`}
                 >
                   <span className="inline-flex items-center gap-1">
@@ -125,7 +130,7 @@ const EnterpriseTable = ({
             {visible.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className="px-6 py-16 text-center">
-                  <Inbox size={40} className="mx-auto text-slate-300 dark:text-slate-700" />
+                  <Inbox size={20} className="mx-auto text-fg-muted" aria-hidden="true" />
                   <p className="text-sm text-muted-app mt-2">{emptyText}</p>
                 </td>
               </tr>
@@ -136,7 +141,7 @@ const EnterpriseTable = ({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: idx * 0.015 }}
-                  className="border-b border-app last:border-0 hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors"
+                  className="border-b border-line last:border-0 hover:bg-surface-muted/60 transition-colors"
                 >
                   {columns.map((col) => (
                     <td
@@ -167,11 +172,11 @@ const EnterpriseTable = ({
             </select>
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={() => setPage(1)}              disabled={safePage === 1}          className="p-1.5 rounded-lg border border-app disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-800"><ChevronsLeft size={14} /></button>
-            <button onClick={() => setPage(safePage - 1)}   disabled={safePage === 1}          className="p-1.5 rounded-lg border border-app disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-800"><ChevronLeft size={14} /></button>
-            <span className="px-3 font-bold text-app">{safePage} / {totalPages}</span>
-            <button onClick={() => setPage(safePage + 1)}   disabled={safePage === totalPages} className="p-1.5 rounded-lg border border-app disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-800"><ChevronRight size={14} /></button>
-            <button onClick={() => setPage(totalPages)}     disabled={safePage === totalPages} className="p-1.5 rounded-lg border border-app disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-800"><ChevronsRight size={14} /></button>
+            <button onClick={() => setPage(1)}              disabled={safePage === 1}          aria-label="First page" className="btn-icon !h-8 !w-8 border border-line disabled:opacity-40"><ChevronsLeft size={14} /></button>
+            <button onClick={() => setPage(safePage - 1)}   disabled={safePage === 1}          aria-label="Previous page" className="btn-icon !h-8 !w-8 border border-line disabled:opacity-40"><ChevronLeft size={14} /></button>
+            <span className="px-3 font-medium text-fg tabular-nums" aria-live="polite">Page {safePage} of {totalPages}</span>
+            <button onClick={() => setPage(safePage + 1)}   disabled={safePage === totalPages} aria-label="Next page" className="btn-icon !h-8 !w-8 border border-line disabled:opacity-40"><ChevronRight size={14} /></button>
+            <button onClick={() => setPage(totalPages)}     disabled={safePage === totalPages} aria-label="Last page" className="btn-icon !h-8 !w-8 border border-line disabled:opacity-40"><ChevronsRight size={14} /></button>
           </div>
         </div>
       )}
