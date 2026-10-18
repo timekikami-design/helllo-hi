@@ -14,7 +14,7 @@ const greeting = () => {
 };
 
 const firstName = (u) => {
-  const n = u?.name || u?.fullName || u?.profile?.fullName || "";
+  const n = u?.name || u?.fullName || u?.profile?.fullName || u?.username || "";
   return n.trim().split(/\s+/)[0] || "";
 };
 

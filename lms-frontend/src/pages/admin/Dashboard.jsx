@@ -1,10 +1,9 @@
-import { motion } from "framer-motion";
 import { TrendingUp, ClipboardCheck, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import StatCard from "../../components/common/StatCard";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from "recharts";
-import { Edu3DScene } from "../../components/common/Edu3D";
+import RoleBanner from "../../components/enterprise/RoleBanner";
 import useApi from "../../hooks/useApi";
 import api, { fileUrl } from "../../services/api";
 import { Skeleton, SkeletonRow } from "../../components/common/Skeleton";
@@ -55,28 +54,17 @@ const AdminDashboard = () => {
 
   return (
     <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="relative bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 rounded-3xl p-6 sm:p-8 text-white overflow-hidden">
-        <div className="absolute top-0 right-0 w-72 h-72 bg-cyan-500/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-        <div className="absolute bottom-0 left-1/3 w-56 h-56 bg-primary-500/30 rounded-full blur-3xl" />
-        <Edu3DScene variant="coordinator" />
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur rounded-full text-xs font-semibold mb-3 border border-white/20">
-              <ClipboardCheck size={12} /> Course Coordinator · {data?.term?.title || "ADCS"}
-            </div>
-            <h1 className="font-display text-3xl sm:text-4xl font-extrabold mb-2">
-              Welcome, {user?.name || "Coordinator"} 🛡️
-            </h1>
-            <p className="text-white/85 text-sm">
-              Manage the academic program — instructors, students, courses and monitoring — from one dashboard.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2 relative z-10">
-            <Link to="/admin/degrees" className="px-4 py-2 bg-white text-slate-900 text-sm font-bold rounded-xl">Programs</Link>
-            <Link to="/admin/teachers" className="px-4 py-2 bg-white/15 text-white text-sm font-bold rounded-xl border border-white/30">Faculty</Link>
-          </div>
-        </div>
-      </motion.div>
+      <RoleBanner
+        eyebrow={`Course Coordinator · ${data?.term?.title || "ADCS"}`}
+        title="Academic programme overview"
+        subtitle="Instructors, students, courses and monitoring for your programme."
+        actions={
+          <>
+            <Link to="/admin/degrees" className="btn btn-primary">Programs</Link>
+            <Link to="/admin/teachers" className="btn btn-secondary">Faculty</Link>
+          </>
+        }
+      />
 
       {error ? (
         <ErrorState title="Couldn't load dashboard" description={error} onRetry={reload} />
