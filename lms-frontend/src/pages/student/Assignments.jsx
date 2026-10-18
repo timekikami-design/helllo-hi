@@ -1,11 +1,10 @@
+// lms-frontend/src/pages/student/Assignments.jsx
+// Assignments grouped by status — Overdue, Due, Submitted, Graded — across
+// all enrolled courses, with a course filter (?course=CODE deep link) and
+// search. Submit / replace / view uses the same API and modal flow.
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  FileText, Search, Calendar, CheckCircle2, AlertCircle, Upload, Award,
-  Hourglass, Eye, Paperclip, Loader2, Download, ChevronRight, ArrowLeft,
-  User, BookOpen, RefreshCw, Clock,
-} from "lucide-react";
+import { FileText, Search, CheckCircle2, AlertCircle, Upload, Award, Hourglass, Paperclip, Loader2, Download, RefreshCw, Clock, X, ChevronRight } from "lucide-react";
 import PageHeader from "../../components/common/PageHeader";
 import Modal from "../../components/common/Modal";
 import { Skeleton } from "../../components/common/Skeleton";
@@ -15,15 +14,14 @@ import { useToast } from "../../context/ToastContext";
 import useApi from "../../hooks/useApi";
 import api, { fileUrl } from "../../services/api";
 
-/* Map backend submission status → display meta. PENDING = no submission yet. */
+/* Backend submission status → display meta. PENDING = no submission yet. */
 const STATUS_META = {
-  PENDING: { label: "Pending", icon: AlertCircle, bg: "bg-amber-100 dark:bg-amber-500/15", text: "text-amber-700 dark:text-amber-300", dot: "bg-amber-500" },
-  SUBMITTED: { label: "Submitted", icon: Hourglass, bg: "bg-blue-100 dark:bg-blue-500/15", text: "text-blue-700 dark:text-blue-300", dot: "bg-blue-500" },
-  LATE: { label: "Submitted (Late)", icon: Hourglass, bg: "bg-orange-100 dark:bg-orange-500/15", text: "text-orange-700 dark:text-orange-300", dot: "bg-orange-500" },
-  GRADED: { label: "Graded", icon: Award, bg: "bg-emerald-100 dark:bg-emerald-500/15", text: "text-emerald-700 dark:text-emerald-300", dot: "bg-emerald-500" },
+  PENDING: { label: "Not submitted", icon: AlertCircle, cls: "text-warn" },
+  SUBMITTED: { label: "Submitted", icon: Hourglass, cls: "text-note" },
+  LATE: { label: "Submitted late", icon: Hourglass, cls: "text-warn" },
+  GRADED: { label: "Graded", icon: Award, cls: "text-ok" },
 };
 
-// Normalize a status into one of the three top-level categories.
 const categoryOf = (a) => {
   const s = a.submission ? a.submission.status : "PENDING";
   if (s === "GRADED") return "GRADED";
@@ -36,19 +34,33 @@ const isOverdue = (a) => {
   if (a.submission) return false;
   try { return new Date(a.dueDate) < new Date(); } catch { return false; }
 };
+const dueIn = (d) => {
+  const ms = new Date(d) - new Date();
+  if (Number.isNaN(ms)) return "";
+  const days = Math.ceil(ms / 86400000);
+  if (ms < 0) { const ago = Math.max(1, Math.floor(-ms / 86400000)); return `${ago} day${ago === 1 ? "" : "s"} overdue`; }
+  if (days <= 1) return "Due within a day";
+  return `Due in ${days} days`;
+};
 
-const COURSE_GRADIENTS = [
-  "from-blue-500 to-indigo-600", "from-emerald-500 to-teal-600", "from-violet-500 to-purple-600",
-  "from-rose-500 to-pink-600", "from-amber-500 to-orange-600", "from-cyan-500 to-blue-600",
+const GROUPS = [
+  { key: "OVERDUE", title: "Overdue", Icon: AlertCircle, cls: "text-bad" },
+  { key: "DUE", title: "To submit", Icon: Clock, cls: "text-warn" },
+  { key: "SUBMITTED", title: "Submitted · awaiting grade", Icon: Hourglass, cls: "text-note" },
+  { key: "GRADED", title: "Graded", Icon: CheckCircle2, cls: "text-ok" },
 ];
+const groupOf = (a) => {
+  const c = categoryOf(a);
+  if (c === "PENDING") return isOverdue(a) ? "OVERDUE" : "DUE";
+  return c;
+};
 
 const Assignments = () => {
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data, loading, error, reload } = useApi(() => api.student.assignments(), []);
 
-  const [selectedCourse, setSelectedCourse] = useState(null); // courseCode | null
-  const [filter, setFilter] = useState("All"); // All | Pending | Submitted | Graded
+  const [course, setCourse] = useState(searchParams.get("course") || "ALL");
   const [search, setSearch] = useState("");
   const [active, setActive] = useState(null); // assignment in modal
   const [uploading, setUploading] = useState(false);
@@ -56,60 +68,41 @@ const Assignments = () => {
 
   const assignments = useMemo(() => data?.assignments || [], [data]);
 
-  // Deep-link from a dashboard course card: ?course=<code> selects that course.
+  // Deep-link from a dashboard/course card: ?course=<code>.
   useEffect(() => {
     const c = searchParams.get("course");
-    if (c) setSelectedCourse(c);
+    if (c) setCourse(c);
   }, [searchParams]);
 
-  // Group assignments by course (only enrolled courses are returned by the API).
-  const courses = useMemo(() => {
-    const map = new Map();
-    for (const a of assignments) {
-      if (!map.has(a.courseCode)) {
-        map.set(a.courseCode, {
-          code: a.courseCode, title: a.courseTitle, teacher: a.teacher,
-          items: [], pending: 0, submitted: 0, graded: 0,
-        });
-      }
-      const g = map.get(a.courseCode);
-      g.items.push(a);
-      const cat = categoryOf(a);
-      if (cat === "PENDING") g.pending++;
-      else if (cat === "SUBMITTED") g.submitted++;
-      else g.graded++;
-    }
-    return Array.from(map.values()).sort((a, b) => a.code.localeCompare(b.code));
-  }, [assignments]);
-
-  const currentCourse = useMemo(
-    () => courses.find((c) => c.code === selectedCourse) || null,
-    [courses, selectedCourse],
-  );
-
-  // Assignments for the selected course, filtered by category + search.
-  const courseAssignments = useMemo(() => {
-    if (!currentCourse) return [];
-    return currentCourse.items
-      .filter((a) => filter === "All" || categoryOf(a) === filter.toUpperCase())
-      .filter((a) => `${a.title} ${a.description || ""}`.toLowerCase().includes(search.toLowerCase()))
-      .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
-  }, [currentCourse, filter, search]);
-
-  const goBack = () => {
-    setSelectedCourse(null);
-    setFilter("All");
-    setSearch("");
+  const changeCourse = (c) => {
+    setCourse(c);
     const next = new URLSearchParams(searchParams);
-    next.delete("course");
+    if (c === "ALL") next.delete("course"); else next.set("course", c);
     setSearchParams(next, { replace: true });
   };
 
-  const openCourse = (code) => {
-    setSelectedCourse(code);
-    setFilter("All");
-    setSearch("");
-  };
+  const courses = useMemo(() => {
+    const m = new Map();
+    assignments.forEach((a) => { if (!m.has(a.courseCode)) m.set(a.courseCode, a.courseTitle); });
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [assignments]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return assignments
+      .filter((a) => course === "ALL" || a.courseCode === course)
+      .filter((a) => !q || `${a.title} ${a.description || ""} ${a.courseCode} ${a.courseTitle}`.toLowerCase().includes(q));
+  }, [assignments, course, search]);
+
+  const groups = useMemo(() => {
+    const by = Object.fromEntries(GROUPS.map((g) => [g.key, []]));
+    filtered.forEach((a) => by[groupOf(a)].push(a));
+    by.OVERDUE.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+    by.DUE.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+    by.SUBMITTED.sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate));
+    by.GRADED.sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate));
+    return GROUPS.map((g) => ({ ...g, items: by[g.key] })).filter((g) => g.items.length);
+  }, [filtered]);
 
   const handleSubmit = async () => {
     if (!active) return;
@@ -133,207 +126,149 @@ const Assignments = () => {
     }
   };
 
-  // -------- COURSE LIST VIEW --------
-  const renderCourseGrid = () => (
-    <>
-      {courses.length === 0 ? (
-        <EmptyState icon="FileText" title="No assignments yet" description="Your instructors haven't posted any assignments for your enrolled courses." />
-      ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {courses.map((c, i) => (
-            <motion.button
-              key={c.code}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              whileHover={{ y: -4 }}
-              onClick={() => openCourse(c.code)}
-              className="text-left bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden hover:shadow-lg hover:border-primary-200 dark:hover:border-primary-800 transition group"
-            >
-              <div className={`h-2 bg-gradient-to-r ${COURSE_GRADIENTS[i % COURSE_GRADIENTS.length]}`} />
-              <div className="p-5">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <span className="text-[11px] font-mono font-bold text-primary-600">{c.code}</span>
-                    <h4 className="font-display font-bold text-slate-900 dark:text-slate-100 leading-tight mt-0.5">{c.title}</h4>
-                  </div>
-                  <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${COURSE_GRADIENTS[i % COURSE_GRADIENTS.length]} text-white flex items-center justify-center shadow shrink-0`}>
-                    <BookOpen size={20} />
-                  </div>
-                </div>
-                {c.teacher && <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 flex items-center gap-1.5"><User size={12} /> {c.teacher}</p>}
-                <div className="flex items-center gap-3 mt-4 text-xs">
-                  <span className="flex items-center gap-1 text-amber-600 font-semibold"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> {c.pending} Pending</span>
-                  <span className="flex items-center gap-1 text-blue-600 font-semibold"><span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> {c.submitted} Submitted</span>
-                  <span className="flex items-center gap-1 text-emerald-600 font-semibold"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {c.graded} Graded</span>
-                </div>
-                <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
-                  <span className="text-xs font-semibold text-slate-500">{c.items.length} assignment{c.items.length !== 1 ? "s" : ""}</span>
-                  <span className="inline-flex items-center gap-1 text-xs font-bold text-primary-600 group-hover:gap-2 transition-all">View <ChevronRight size={14} /></span>
-                </div>
-              </div>
-            </motion.button>
-          ))}
+  const Row = ({ a }) => {
+    const g = groupOf(a);
+    const meta = STATUS_META[statusOf(a)] || STATUS_META.PENDING;
+    const obtained = a.submission?.marks;
+    const pending = g === "OVERDUE" || g === "DUE";
+    return (
+      <li className="py-4 grid grid-cols-[1fr_auto] gap-x-4 gap-y-2 items-center">
+        <div className="min-w-0">
+          <p className="text-[12px] text-fg-muted"><span className="font-semibold text-fg-secondary">{a.courseCode}</span> · {a.courseTitle}</p>
+          <p className="text-[15px] font-medium text-fg">{a.title}</p>
+          <p className="text-[12px] text-fg-muted mt-0.5 flex flex-wrap gap-x-3 tabular-nums">
+            <span>Due {fmtDate(a.dueDate)}</span>
+            {pending && <span className={g === "OVERDUE" ? "text-bad font-medium" : ""}>{dueIn(a.dueDate)}</span>}
+            <span>{a.totalMarks} marks</span>
+            {a.attachmentUrl && <span className="inline-flex items-center gap-1"><Paperclip size={12} aria-hidden="true" /> Attachment</span>}
+            {!pending && <span className={`inline-flex items-center gap-1 font-medium ${meta.cls}`}><meta.icon size={12} aria-hidden="true" /> {meta.label}</span>}
+            {obtained != null && <span className="font-semibold text-fg">{obtained} / {a.totalMarks}</span>}
+          </p>
         </div>
-      )}
-    </>
-  );
+        {pending ? (
+          <button type="button" onClick={() => setActive(a)} className="btn btn-primary btn-compact"><Upload size={14} aria-hidden="true" /> Submit<span className="sr-only"> {a.title}</span></button>
+        ) : (
+          <button type="button" onClick={() => setActive(a)} className="btn btn-ghost btn-compact">Details<span className="sr-only"> for {a.title}</span> <ChevronRight size={14} aria-hidden="true" /></button>
+        )}
+      </li>
+    );
+  };
 
-  // -------- COURSE DETAIL (assignment list) VIEW --------
-  const renderCourseDetail = () => (
-    <>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-        <button onClick={goBack} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-primary-600 w-fit">
-          <ArrowLeft size={16} /> All Courses
-        </button>
-        <div className="relative w-full sm:w-72">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search assignments…" className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
-        </div>
-      </div>
-
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 mb-5">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-600 to-blue-600 text-white flex items-center justify-center shadow shrink-0"><BookOpen size={22} /></div>
-          <div className="min-w-0">
-            <span className="text-[11px] font-mono font-bold text-primary-600">{currentCourse?.code}</span>
-            <h3 className="font-display font-bold text-lg text-slate-900 dark:text-slate-100 leading-tight">{currentCourse?.title}</h3>
-            {currentCourse?.teacher && <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5"><User size={12} /> {currentCourse.teacher}</p>}
-          </div>
-        </div>
-      </div>
-
-      {/* Category filters */}
-      <div className="flex flex-wrap items-center gap-2 mb-5">
-        {["All", "Pending", "Submitted", "Graded"].map((f) => {
-          const count = f === "All" ? currentCourse?.items.length : (f === "Pending" ? currentCourse?.pending : f === "Submitted" ? currentCourse?.submitted : currentCourse?.graded);
-          return (
-            <button key={f} onClick={() => setFilter(f)} className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition ${filter === f ? "bg-primary-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"}`}>
-              {f} {count != null ? <span className={filter === f ? "text-white/80" : "text-slate-400"}>({count})</span> : null}
-            </button>
-          );
-        })}
-      </div>
-
-      {courseAssignments.length === 0 ? (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-10 text-center">
-          <FileText size={32} className="mx-auto text-slate-300 mb-2" />
-          <p className="font-semibold text-slate-600 dark:text-slate-300">No {filter !== "All" ? filter.toLowerCase() : ""} assignments</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <AnimatePresence initial={false}>
-            {courseAssignments.map((a, idx) => {
-              const s = statusOf(a);
-              const meta = STATUS_META[s] || STATUS_META.PENDING;
-              const overdue = isOverdue(a);
-              const obtained = a.submission?.marks;
-              return (
-                <motion.div key={a.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ delay: Math.min(idx * 0.04, 0.3) }} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4 hover:border-primary-200 dark:hover:border-primary-800 transition">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${meta.bg} ${meta.text}`}>{meta.label}</span>
-                        {overdue && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300">Overdue</span>}
-                        {a.attachmentUrl && <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500"><Paperclip size={11} /> Attachment</span>}
-                      </div>
-                      <h4 className="font-bold text-slate-900 dark:text-slate-100 mt-1.5">{a.title}</h4>
-                      {a.description && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">{a.description}</p>}
-                      <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500 dark:text-slate-400">
-                        <span className="flex items-center gap-1"><Calendar size={12} /> Due: <span className="font-semibold text-slate-700 dark:text-slate-300">{fmtDate(a.dueDate)}</span></span>
-                        <span className="flex items-center gap-1"><Award size={12} /> {a.totalMarks} marks</span>
-                        {obtained != null && <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold"><CheckCircle2 size={12} /> {obtained}/{a.totalMarks}</span>}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {categoryOf(a) === "PENDING" ? (
-                        <button onClick={() => setActive(a)} className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-xl bg-primary-600 text-white hover:bg-primary-700"><Upload size={13} /> Submit</button>
-                      ) : (
-                        <button onClick={() => setActive(a)} className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200"><Eye size={13} /> View Details</button>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
-        </div>
-      )}
-    </>
-  );
+  const counts = useMemo(() => {
+    const c = { OVERDUE: 0, DUE: 0, SUBMITTED: 0, GRADED: 0 };
+    filtered.forEach((a) => { c[groupOf(a)]++; });
+    return c;
+  }, [filtered]);
 
   return (
     <div>
       <PageHeader
-        title="My Assignments"
-        subtitle={currentCourse ? `${currentCourse.code} — ${currentCourse.title}` : "Select a course to view its assignments"}
+        title="Assignments"
+        subtitle={assignments.length ? `${counts.OVERDUE + counts.DUE} to submit · ${counts.SUBMITTED} awaiting grade · ${counts.GRADED} graded` : "Coursework from all your enrolled courses."}
         icon="FileText"
-        breadcrumb={["Dashboard", "Assignments", ...(currentCourse ? [currentCourse.code] : [])]}
+        breadcrumb={["Dashboard", "Assignments"]}
       />
 
       {loading ? (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-44 rounded-2xl" />)}
-        </div>
+        <div aria-busy="true">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 w-full mb-2" />)}</div>
       ) : error ? (
         <ErrorState description={error} onRetry={reload} />
-      ) : currentCourse ? (
-        renderCourseDetail()
+      ) : assignments.length === 0 ? (
+        <EmptyState icon="FileText" title="No assignments yet" description="Assignments appear here when your instructors post them." />
       ) : (
-        renderCourseGrid()
+        <>
+          <div className="flex flex-wrap items-center gap-3 mb-8">
+            <div className="relative w-full sm:w-80">
+              <label htmlFor="asg-q" className="sr-only">Search assignments</label>
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted pointer-events-none" aria-hidden="true" />
+              <input id="asg-q" type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search assignments" className="input-base !pl-9 !pr-9" />
+              {search && <button type="button" onClick={() => setSearch("")} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg"><X size={14} aria-hidden="true" /></button>}
+            </div>
+            {courses.length > 1 && (
+              <label className="inline-flex items-center gap-2 text-[13px] text-fg-secondary">
+                Course
+                <select value={course} onChange={(e) => changeCourse(e.target.value)} className="input-base !w-auto pr-8">
+                  <option value="ALL">All courses</option>
+                  {courses.map(([code, title]) => <option key={code} value={code}>{code} · {title}</option>)}
+                </select>
+              </label>
+            )}
+          </div>
+
+          {groups.length === 0 ? (
+            <EmptyState icon="Search" title="No matching assignments" description="Try another search or course." action={
+              <button type="button" className="btn btn-secondary" onClick={() => { setSearch(""); changeCourse("ALL"); }}>Clear filters</button>
+            } />
+          ) : groups.map((g) => (
+            <section key={g.key} aria-labelledby={`grp-${g.key}`} className="mb-10 last:mb-0">
+              <h2 id={`grp-${g.key}`} className={`flex items-center gap-2 text-[14px] font-semibold pb-2 border-b border-line ${g.cls}`}>
+                <g.Icon size={16} aria-hidden="true" /> {g.title}
+                <span className="text-fg-muted font-normal tabular-nums">({g.items.length})</span>
+              </h2>
+              <ul className="divide-y divide-line">{g.items.map((a) => <Row key={a.id} a={a} />)}</ul>
+            </section>
+          ))}
+        </>
       )}
 
       {/* ---- Submit / Replace / View detail modal ---- */}
       <Modal open={!!active} onClose={() => setActive(null)} title={active?.title} subtitle={active ? `${active.courseCode} — ${active.courseTitle}` : ""} icon={FileText}>
         {active && (
           <div className="space-y-4">
-            {/* Details grid */}
-            <div className="grid sm:grid-cols-2 gap-3 text-sm">
-              <div className="rounded-xl border border-slate-100 dark:border-slate-800 p-3"><p className="text-xs text-slate-500">Due Date</p><p className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5"><Clock size={13} /> {fmtDate(active.dueDate)}</p></div>
-              <div className="rounded-xl border border-slate-100 dark:border-slate-800 p-3"><p className="text-xs text-slate-500">Total Marks</p><p className="font-bold text-slate-900 dark:text-slate-100">{active.totalMarks}</p></div>
-              <div className="rounded-xl border border-slate-100 dark:border-slate-800 p-3"><p className="text-xs text-slate-500">Teacher</p><p className="font-bold text-slate-900 dark:text-slate-100">{active.teacher || "TBA"}</p></div>
-              <div className="rounded-xl border border-slate-100 dark:border-slate-800 p-3"><p className="text-xs text-slate-500">Submission Status</p><p className="font-bold text-slate-900 dark:text-slate-100">{STATUS_META[statusOf(active)]?.label}</p></div>
-              <div className="rounded-xl border border-slate-100 dark:border-slate-800 p-3"><p className="text-xs text-slate-500">Obtained Marks</p><p className="font-bold text-slate-900 dark:text-slate-100">{active.submission?.marks != null ? `${active.submission.marks}/${active.totalMarks}` : "—"}</p></div>
-              <div className="rounded-xl border border-slate-100 dark:border-slate-800 p-3"><p className="text-xs text-slate-500">Late Allowed</p><p className="font-bold text-slate-900 dark:text-slate-100">{active.allowLate ? "Yes" : "No"}</p></div>
-            </div>
+            {/* Details */}
+            <dl className="grid grid-cols-2 sm:grid-cols-3 gap-px bg-line border border-line rounded-lg overflow-hidden text-[14px]">
+              {[
+                ["Due", fmtDate(active.dueDate)],
+                ["Total marks", active.totalMarks],
+                ["Teacher", active.teacher || "TBA"],
+                ["Status", STATUS_META[statusOf(active)]?.label],
+                ["Obtained", active.submission?.marks != null ? `${active.submission.marks} / ${active.totalMarks}` : "—"],
+                ["Late submission", active.allowLate ? "Allowed" : "Not allowed"],
+              ].map(([k, v]) => (
+                <div key={k} className="bg-surface p-3">
+                  <dt className="text-[12px] text-fg-muted">{k}</dt>
+                  <dd className="font-medium text-fg tabular-nums mt-0.5">{v}</dd>
+                </div>
+              ))}
+            </dl>
 
             {active.description && (
-              <div className="rounded-xl border border-slate-100 dark:border-slate-800 p-3"><p className="text-xs text-slate-500 mb-1">Description</p><p className="text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap">{active.description}</p></div>
+              <div ><p className="field-label">Instructions</p><p className="text-[14px] text-fg-secondary whitespace-pre-wrap">{active.description}</p></div>
             )}
 
             {/* Teacher attachment */}
             {active.attachmentUrl && (
-              <div className="rounded-xl border border-slate-100 dark:border-slate-800 p-3">
-                <p className="text-xs text-slate-500 mb-1">Assignment Attachment</p>
+              <div className="rounded border border-line p-3">
+                <p className="field-label">Assignment attachment</p>
                 <div className="flex items-center gap-2">
-                  <Paperclip size={14} className="text-slate-400" />
-                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{active.attachmentName || "Attachment"}</span>
-                  <a href={/^https?:\/\//.test(active.attachmentUrl) ? active.attachmentUrl : fileUrl(active.attachmentUrl)} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 text-primary-600 text-xs font-semibold hover:underline"><Download size={12} /> Download</a>
+                  <Paperclip size={14} className="text-fg-muted" />
+                  <span className="text-[14px] font-medium text-fg truncate">{active.attachmentName || "Attachment"}</span>
+                  <a href={/^https?:\/\//.test(active.attachmentUrl) ? active.attachmentUrl : fileUrl(active.attachmentUrl)} target="_blank" rel="noreferrer" className="ml-auto link inline-flex items-center gap-1 text-[13px]"><Download size={12} /> Download</a>
                 </div>
               </div>
             )}
 
             {/* Existing submission (View / Download / Replace) */}
             {active.submission && (
-              <div className="rounded-xl border border-slate-100 dark:border-slate-800 p-4">
-                <p className="text-xs text-slate-500">Your Submission</p>
+              <div className="rounded border border-line p-4">
+                <p className="field-label">Your submission</p>
                 <div className="flex items-center gap-2 mt-2">
-                  <Paperclip size={14} className="text-slate-400" />
-                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{active.submission.fileName || (active.submission.filePath ? "Submitted file" : "Text submission")}</span>
+                  <Paperclip size={14} className="text-fg-muted" />
+                  <span className="text-[14px] font-medium text-fg">{active.submission.fileName || (active.submission.filePath ? "Submitted file" : "Text submission")}</span>
                   {active.submission.filePath && (
-                    <a href={fileUrl(active.submission.filePath)} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 text-primary-600 text-xs font-semibold hover:underline"><Download size={12} /> Download</a>
+                    <a href={fileUrl(active.submission.filePath)} target="_blank" rel="noreferrer" className="ml-auto link inline-flex items-center gap-1 text-[13px]"><Download size={12} /> Download</a>
                   )}
                 </div>
                 {active.submission.marks != null && (
-                  <div className="mt-3 flex items-center justify-between p-3 rounded-lg bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+                  <div className="mt-3 flex items-center justify-between p-3 rounded bg-ok-soft text-ok">
                     <span className="font-semibold flex items-center gap-2"><CheckCircle2 size={16} /> Graded</span>
                     <span className="font-bold">{active.submission.marks}/{active.totalMarks}</span>
                   </div>
                 )}
                 {active.submission.feedback && (
-                  <div className="mt-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/40 text-sm">
-                    <p className="text-xs text-slate-500 mb-0.5">Teacher Feedback</p>
-                    <p className="text-slate-800 dark:text-slate-200">{active.submission.feedback}</p>
+                  <div className="mt-2 p-3 rounded bg-surface-muted text-[14px]">
+                    <p className="text-[12px] text-fg-muted mb-0.5">Teacher feedback</p>
+                    <p className="text-fg">{active.submission.feedback}</p>
                   </div>
                 )}
               </div>
@@ -341,13 +276,14 @@ const Assignments = () => {
 
             {/* Upload / Replace zone — graded assignments cannot be re-submitted */}
             {statusOf(active) !== "GRADED" && (
-              <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-6 text-center">
-                {active.submission ? <RefreshCw size={28} className="mx-auto text-slate-400 mb-2" /> : <Upload size={28} className="mx-auto text-slate-400 mb-2" />}
-                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">{active.submission ? "Replace your submission" : "Upload your submission"}</p>
-                <input ref={fileRef} type="file" className="block mx-auto text-sm text-slate-600 dark:text-slate-400" />
-                <p className="text-[10px] text-slate-400 mt-2">PDF, DOC, ZIP up to 25 MB</p>
-                <button onClick={handleSubmit} disabled={uploading} className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-xl bg-primary-600 text-white text-xs font-semibold hover:bg-primary-700 disabled:opacity-50">
-                  {uploading ? <><Loader2 size={12} className="animate-spin" /> Uploading…</> : active.submission ? <><RefreshCw size={12} /> Replace Submission</> : <><Upload size={12} /> Upload & Submit</>}
+              <div className="border border-dashed border-line-strong rounded p-6 text-center">
+                {active.submission ? <RefreshCw size={28} className="mx-auto text-fg-muted mb-2" /> : <Upload size={28} className="mx-auto text-fg-muted mb-2" />}
+                <p className="text-[14px] font-medium text-fg mb-2">{active.submission ? "Replace your submission" : "Upload your submission"}</p>
+                <label htmlFor="assignment-file" className="sr-only">Choose file</label>
+                <input id="assignment-file" ref={fileRef} type="file" className="block mx-auto text-[14px] text-fg-secondary" />
+                <p className="field-help mt-2">PDF, DOC or ZIP, up to 25 MB.</p>
+                <button onClick={handleSubmit} disabled={uploading} className="btn btn-primary mt-4">
+                  {uploading ? <><Loader2 size={15} className="animate-spin" aria-hidden="true" /> Uploading…</> : active.submission ? <><RefreshCw size={15} aria-hidden="true" /> Replace submission</> : <><Upload size={15} aria-hidden="true" /> Upload and submit</>}
                 </button>
               </div>
             )}
