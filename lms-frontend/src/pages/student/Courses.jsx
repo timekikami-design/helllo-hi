@@ -1,301 +1,184 @@
-import { motion } from "framer-motion";
-import { Search, Grid3x3, List, BookOpen, FlaskConical } from "lucide-react";
-import { useMemo, useState } from "react";
+// lms-frontend/src/pages/student/Courses.jsx
+// My Courses (G2): compact academic list by default (code, title,
+// instructor, credits, attendance rail, status, open), optional shelf
+// view. Search and view preference persist across navigation.
+// Data: api.student.courses() — unchanged.
+import { Search, LayoutList, LayoutGrid, FlaskConical, ArrowRight, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PageHeader from "../../components/common/PageHeader";
-import { SkeletonCard } from "../../components/common/Skeleton";
+import { Skeleton } from "../../components/common/Skeleton";
 import ErrorState from "../../components/common/ErrorState";
 import EmptyState from "../../components/common/EmptyState";
 import useApi from "../../hooks/useApi";
 import api, { fileUrl } from "../../services/api";
 import { formatCredits, courseHasLab } from "../../utils/credit";
 
-// Deterministic gradient per course code so cards stay visually varied
-// without relying on mock colors.
-const GRADIENTS = [
-  "from-blue-500 to-indigo-600",
-  "from-emerald-500 to-teal-600",
-  "from-amber-500 to-orange-600",
-  "from-rose-500 to-pink-600",
-  "from-violet-500 to-purple-600",
-  "from-cyan-500 to-sky-600",
-];
-const gradientFor = (key = "") => {
-  let h = 0;
-  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
-  return GRADIENTS[h % GRADIENTS.length];
-};
+const PREF = "aust_courses_view";
+const SEARCH = "aust_courses_q";
+const read = (k, d) => { try { return window.sessionStorage.getItem(k) ?? d; } catch (_) { return d; } };
+const write = (k, v) => { try { window.sessionStorage.setItem(k, v); } catch (_) { /* ignore */ } };
 
-const teacherName = (offering) => {
-  const t = offering?.teacher;
-  if (!t) return "TBA";
-  return t.profile?.fullName || t.username || "TBA";
-};
+const teacherName = (o) => o?.teacher?.profile?.fullName || o?.teacher?.username || null;
+const teacherPhoto = (o) => (o?.teacher?.profile?.photoUrl ? fileUrl(o.teacher.profile.photoUrl) : null);
+const initials = (s = "") => s.trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join("").toUpperCase() || "?";
 
-// Real instructor photo (from the teacher's live LmsStudentProfile). Returns the
-// uploaded photo URL when set, otherwise null so the caller can fall back to a
-// generated avatar. Updates in real time when the teacher changes their photo.
-const teacherPhoto = (offering) => {
-  const url = offering?.teacher?.profile?.photoUrl;
-  return url ? fileUrl(url) : null;
-};
+const Avatar = ({ src, name }) => (src
+  ? <img src={src} alt="" loading="lazy" className="h-8 w-8 rounded-full object-cover shrink-0" />
+  : <span className="h-8 w-8 rounded-full bg-surface-muted text-fg-secondary text-[11px] font-semibold inline-flex items-center justify-center shrink-0" aria-hidden="true">{initials(name || "TBA")}</span>);
 
-// Generated initials avatar used only when the instructor has no real photo.
-const avatarFor = (name) =>
-  `https://ui-avatars.com/api/?name=${encodeURIComponent(name || "Instructor")}&background=2563eb&color=fff`;
+function AttendanceRail({ value }) {
+  if (value == null) return <span className="text-[13px] text-fg-muted">No sessions yet</span>;
+  const tone = value >= 75 ? "success" : value >= 65 ? "warning" : "error";
+  return (
+    <span className="flex items-center gap-3 min-w-0">
+      <span className="rail flex-1 min-w-[64px]" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={value} aria-label="Attendance">
+        <span style={{ width: `${value}%`, background: `rgb(var(--${tone}))` }} />
+      </span>
+      <span className="text-[13px] font-medium tabular-nums text-fg w-10 text-right">{value}%</span>
+    </span>
+  );
+}
+
+const StatusText = ({ status }) => {
+  const s = String(status || "").toUpperCase();
+  const map = { ENROLLED: ["badge-success", "Enrolled"], COMPLETED: ["badge-neutral", "Completed"], DROPPED: ["badge-error", "Dropped"], WITHDRAWN: ["badge-warning", "Withdrawn"] };
+  const [cls, label] = map[s] || ["badge-neutral", s ? s[0] + s.slice(1).toLowerCase() : "—"];
+  return <span className={`badge ${cls}`}><span className="status-dot" aria-hidden="true" />{label}</span>;
+};
 
 const Courses = () => {
   const navigate = useNavigate();
-  const [view, setView] = useState("grid");
-  const [search, setSearch] = useState("");
+  const [view, setView] = useState(() => read(PREF, "list"));
+  const [search, setSearch] = useState(() => read(SEARCH, ""));
   const { data, loading, error, reload } = useApi(() => api.student.courses(), []);
 
-  // Normalize registration rows into a flat course view-model.
-  const courses = useMemo(() => {
-    const rows = data?.courses || [];
-    return rows.map((r) => {
-      const o = r.offering || {};
-      const c = o.course || {};
-      const att = r.attendance || o.attendance || null;
-      return {
-        registrationId: r.id,
-        offeringId: r.offeringId,
-        code: c.code || "—",
-        title: c.title || "Untitled Course",
-        credits: c.creditHours != null ? formatCredits(c) : "—",
-        program: c.program?.shortForm || c.program?.name || "",
-        instructor: teacherName(o),
-        instructorPhoto: teacherPhoto(o),
-        students: o._count?.registrations ?? null,
-        status: r.status,
-        attendance: att?.percentage ?? null,
-        gradient: gradientFor(c.code || c.title),
-        hasLab: courseHasLab(c),
-        labCredit: c.labCredit != null ? c.labCredit : null,
-      };
-    });
-  }, [data]);
+  useEffect(() => write(PREF, view), [view]);
+  useEffect(() => write(SEARCH, search), [search]);
+
+  const courses = useMemo(() => (data?.courses || []).map((r) => {
+    const o = r.offering || {};
+    const c = o.course || {};
+    const att = r.attendance || o.attendance || null;
+    return {
+      key: `course-${r.id}`,
+      offeringId: r.offeringId,
+      code: c.code || "—",
+      title: c.title || "Untitled course",
+      credits: c.creditHours != null ? formatCredits(c) : "—",
+      program: c.program?.shortForm || c.program?.name || "",
+      semester: c.semester?.number ? `Semester ${c.semester.number}` : "",
+      instructor: teacherName(o),
+      instructorPhoto: teacherPhoto(o),
+      students: o._count?.registrations ?? null,
+      status: r.status,
+      attendance: att?.percentage ?? null,
+      hasLab: courseHasLab(c),
+    };
+  }), [data]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return courses;
-    return courses.filter(
-      (c) => c.title.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)
-    );
+    return courses.filter((c) => [c.title, c.code, c.instructor].some((v) => String(v || "").toLowerCase().includes(q)));
   }, [courses, search]);
 
-  // B1.d — ONE unified card per course. Courses with a Lab component are no
-  // longer split into a Theory card + Lab card; the single card opens the
-  // course page where Theory and Lab appear as two separate sections.
-  const cards = useMemo(() => filtered.map((c) => ({ ...c, kind: "course", key: `course-${c.registrationId}` })), [filtered]);
-
-  const openCourse = (offeringId) => navigate(`/student/courses/${offeringId}`);
+  const open = (c) => navigate(`/student/courses/${c.offeringId}`);
 
   return (
     <div>
       <PageHeader
-        title="My Courses"
-        subtitle={
-          loading
-            ? "Loading your enrolled courses…"
-            : `Currently enrolled in ${courses.length} course${courses.length === 1 ? "" : "s"}`
-        }
-        icon="BookOpen"
-        breadcrumb={["Dashboard", "My Courses"]}
-        actions={
-          <>
-            <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search courses..."
-                className="pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm"
-              />
-            </div>
-            <div className="flex bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
-              <button onClick={() => setView("grid")} className={`p-1.5 rounded-lg ${view === "grid" ? "bg-primary-600 text-white" : "text-slate-500 dark:text-slate-400"}`}>
-                <Grid3x3 size={16} />
-              </button>
-              <button onClick={() => setView("list")} className={`p-1.5 rounded-lg ${view === "list" ? "bg-primary-600 text-white" : "text-slate-500 dark:text-slate-400"}`}>
-                <List size={16} />
-              </button>
-            </div>
-          </>
-        }
+        title="My courses"
+        subtitle={loading ? "Loading your enrolled courses…" : `${courses.length} course${courses.length === 1 ? "" : "s"} this term`}
+        breadcrumb={["Overview", "My courses"]}
       />
 
-      {loading ? (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+      {/* Toolbar */}
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between mb-6">
+        <div className="relative w-full sm:max-w-sm">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted" aria-hidden="true" />
+          <label htmlFor="course-search" className="sr-only">Search courses</label>
+          <input id="course-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by title, code or instructor"
+            className="input-base w-full pl-9 pr-9" />
+          {search && (
+            <button type="button" onClick={() => setSearch("")} aria-label="Clear search" className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded text-fg-muted hover:text-fg">
+              <X size={15} aria-hidden="true" />
+            </button>
+          )}
         </div>
-      ) : error ? (
-        <ErrorState
-          title="Couldn't load your courses"
-          description={error}
-          onRetry={reload}
-        />
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon="BookOpen"
-          title={search ? "No matching courses" : "No courses yet"}
-          description={
-            search
-              ? "Try a different search term."
-              : "You are not yet enrolled in any courses. You are automatically enrolled in your 1st-semester Scheme of Study courses — check back shortly."
-          }
-        />
-      ) : view === "grid" ? (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {cards.map((c, i) => (
-            c.kind === "lab" ? (
-              <motion.div
-                key={c.key}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-                className="bg-white dark:bg-slate-900 rounded-2xl border border-indigo-200 dark:border-indigo-900/40 ring-1 ring-indigo-100 dark:ring-indigo-900/30 shadow-soft overflow-hidden card-hover"
-              >
-                <div className="relative h-32 bg-gradient-to-br from-indigo-600 to-cyan-600 p-5 text-white">
-                  <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/10 rounded-full blur-xl" />
-                  <div className="flex items-center gap-2 mb-3">
-                    <FlaskConical size={30} />
-                    <span className="text-[10px] font-bold uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-full">Lab</span>
-                  </div>
-                  <p className="text-xs opacity-90 font-mono">{c.code} · LAB</p>
-                  <p className="font-display font-bold text-lg leading-tight">{c.title} — Lab</p>
-                </div>
-                <div className="p-4">
-                  <div className="flex items-center gap-2 mb-3 text-xs">
-                    <span className="text-slate-500 dark:text-slate-400">Lab credit:</span>
-                    <span className="font-bold text-slate-900 dark:text-slate-100">{c.labCredit != null ? c.labCredit : "1"} (of {c.credits})</span>
-                  </div>
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
-                    <div className="text-[10px] text-slate-500 dark:text-slate-400">
-                      <p className="font-semibold text-indigo-600 dark:text-indigo-400">{c.program}</p>
-                      <p>Lab component</p>
-                    </div>
-                    <button
-                      onClick={() => navigate("/student/lab-tasks")}
-                      className="px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-cyan-600 text-white text-xs font-bold rounded-lg hover:opacity-90 inline-flex items-center gap-1"
-                    >
-                      <FlaskConical size={13} /> Lab Tasks
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            ) : (
-            <motion.div
-              key={c.key}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft overflow-hidden card-hover"
-            >
-              <div className={`relative h-32 bg-gradient-to-br ${c.gradient} p-5 text-white`}>
-                <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/10 rounded-full blur-xl" />
-                <div className="absolute -right-2 -bottom-6 w-32 h-32 bg-white/5 rounded-full blur-2xl" />
-                <div className="flex items-start justify-between">
-                  <BookOpen size={32} className="mb-3" />
-                  {c.hasLab && (
-                    <span className="text-[10px] font-bold uppercase tracking-wider bg-white/25 px-2 py-0.5 rounded-full inline-flex items-center gap-1"><FlaskConical size={11} /> Theory + Lab</span>
-                  )}
-                </div>
-                <p className="text-xs opacity-90 font-mono">{c.code}</p>
-                <p className="font-display font-bold text-lg leading-tight">{c.title}</p>
-              </div>
-              <div className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <img
-                    src={c.instructorPhoto || avatarFor(c.instructor)}
-                    onError={(e) => { e.currentTarget.src = avatarFor(c.instructor); }}
-                    className="w-7 h-7 rounded-full object-cover"
-                    alt={c.instructor}
-                  />
-                  <div className="text-xs">
-                    <p className="font-semibold text-slate-700 dark:text-slate-300">{c.instructor}</p>
-                    <p className="text-slate-500 dark:text-slate-400">
-                      {c.students != null ? `${c.students} students · ` : ""}{c.credits} cr
-                    </p>
-                  </div>
-                </div>
-                {c.attendance != null && (
-                  <div className="space-y-1 mb-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-500 dark:text-slate-400 font-semibold">Attendance</span>
-                      <span className="font-bold text-slate-900 dark:text-slate-100">{c.attendance}%</span>
-                    </div>
-                    <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${c.attendance}%` }}
-                        transition={{ delay: i * 0.1, duration: 0.8 }}
-                        className={`h-full bg-gradient-to-r ${c.gradient} rounded-full`}
-                      />
-                    </div>
-                  </div>
-                )}
-                <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400">
-                    <p className="font-semibold text-primary-600">{c.program}</p>
-                    <p className="capitalize">{(c.status || "").toLowerCase()}</p>
-                  </div>
-                  <button
-                    onClick={() => openCourse(c.offeringId)}
-                    className="px-3 py-1.5 bg-primary-600 text-white text-xs font-bold rounded-lg hover:bg-primary-700"
-                  >
-                    Open Course
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-            )
+        <div role="radiogroup" aria-label="Layout" className="inline-flex rounded border border-line bg-surface p-0.5 self-start">
+          {[["list", "List", LayoutList], ["grid", "Shelf", LayoutGrid]].map(([k, label, Icon]) => (
+            <button key={k} type="button" role="radio" aria-checked={view === k} onClick={() => setView(k)}
+              className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-sm text-[13px] font-medium ${view === k ? "bg-brand-soft text-brand" : "text-fg-secondary hover:text-fg"}`}>
+              <Icon size={15} aria-hidden="true" /> {label}
+            </button>
           ))}
         </div>
-      ) : (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-50 dark:bg-slate-900 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">
-                <th className="px-4 py-3">Code</th>
-                <th className="px-4 py-3">Course</th>
-                <th className="px-4 py-3">Instructor</th>
-                <th className="px-4 py-3">Credits</th>
-                <th className="px-4 py-3">Attendance</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {cards.map((c) => (
-                <tr key={c.key} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900">
-                  <td className="px-4 py-3 font-mono font-bold text-primary-700">{c.code}{c.kind === "lab" ? " · LAB" : ""}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">{c.title}{c.hasLab && <span className="ml-2 text-[10px] font-bold text-indigo-600 inline-flex items-center gap-0.5"><FlaskConical size={11} /> THEORY + LAB</span>}</td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{c.instructor}</td>
-                  <td className="px-4 py-3">{c.credits}</td>
-                  <td className="px-4 py-3">
-                    {c.attendance != null ? (
-                      <div className="flex items-center gap-2">
-                        <div className="w-24 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full">
-                          <div className={`h-full bg-gradient-to-r ${c.gradient} rounded-full`} style={{ width: `${c.attendance}%` }} />
-                        </div>
-                        <span className="text-xs font-bold">{c.attendance}%</span>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-slate-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-xs capitalize">{(c.status || "").toLowerCase()}</td>
-                  <td className="px-4 py-3">
-                    {c.kind === "lab"
-                      ? <button onClick={() => navigate("/student/lab-tasks")} className="text-indigo-600 font-semibold text-xs hover:underline">Lab Tasks →</button>
-                      : <button onClick={() => openCourse(c.offeringId)} className="text-primary-600 font-semibold text-xs hover:underline">Open →</button>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      </div>
+
+      {loading ? (
+        <div className="border-y border-line divide-y divide-[rgb(var(--border))]" aria-busy="true" aria-label="Loading courses">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 py-4"><Skeleton className="h-4 w-16" /><Skeleton className="h-4 flex-1" /><Skeleton className="h-4 w-32 hidden md:block" /><Skeleton className="h-2 w-28 hidden md:block" /></div>
+          ))}
         </div>
+      ) : error ? (
+        <ErrorState title="Couldn’t load your courses" description={error} onRetry={reload} />
+      ) : filtered.length === 0 ? (
+        search
+          ? <EmptyState icon="SearchX" title={`No results for “${search}”`} description="Check the spelling, try fewer words, or search by course code." action={() => setSearch("")} actionLabel="Clear search" />
+          : <EmptyState icon="BookOpen" title="No courses yet" description="Your enrolled courses will appear here once your enrolment is confirmed." />
+      ) : view === "list" ? (
+        <div className="border-t border-line">
+          {/* Column headings (desktop) */}
+          <div className="hidden md:grid grid-cols-[96px_minmax(0,2.2fr)_minmax(0,1.4fr)_minmax(0,1.2fr)_112px_40px] gap-6 px-1 py-2 label-caps border-b border-line">
+            <span>Code</span><span>Course</span><span>Instructor</span><span>Attendance</span><span>Status</span><span className="sr-only">Open</span>
+          </div>
+          <ul className="divide-y divide-[rgb(var(--border))] border-b border-line">
+            {filtered.map((c) => (
+              <li key={c.key}>
+                <button type="button" onClick={() => open(c)}
+                  className="group w-full text-left grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[96px_minmax(0,2.2fr)_minmax(0,1.4fr)_minmax(0,1.2fr)_112px_40px] items-center gap-x-6 gap-y-3 px-1 py-4 hover:bg-surface transition-colors">
+                  <span className="hidden md:block text-[13px] font-medium tabular-nums text-fg-secondary">{c.code}</span>
+                  <span className="min-w-0">
+                    <span className="block text-[15px] leading-6 font-semibold text-fg group-hover:text-brand truncate">{c.title}</span>
+                    <span className="block text-[13px] leading-5 text-fg-muted truncate">
+                      <span className="md:hidden tabular-nums">{c.code} · </span>{c.credits} credit hours{c.semester ? ` · ${c.semester}` : ""}
+                      {c.hasLab && <span className="inline-flex items-center gap-1 ml-2 text-fg-secondary"><FlaskConical size={12} aria-hidden="true" />Theory + Lab</span>}
+                    </span>
+                  </span>
+                  <span className="md:hidden"><StatusText status={c.status} /></span>
+                  <span className="hidden md:flex items-center gap-2.5 min-w-0 text-[14px] text-fg-secondary">
+                    <Avatar src={c.instructorPhoto} name={c.instructor} /><span className="truncate">{c.instructor || "To be assigned"}</span>
+                  </span>
+                  <span className="col-span-2 md:col-span-1"><AttendanceRail value={c.attendance} /></span>
+                  <span className="hidden md:block"><StatusText status={c.status} /></span>
+                  <ArrowRight size={16} className="hidden md:block text-fg-muted group-hover:text-brand justify-self-end" aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((c) => (
+            <li key={c.key}>
+              <button type="button" onClick={() => open(c)} className="group w-full h-full text-left flex flex-col bg-surface border border-line rounded-lg hover:border-line-strong transition-colors overflow-hidden">
+                <span className="block h-1 bg-primary-600" aria-hidden="true" />
+                <span className="flex-1 p-5">
+                  <span className="flex items-center justify-between gap-2 text-[13px] text-fg-muted">
+                    <span className="font-medium tabular-nums text-fg-secondary">{c.code}</span>
+                    <StatusText status={c.status} />
+                  </span>
+                  <span className="mt-3 block font-serif text-[22px] leading-7 text-fg group-hover:text-brand">{c.title}</span>
+                  <span className="mt-1 block text-[13px] text-fg-muted">{c.credits} credit hours{c.hasLab ? " · Theory + Lab" : ""}</span>
+                  <span className="mt-4 flex items-center gap-2.5 text-[14px] text-fg-secondary"><Avatar src={c.instructorPhoto} name={c.instructor} />{c.instructor || "To be assigned"}</span>
+                </span>
+                <span className="px-5 py-4 border-t border-line"><AttendanceRail value={c.attendance} /></span>
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
