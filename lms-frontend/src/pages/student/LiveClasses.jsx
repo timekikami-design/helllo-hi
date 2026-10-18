@@ -1,11 +1,10 @@
-import { motion, AnimatePresence } from "framer-motion";
-import { useMemo, useState, useEffect } from "react";
+// lms-frontend/src/pages/student/LiveClasses.jsx
+// Live classes in three zones: Live now (prominent band), Next class, and a
+// day-grouped timeline (upcoming, then past with recordings). Join / leave /
+// beacon / ?join= deep-link logic is unchanged.
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
-import {
-  Video, Radio, Clock, Calendar, ExternalLink, Play, User, X, Maximize2,
-  Mic, MicOff, Camera, MessageSquare, Users, Hand, MonitorUp, PenTool,
-  Presentation, Smile, BarChart3, Loader2, AlertTriangle,
-} from "lucide-react";
+import { Clock, User, X, Maximize2, Play, Loader2, ExternalLink, RefreshCw, CalendarDays } from "lucide-react";
 import PageHeader from "../../components/common/PageHeader";
 import { Skeleton } from "../../components/common/Skeleton";
 import ErrorState from "../../components/common/ErrorState";
@@ -15,42 +14,29 @@ import api from "../../services/api";
 import { fileUrl } from "../../services/api";
 import { useToast } from "../../context/ToastContext";
 
-// The full set of BigBlueButton classroom features surfaced in the join panel.
-const BBB_FEATURES = [
-  { icon: Mic, label: "Audio Join" },
-  { icon: MicOff, label: "Listen Only" },
-  { icon: Camera, label: "Webcam" },
-  { icon: MessageSquare, label: "Public & Private Chat" },
-  { icon: Users, label: "Participants Panel" },
-  { icon: Hand, label: "Raise Hand" },
-  { icon: PenTool, label: "Multi-user Whiteboard" },
-  { icon: Presentation, label: "Presentation Viewer" },
-  { icon: MonitorUp, label: "Screen Sharing" },
-  { icon: BarChart3, label: "Polls" },
-  { icon: Smile, label: "Reactions & Emojis" },
-  { icon: Video, label: "Breakout Rooms" },
-];
-
-const statusMeta = (s) => {
-  const v = (s || "").toUpperCase();
-  if (v === "LIVE") return { chip: "bg-rose-100 text-rose-700 animate-pulse", label: "Live Now", dot: "bg-rose-500" };
-  if (v === "SCHEDULED" || v === "UPCOMING") return { chip: "bg-blue-100 text-blue-700", label: "Scheduled", dot: "bg-blue-500" };
-  if (v === "ENDED" || v === "COMPLETED") return { chip: "bg-slate-100 text-slate-600", label: "Ended", dot: "bg-slate-400" };
-  return { chip: "bg-slate-100 text-slate-600", label: s || "—", dot: "bg-slate-400" };
+const ST = (c) => (c.status || "").toUpperCase();
+const isEnded = (c) => ["ENDED", "COMPLETED", "CANCELLED"].includes(ST(c));
+const hm = (x) => x.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+const dayKey = (d) => d.toDateString();
+const dayLabel = (d) => {
+  const now = new Date();
+  const t = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diff = Math.round((x - t) / 86400000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Tomorrow";
+  if (diff === -1) return "Yesterday";
+  return d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
 };
-
-
-// Distinct, colour-blind-friendly accents per course (B1.c).
-const COURSE_PALETTE = [
-  { bar: "bg-blue-500", soft: "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300", chip: "bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-200" },
-  { bar: "bg-emerald-500", soft: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300", chip: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200" },
-  { bar: "bg-amber-500", soft: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300", chip: "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200" },
-  { bar: "bg-violet-500", soft: "bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300", chip: "bg-violet-100 text-violet-800 dark:bg-violet-500/20 dark:text-violet-200" },
-  { bar: "bg-rose-500", soft: "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300", chip: "bg-rose-100 text-rose-800 dark:bg-rose-500/20 dark:text-rose-200" },
-  { bar: "bg-cyan-500", soft: "bg-cyan-50 text-cyan-700 dark:bg-cyan-500/10 dark:text-cyan-300", chip: "bg-cyan-100 text-cyan-800 dark:bg-cyan-500/20 dark:text-cyan-200" },
-  { bar: "bg-orange-500", soft: "bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-300", chip: "bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-200" },
-  { bar: "bg-teal-500", soft: "bg-teal-50 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300", chip: "bg-teal-100 text-teal-800 dark:bg-teal-500/20 dark:text-teal-200" },
-];
+const relStart = (d) => {
+  const mins = Math.round((d.getTime() - Date.now()) / 60000);
+  if (mins <= 0) return "starting now";
+  if (mins < 60) return `in ${mins} min`;
+  const h = Math.floor(mins / 60);
+  if (h < 24) return `in ${h} h ${mins % 60 ? `${mins % 60} min` : ""}`.trim();
+  const days = Math.round(h / 24);
+  return `in ${days} day${days === 1 ? "" : "s"}`;
+};
 
 const resolveRecording = (lc) => {
   if (!lc.recordingUrl) return null;
@@ -122,14 +108,13 @@ const LiveClasses = () => {
     }
   }, [classes, searchParams, autoJoined, room]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // B1.c — each course gets its own stable accent so classes of different
-  // courses are never visually confused.
+  // Course filter — classes are identified by course code + title in text,
+  // never by colour alone.
   const courses = useMemo(() => {
     const m = new Map();
     classes.forEach((c) => { if (c.courseCode && !m.has(c.courseCode)) m.set(c.courseCode, { code: c.courseCode, title: c.courseTitle, teacher: c.teacher }); });
-    return [...m.values()].sort((a, b) => a.code.localeCompare(b.code)).map((c, i) => ({ ...c, color: COURSE_PALETTE[i % COURSE_PALETTE.length] }));
+    return [...m.values()].sort((a, b) => a.code.localeCompare(b.code));
   }, [classes]);
-  const colorOf = (code) => (courses.find((c) => c.code === code) || { color: COURSE_PALETTE[0] }).color;
   const [courseFilter, setCourseFilter] = useState("ALL");
 
   const shown = useMemo(() => {
@@ -141,184 +126,272 @@ const LiveClasses = () => {
     return list;
   }, [classes, filter, courseFilter]);
 
-  // Split into Live now / Today / Upcoming / Past for an at-a-glance agenda.
-  const sections = useMemo(() => {
-    const now = new Date();
-    const today = now.toDateString();
-    const st = (c) => (c.status || "").toUpperCase();
-    const live = [], todays = [], upcoming = [], past = [];
+  const recordingOf = resolveRecording;
+
+  // Zone split over the filtered list.
+  const zones = useMemo(() => {
+    const now = Date.now();
+    const asc = (a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt);
+    const live = [], upcoming = [], past = [];
     shown.forEach((c) => {
       const d = new Date(c.scheduledAt);
-      if (st(c) === "LIVE") live.push(c);
-      else if (["ENDED", "COMPLETED", "CANCELLED"].includes(st(c)) || d.getTime() + (c.durationMin || 60) * 60000 < now.getTime()) past.push(c);
-      else if (d.toDateString() === today) todays.push(c);
+      if (ST(c) === "LIVE") live.push(c);
+      else if (isEnded(c) || d.getTime() + (c.durationMin || 60) * 60000 < now) past.push(c);
       else upcoming.push(c);
     });
-    const asc = (a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt);
-    return [
-      { key: "live", title: "Live now", items: live.sort(asc) },
-      { key: "today", title: "Today", items: todays.sort(asc) },
-      { key: "upcoming", title: "Upcoming", items: upcoming.sort(asc) },
-      { key: "past", title: "Past sessions", items: past.sort((a, b) => -asc(a, b)) },
-    ].filter((sct) => sct.items.length);
+    live.sort(asc); upcoming.sort(asc); past.sort((a, b) => -asc(a, b));
+    const group = (list) => {
+      const g = [];
+      list.forEach((c) => {
+        const d = new Date(c.scheduledAt);
+        const k = dayKey(d);
+        let last = g[g.length - 1];
+        if (!last || last.key !== k) { last = { key: k, label: dayLabel(d), items: [] }; g.push(last); }
+        last.items.push(c);
+      });
+      return g;
+    };
+    const next = upcoming[0] || null;
+    return { live, next, upcomingDays: group(upcoming.slice(next ? 1 : 0)), pastDays: group(past), pastCount: past.length };
   }, [shown]);
+
+  const JoinButton = ({ lc, large = false }) => {
+    const busy = joining === lc.id;
+    const recording = recordingOf(lc);
+    const live = ST(lc) === "LIVE";
+    const ended = isEnded(lc);
+    const size = large ? "btn-lg" : "btn-compact";
+    if (!ended && lc.joinUrl) {
+      return (
+        <button type="button" onClick={() => joinClass(lc)} disabled={busy} className={`btn btn-primary ${size}`}>
+          {busy ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : <ExternalLink size={15} aria-hidden="true" />}
+          {busy ? "Joining…" : live ? "Join class" : "Join classroom"}
+          <span className="sr-only"> {lc.courseCode} {lc.title}</span>
+        </button>
+      );
+    }
+    if (ended && recording) {
+      return (
+        <a href={recording} target="_blank" rel="noreferrer" className={`btn btn-secondary ${size}`}>
+          <Play size={15} aria-hidden="true" /> Watch recording<span className="sr-only"> {lc.courseCode} {lc.title}</span>
+        </a>
+      );
+    }
+    if (!ended) {
+      return <span className="inline-flex items-center gap-1.5 text-[13px] text-fg-muted"><Clock size={14} aria-hidden="true" /> Opens when the teacher starts</span>;
+    }
+    return <span className="text-[13px] text-fg-muted">No recording</span>;
+  };
+
+  const Row = ({ lc }) => {
+    const d = new Date(lc.scheduledAt);
+    const end = new Date(d.getTime() + (lc.durationMin || 60) * 60000);
+    const ended = isEnded(lc) || end < new Date();
+    return (
+      <li className="grid grid-cols-[72px_1fr] sm:grid-cols-[96px_1fr_auto] gap-x-4 gap-y-2 py-4 items-start sm:items-center">
+        <div className={`text-[13px] tabular-nums ${ended ? "text-fg-muted" : "text-fg"}`}>
+          <p className="font-semibold">{hm(d)}</p>
+          <p className="text-fg-muted">{hm(end)}</p>
+        </div>
+        <div className="min-w-0">
+          <p className="text-[12px] text-fg-muted">
+            <span className="font-semibold text-fg-secondary">{lc.courseCode}</span> · {lc.courseTitle}
+            {lc.fromSchedule && <> · Weekly schedule</>}
+          </p>
+          <p className={`text-[15px] font-medium truncate ${ended ? "text-fg-secondary" : "text-fg"}`}>{lc.title}</p>
+          <p className="text-[12px] text-fg-muted mt-0.5 flex flex-wrap gap-x-3">
+            {lc.teacher && <span className="inline-flex items-center gap-1"><User size={12} aria-hidden="true" /> {lc.teacher}</span>}
+            <span className="tabular-nums">{lc.durationMin} min</span>
+            {lc.description && <span className="truncate">{lc.description}</span>}
+          </p>
+        </div>
+        <div className="col-start-2 sm:col-start-auto"><JoinButton lc={lc} /></div>
+      </li>
+    );
+  };
+
+  const DayGroup = ({ day }) => (
+    <section aria-label={day.label} className="mt-6 first:mt-0">
+      <h3 className="label-caps pb-2 border-b border-line">{day.label}</h3>
+      <ul className="divide-y divide-line">{day.items.map((lc) => <Row key={lc.id} lc={lc} />)}</ul>
+    </section>
+  );
+
+  const header = (
+    <PageHeader title="Live classes" subtitle="Times follow your weekly schedule." icon="Radio" breadcrumb={["Dashboard", "Live classes"]}
+      actions={<button type="button" onClick={reload} className="btn btn-secondary"><RefreshCw size={15} aria-hidden="true" /> Refresh</button>} />
+  );
 
   if (loading) {
     return (
       <div>
-        <PageHeader title="Live Classes" subtitle="Join live sessions and watch recordings" icon="Radio" breadcrumb={["Dashboard", "Live Classes"]} />
-        <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}</div>
+        {header}
+        <div className="space-y-3" aria-busy="true">
+          <Skeleton className="h-32 w-full" />
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
+        </div>
       </div>
     );
   }
 
-  const renderCard = (lc) => {
-    const sm = statusMeta(lc.status);
-    const recording = resolveRecording(lc);
-    const isLive = (lc.status || "").toUpperCase() === "LIVE";
-    const ended = ["ENDED", "COMPLETED"].includes((lc.status || "").toUpperCase());
-    const col = colorOf(lc.courseCode);
-    const d = new Date(lc.scheduledAt);
-    const end = new Date(d.getTime() + (lc.durationMin || 60) * 60000);
-    const hm = (x) => x.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-    return (
-      <motion.div key={lc.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-        className={`relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden flex ${isLive ? "ring-2 ring-rose-400" : ""}`}>
-        <div className={`w-1.5 shrink-0 ${col.bar}`} />
-        <div className="flex-1 p-4 flex flex-col md:flex-row md:items-center gap-4 min-w-0">
-          <div className={`w-16 shrink-0 rounded-xl text-center py-2 ${col.soft}`}>
-            <p className="text-[10px] font-bold uppercase">{d.toLocaleDateString("en-GB", { weekday: "short" })}</p>
-            <p className="text-xl font-extrabold leading-tight">{d.getDate()}</p>
-            <p className="text-[10px] font-semibold">{d.toLocaleDateString("en-GB", { month: "short" })}</p>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-md ${col.chip}`}>{lc.courseCode}</span>
-              <span className="font-display font-bold text-slate-900 dark:text-slate-100 truncate">{lc.courseTitle}</span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sm.chip}`}>{sm.label}</span>
-              {lc.fromSchedule && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">Weekly schedule</span>}
-            </div>
-            <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 truncate">{lc.title}</p>
-            <div className="flex items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 flex-wrap">
-              <span className="flex items-center gap-1"><Clock size={11} /> {hm(d)} – {hm(end)} ({lc.durationMin} min)</span>
-              {lc.teacher && <span className="flex items-center gap-1"><User size={11} /> {lc.teacher}</span>}
-              {lc.description && <span className="flex items-center gap-1 truncate"><Calendar size={11} /> {lc.description}</span>}
-            </div>
-          </div>
-          <div className="shrink-0">
-            {isLive && lc.joinUrl ? (
-              <button onClick={() => joinClass(lc)} disabled={joining === lc.id} className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-60">{joining === lc.id ? <Loader2 size={15} className="animate-spin" /> : <Radio size={15} />} Join Live</button>
-            ) : ended && recording ? (
-              <a href={recording} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl bg-primary-600 text-white hover:bg-primary-700"><Play size={15} /> Watch Recording</a>
-            ) : !ended && lc.joinUrl ? (
-              <button onClick={() => joinClass(lc)} disabled={joining === lc.id} className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60">{joining === lc.id ? <Loader2 size={15} className="animate-spin" /> : <ExternalLink size={15} />} Join Classroom</button>
-            ) : !ended ? (
-              <span className="text-xs font-semibold text-slate-500 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 inline-flex items-center gap-1"><Clock size={13} /> Opens when the teacher starts</span>
-            ) : (
-              <span className="text-xs text-slate-400">No recording</span>
-            )}
-          </div>
-        </div>
-      </motion.div>
-    );
-  };
+  const segBtn = (on) => `h-9 px-3 rounded-sm text-[13px] font-medium whitespace-nowrap transition-colors ${on ? "bg-brand-soft text-brand" : "text-fg-secondary hover:text-fg"}`;
 
   return (
     <div>
-      <PageHeader title="Live Classes" subtitle="Your live sessions, organised by course — times follow the Weekly Schedule" icon="Radio" breadcrumb={["Dashboard", "Live Classes"]}
-        actions={<button onClick={reload} className="btn-secondary text-sm">Refresh</button>} />
+      {header}
 
       {error ? (
         <ErrorState description={error} onRetry={reload} />
       ) : classes.length === 0 ? (
-        <EmptyState icon="Radio" title="No live classes" description="Live classes appear here automatically once your course's weekly schedule is set." />
+        <EmptyState icon="Radio" title="No live classes scheduled" description="Classes appear here automatically once your course's weekly schedule is set." />
       ) : (
         <>
-          {/* Course legend / filter — each course has its own colour */}
-          <div className="flex gap-2 mb-3 overflow-x-auto no-scrollbar">
-            <button onClick={() => setCourseFilter("ALL")} className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap border ${courseFilter === "ALL" ? "bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900" : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"}`}>All courses</button>
-            {courses.map((c) => (
-              <button key={c.code} onClick={() => setCourseFilter(c.code)} title={c.title}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap border flex items-center gap-1.5 ${courseFilter === c.code ? `${c.color.chip} border-transparent` : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"}`}>
-                <span className={`w-2 h-2 rounded-full ${c.color.bar}`} /> {c.code} · {c.title}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-2 mb-5">
-            {[["ALL", "All"], ["UPCOMING", "Upcoming & Live"], ["RECORDED", "Recorded"]].map(([k, l]) => (
-              <button key={k} onClick={() => setFilter(k)} className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold ${filter === k ? "bg-primary-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"}`}>{l}</button>
-            ))}
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-3 mb-8">
+            <div role="radiogroup" aria-label="Show" className="inline-flex rounded border border-line bg-surface p-0.5">
+              {[["ALL", "All"], ["UPCOMING", "Upcoming & live"], ["RECORDED", "Past"]].map(([k, l]) => (
+                <button key={k} type="button" role="radio" aria-checked={filter === k} onClick={() => setFilter(k)} className={segBtn(filter === k)}>{l}</button>
+              ))}
+            </div>
+            {courses.length > 1 && (
+              <label className="inline-flex items-center gap-2 text-[13px] text-fg-secondary">
+                Course
+                <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className="input-base !h-9 !w-auto pr-8">
+                  <option value="ALL">All courses</option>
+                  {courses.map((c) => <option key={c.code} value={c.code}>{c.code} · {c.title}</option>)}
+                </select>
+              </label>
+            )}
           </div>
 
-          {!sections.length ? (
-            <EmptyState icon="Radio" title="Nothing here" description="No classes match this filter." />
-          ) : sections.map((sct) => (
-            <div key={sct.key} className="mb-6">
-              <p className={`text-xs font-bold uppercase tracking-wide mb-2 ${sct.key === "live" ? "text-rose-600" : "text-muted-app"}`}>{sct.title} · {sct.items.length}</p>
-              <div className="space-y-2.5">{sct.items.map(renderCard)}</div>
-            </div>
-          ))}
+          {!shown.length ? (
+            <EmptyState icon="Radio" title="No classes match" description="Try a different filter." action={
+              <button type="button" className="btn btn-secondary" onClick={() => { setFilter("ALL"); setCourseFilter("ALL"); }}>Clear filters</button>
+            } />
+          ) : (
+            <>
+              {/* Zone 1 — Live now */}
+              {zones.live.length > 0 && (
+                <section aria-labelledby="live-now" className="mb-8 space-y-3">
+                  <h2 id="live-now" className="flex items-center gap-2 text-[13px] font-semibold text-bad">
+                    <span className="live-dot" aria-hidden="true" /> Live now
+                  </h2>
+                  {zones.live.map((lc) => (
+                    <div key={lc.id} className="rounded-lg border border-bad/40 bg-bad-soft p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13px] text-fg-secondary"><span className="font-semibold">{lc.courseCode}</span> · {lc.courseTitle}</p>
+                        <p className="text-[20px] font-semibold text-fg mt-0.5">{lc.title}</p>
+                        <p className="text-[13px] text-fg-secondary mt-1 tabular-nums">
+                          Started {hm(new Date(lc.scheduledAt))}{lc.teacher && <> · {lc.teacher}</>} · {lc.durationMin} min
+                        </p>
+                      </div>
+                      <JoinButton lc={lc} large />
+                    </div>
+                  ))}
+                </section>
+              )}
+
+              {/* Zone 2 — Next class */}
+              {zones.next && (
+                <section aria-labelledby="next-class" className="mb-10">
+                  <h2 id="next-class" className="label-caps mb-3">Next class</h2>
+                  <div className="rounded-lg border border-line bg-surface p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div className="sm:w-40 shrink-0">
+                      <p className="text-[13px] text-fg-muted">{dayLabel(new Date(zones.next.scheduledAt))}</p>
+                      <p className="text-[24px] font-semibold text-fg tabular-nums">{hm(new Date(zones.next.scheduledAt))}</p>
+                      <p className="text-[12px] text-fg-muted">{relStart(new Date(zones.next.scheduledAt))}</p>
+                    </div>
+                    <div className="min-w-0 flex-1 sm:border-l sm:border-line sm:pl-6">
+                      <p className="text-[13px] text-fg-secondary"><span className="font-semibold">{zones.next.courseCode}</span> · {zones.next.courseTitle}</p>
+                      <p className="text-[17px] font-semibold text-fg mt-0.5">{zones.next.title}</p>
+                      <p className="text-[13px] text-fg-muted mt-1">
+                        {zones.next.teacher && <>{zones.next.teacher} · </>}{zones.next.durationMin} min
+                        {zones.next.description && <> · {zones.next.description}</>}
+                      </p>
+                    </div>
+                    <JoinButton lc={zones.next} />
+                  </div>
+                </section>
+              )}
+
+              {/* Zone 3 — Timeline */}
+              {zones.upcomingDays.length > 0 && (
+                <section aria-labelledby="later" className="mb-10">
+                  <h2 id="later" className="text-[16px] font-semibold text-fg mb-4 flex items-center gap-2">
+                    <CalendarDays size={16} className="text-fg-muted" aria-hidden="true" /> Later
+                  </h2>
+                  {zones.upcomingDays.map((day) => <DayGroup key={day.key} day={day} />)}
+                </section>
+              )}
+
+              {zones.pastDays.length > 0 && (
+                <section aria-labelledby="past">
+                  <h2 id="past" className="text-[16px] font-semibold text-fg mb-4">
+                    Past sessions <span className="text-fg-muted font-normal tabular-nums">({zones.pastCount})</span>
+                  </h2>
+                  {zones.pastDays.map((day) => <DayGroup key={day.key} day={day} />)}
+                </section>
+              )}
+            </>
+          )}
         </>
       )}
 
       {/* ---- BigBlueButton in-app classroom ---- */}
-      <AnimatePresence>
-        {room && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex flex-col"
-          >
-            {/* Top bar */}
-            <div className="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800 text-white shrink-0">
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-600/90"><span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> {(room.status || "").toUpperCase() === "LIVE" ? "LIVE" : "CLASSROOM"}</span>
-                <div className="min-w-0">
-                  <p className="font-display font-bold truncate">{room.title}</p>
-                  <p className="text-[11px] text-slate-400 truncate">{room.courseCode} · {room.courseTitle} · {room.teacher} · BigBlueButton</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <a href={room.joinUrl} target="_blank" rel="noreferrer" title="Open in new tab" className="p-2 rounded-lg hover:bg-slate-800 text-slate-300"><Maximize2 size={16} /></a>
-                <button onClick={leaveClass} title="Leave classroom" className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700"><X size={15} /> Leave</button>
-              </div>
-            </div>
+      {room && <Classroom room={room} onLeave={leaveClass} />}
+    </div>
+  );
+};
 
-            {/* Body: embedded BBB classroom + feature rail */}
-            <div className="flex-1 flex min-h-0">
-              <div className="flex-1 bg-black relative">
-                <iframe
-                  title="BigBlueButton Classroom"
-                  src={room.joinUrl}
-                  className="w-full h-full border-0"
-                  allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
-                  allowFullScreen
-                />
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-2 rounded-2xl bg-slate-900/85 backdrop-blur text-white text-[11px] border border-slate-700">
-                  <span className="flex items-center gap-1"><User size={12} /> {room.attendeeName}</span>
-                  <span className="text-slate-500">·</span>
-                  <span className="flex items-center gap-1"><Clock size={12} /> {room.durationMin} min</span>
-                </div>
-              </div>
-
-              {/* Feature rail — mirrors the BBB classroom toolset */}
-              <aside className="hidden lg:flex w-64 flex-col bg-slate-900 border-l border-slate-800 p-4 text-slate-300 overflow-y-auto shrink-0">
-                <p className="text-[11px] uppercase tracking-wide font-bold text-slate-500 mb-3">Classroom Tools</p>
-                <div className="grid grid-cols-1 gap-1.5">
-                  {BBB_FEATURES.map((f) => (
-                    <div key={f.label} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-slate-800/60 text-[12px] font-medium">
-                      <f.icon size={14} className="text-primary-400 shrink-0" /> {f.label}
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 p-3 rounded-xl bg-slate-800/60 text-[11px] text-slate-400 leading-relaxed">
-                  <p className="flex items-center gap-1.5 font-semibold text-slate-300 mb-1"><AlertTriangle size={12} className="text-amber-400" /> Tip</p>
-                  Allow camera & microphone access when prompted to use audio, webcam and screen sharing inside the BigBlueButton classroom.
-                </div>
-              </aside>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+// Full-screen classroom dialog. Escape leaves (same as the Leave button).
+const Classroom = ({ room, onLeave }) => {
+  const leaveRef = useRef(null);
+  const leaveFn = useRef(onLeave);
+  leaveFn.current = onLeave;
+  useEffect(() => {
+    const prev = document.activeElement;
+    leaveRef.current?.focus();
+    const onKey = (e) => { if (e.key === "Escape") leaveFn.current(); };
+    document.addEventListener("keydown", onKey);
+    const o = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = o; prev?.focus?.(); };
+  }, []);
+  const live = (room.status || "").toUpperCase() === "LIVE";
+  return (
+    <div role="dialog" aria-modal="true" aria-label={`Classroom: ${room.title}`} className="fixed inset-0 z-50 bg-neutral-950 flex flex-col">
+      <div className="flex items-center justify-between gap-3 px-4 h-14 bg-neutral-900 border-b border-neutral-800 text-white shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold">
+            {live ? <><span className="live-dot" aria-hidden="true" /> Live</> : "Classroom"}
+          </span>
+          <div className="min-w-0">
+            <p className="text-[14px] font-semibold truncate">{room.title}</p>
+            <p className="text-[12px] text-neutral-400 truncate">{room.courseCode} · {room.courseTitle}{room.teacher && <> · {room.teacher}</>}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="hidden sm:inline-flex items-center gap-1 text-[12px] text-neutral-400 tabular-nums">
+            <User size={12} aria-hidden="true" /> {room.attendeeName} · {room.durationMin} min
+          </span>
+          <a href={room.joinUrl} target="_blank" rel="noreferrer" aria-label="Open classroom in a new tab" className="h-9 w-9 inline-flex items-center justify-center rounded text-neutral-300 hover:bg-neutral-800">
+            <Maximize2 size={16} aria-hidden="true" />
+          </a>
+          <button ref={leaveRef} type="button" onClick={onLeave} className="btn btn-danger btn-compact"><X size={15} aria-hidden="true" /> Leave</button>
+        </div>
+      </div>
+      <div className="flex-1 bg-black min-h-0">
+        <iframe
+          title="BigBlueButton Classroom"
+          src={room.joinUrl}
+          className="w-full h-full border-0"
+          allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
+          allowFullScreen
+        />
+      </div>
+      <p className="px-4 py-2 text-[12px] text-neutral-400 bg-neutral-900 border-t border-neutral-800">
+        Allow camera and microphone access when your browser asks, to use audio, webcam and screen sharing.
+      </p>
     </div>
   );
 };

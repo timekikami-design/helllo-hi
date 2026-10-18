@@ -33,8 +33,8 @@ const ProvostDashboard = () => {
         subtitle="University-wide analytics, finance oversight, department comparisons, and accreditation metrics."
         actions={
           <>
-            <Link to="/provost/departments" className="px-4 py-2 bg-white text-slate-900 text-sm font-bold rounded-xl">Departments</Link>
-            <Link to="/provost/reports" className="px-4 py-2 bg-white/15 text-white text-sm font-bold rounded-xl border border-white/30">Reports</Link>
+            <Link to="/provost/departments" className="btn btn-primary">Departments</Link>
+            <Link to="/provost/reports" className="btn btn-secondary">Reports</Link>
           </>
         }
       />

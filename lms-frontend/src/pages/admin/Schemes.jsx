@@ -333,7 +333,7 @@ function SchemeBuilder({ schemeId, onBack, toast }) {
           <p className="text-[11px] text-muted-app mb-3">Drag a course into a semester. Drop a course here to remove it from the scheme.</p>
           <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
             {data.unassigned.length === 0 ? (
-              <p className="text-xs text-muted-app italic py-4 text-center">All program courses are assigned 🎉</p>
+              <p className="text-xs text-muted-app italic py-4 text-center">All programme courses are assigned.</p>
             ) : (
               data.unassigned.map((c) => (
                 <CourseCard key={c.courseId} c={c}

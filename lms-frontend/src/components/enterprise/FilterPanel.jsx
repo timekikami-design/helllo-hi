@@ -14,19 +14,20 @@ const FilterPanel = ({ filters = [], onChange, onReset, extra }) => {
     <div className="card-base p-4 mb-4">
       <div className="flex flex-col lg:flex-row gap-3 lg:items-end justify-between">
         <div className="flex flex-wrap gap-3 flex-1">
-          <div className="flex items-center gap-2 text-app font-bold text-sm">
-            <Filter size={16} className="text-primary-600 dark:text-primary-400" />
+          <div className="flex items-center gap-2 text-fg font-semibold text-[14px]">
+            <Filter size={16} className="text-fg-muted" aria-hidden="true" />
             Filters
           </div>
           {filters.filter((f) => f.key !== "section").map((f) => (
             <div key={f.key} className="min-w-[150px] flex-1 sm:flex-initial">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-app block mb-1">
+              <label htmlFor={`filter-${f.key}`} className="field-label">
                 {f.label}
               </label>
               <select
+                id={`filter-${f.key}`}
                 value={f.value ?? "all"}
                 onChange={(e) => onChange?.(f.key, e.target.value)}
-                className="input-base py-2 px-2.5 text-sm w-full"
+                className="input-base w-full"
               >
                 {f.options.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
@@ -39,7 +40,7 @@ const FilterPanel = ({ filters = [], onChange, onReset, extra }) => {
           {onReset && (
             <button
               onClick={onReset}
-              className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border border-app text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="btn btn-secondary"
             >
               <RotateCcw size={13} /> Reset
             </button>

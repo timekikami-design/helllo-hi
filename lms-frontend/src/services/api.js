@@ -55,7 +55,9 @@ async function request(path, { method = 'GET', body, isForm = false } = {}) {
       window.dispatchEvent(new CustomEvent('lms:fee-blocked', { detail: { message: data.error } }));
     }
     if (res.status === 401 && !isMarksCredentialError) {
-      // Session expired — clear and bounce to login.
+      // Session expired — clear and bounce to login (the sign-in page shows
+      // "Your session has expired" once, via this UI-only flag).
+      try { if (authService.getToken()) sessionStorage.setItem('aust_session_notice', 'expired'); } catch (_) { /* storage unavailable */ }
       authService.logout(true);
     }
     const err = new Error((data && data.error) || `Request failed (${res.status})`);
@@ -83,7 +85,7 @@ async function download(path, filename = 'download') {
   if (marksToken) headers['X-Marks-Token'] = marksToken;
   const res = await fetch(`${API_BASE}${path}`, { headers });
   if (!res.ok) {
-    if (res.status === 401) authService.logout(true);
+    if (res.status === 401) { try { if (authService.getToken()) sessionStorage.setItem('aust_session_notice', 'expired'); } catch (_) { /* ignore */ } authService.logout(true); }
     let msg = `Download failed (${res.status})`;
     try { const j = await res.json(); if (j && j.error) msg = j.error; } catch (_) { /* binary body */ }
     const err = new Error(msg);

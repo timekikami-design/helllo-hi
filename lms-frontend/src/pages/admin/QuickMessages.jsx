@@ -221,7 +221,7 @@ const AdminQuickMessages = () => {
                   {loadingThread ? (
                     <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
                   ) : thread.length === 0 ? (
-                    <p className="text-sm text-muted-app text-center py-6">No messages yet. Say hello 👋</p>
+                    <p className="text-sm text-muted-app text-center py-6">No messages yet.</p>
                   ) : (
                     thread.map((m) => {
                       const mine = m.senderId === myId;

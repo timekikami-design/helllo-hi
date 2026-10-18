@@ -101,10 +101,10 @@ const LiveClassSchedule = () => {
       };
       if (editingId) {
         await api.coordinator.updateLiveClass(editingId, base);
-        toast("Live class updated ✓ Teacher & students notified", { type: "success" });
+        toast("Live class updated — teacher & students notified", { type: "success" });
       } else {
         await api.coordinator.createLiveClass({ ...base, offeringId: form.offeringId });
-        toast("Live class scheduled ✓ Teacher & students notified", { type: "success" });
+        toast("Live class scheduled — teacher & students notified", { type: "success" });
       }
       setModalOpen(false);
       reload();

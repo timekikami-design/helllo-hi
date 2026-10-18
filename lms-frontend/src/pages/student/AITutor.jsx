@@ -220,7 +220,7 @@ const AITutor = () => {
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white mb-4 shadow-lg">
                   <Bot size={30} />
                 </div>
-                <h3 className="font-display font-bold text-lg text-slate-900 dark:text-slate-100">Hi! I'm your AI Tutor 🎓</h3>
+                <h3 className="font-display font-bold text-lg text-slate-900 dark:text-slate-100">Ask the AI Tutor</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
                   {currentCourse ? `Ask me anything about ${currentCourse.title}.` : "Pick a course on the left for focused help, or ask me anything below."}
                 </p>

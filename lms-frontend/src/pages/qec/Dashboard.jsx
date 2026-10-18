@@ -53,8 +53,8 @@ const QECDashboard = () => {
         subtitle="Anonymous surveys, faculty ratings, course evaluations, and accreditation compliance — all confidential."
         actions={
           <>
-            <Link to="/qec/surveys" className="px-4 py-2 bg-white text-slate-900 text-sm font-bold rounded-xl">View Surveys</Link>
-            <Link to="/qec/reports" className="px-4 py-2 bg-white/15 text-white text-sm font-bold rounded-xl border border-white/30">Reports</Link>
+            <Link to="/qec/surveys" className="btn btn-primary">View Surveys</Link>
+            <Link to="/qec/reports" className="btn btn-secondary">Reports</Link>
           </>
         }
       />

@@ -122,7 +122,7 @@ const StickyNotes = () => {
             </motion.button>
           </div>
 
-          <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-6">💡 Tip: You can drag notes around to organize them visually!</p>
+          <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-6">Tip: You can drag notes around to organize them visually!</p>
         </>
       )}
 

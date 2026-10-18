@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import {
-  User, Lock, Eye, EyeOff, ArrowRight,
-  CheckCircle2, ShieldCheck as ShieldIcon, Lock as LockIcon, RotateCw,
-} from "lucide-react";
-import ThemeToggle from "../../components/common/ThemeToggle";
+import { RotateCw, ShieldCheck } from "lucide-react";
+import { AuthLayout, AuthHeading } from "../../components/auth/AuthLayout";
+import { Field, PasswordInput, SubmitButton, inputCls } from "../../components/auth/Field";
 import { useAuth, BACKEND_ROLE_TO_FRONTEND } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import authService from "../../services/authService";
@@ -76,8 +73,14 @@ const Login = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  const [fieldErr, setFieldErr] = useState({});
+  const [sessionNote] = useState(() => {
+    try { const v = sessionStorage.getItem("aust_session_notice"); sessionStorage.removeItem("aust_session_notice"); return v; } catch (_) { return null; }
+  });
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setFieldErr({ username: username.trim() ? "" : "Username is required", password: password ? "" : "Password is required" });
     if (!username.trim() || !password) {
       toast("Please enter your username and password.", { type: "error" });
       return;
@@ -106,7 +109,7 @@ const Login = () => {
       // We hand off to the Admissions-hosted Super Admin command center.
       if (data && data.superAdmin && data.adminToken) {
         const base = resolveAdmissionsUrl();
-        toast("Opening Super Admin Command Center…", { type: "success", title: "Welcome, Super Admin" });
+        toast("Opening Super Admin Command Center…", { type: "success", title: "Signed in" });
         const payload = encodeURIComponent(
           JSON.stringify({ token: data.adminToken, user: data.adminUser })
         );
@@ -127,7 +130,7 @@ const Login = () => {
         backendRole: data.role,
         mustChangePassword: false,
       });
-      toast("Welcome back to AUST ODL", { type: "success", title: "Login Successful" });
+      toast("You are signed in.", { type: "success" });
       navigate(ROLE_BASE[frontendRole] || `/${frontendRole}`, { replace: true });
     } catch (err) {
       // Surface the backend error message through the existing toast UI.
@@ -142,273 +145,72 @@ const Login = () => {
   };
 
   return (
-    /* h-screen + overflow-hidden — guarantees zero page scroll. */
-    <div className="h-screen w-screen overflow-hidden bg-app relative">
-      {/* ===== Premium ambient background — refined, theme-aware ===== */}
-      <div className="pointer-events-none absolute inset-0 -z-10">
-        {/* Soft gradient base wash */}
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-blue-50/40 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
-        {/* Glow orbs */}
-        <div className="absolute -top-32 -left-32 w-[28rem] h-[28rem] rounded-full bg-blue-400/20 dark:bg-blue-500/10 blur-3xl" />
-        <div className="absolute -bottom-40 -right-24 w-[32rem] h-[32rem] rounded-full bg-indigo-400/20 dark:bg-indigo-500/10 blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[40rem] h-[40rem] rounded-full bg-cyan-300/10 dark:bg-cyan-500/5 blur-3xl" />
-        {/* Subtle grid texture for enterprise feel */}
-        <div
-          className="absolute inset-0 opacity-[0.025] dark:opacity-[0.04]"
-          style={{
-            backgroundImage:
-              "linear-gradient(to right, rgb(15 23 42 / 0.5) 1px, transparent 1px), linear-gradient(to bottom, rgb(15 23 42 / 0.5) 1px, transparent 1px)",
-            backgroundSize: "44px 44px",
-          }}
-        />
-      </div>
+    <AuthLayout>
+      <AuthHeading eyebrow="Student & staff portal" title="Sign in">
+        Use the username and password issued by the university.
+      </AuthHeading>
 
-      {/* Floating theme toggle */}
-      <div className="absolute top-3 right-3 z-50">
-        <ThemeToggle />
-      </div>
+      {sessionNote && (
+        <div role="status" className="mb-6 flex gap-3 rounded border border-line bg-note-soft px-4 py-3 text-[14px] leading-5 text-fg">
+          <ShieldCheck size={16} className="mt-0.5 shrink-0 text-note" aria-hidden="true" />
+          <span>{sessionNote === "expired" ? "Your session has expired. Please sign in again to continue." : "You have been signed out."}</span>
+        </div>
+      )}
 
-      {/* ===== Main split layout — exact 50/50, full viewport height, NO scroll ===== */}
-      <div className="h-full w-full grid grid-cols-1 lg:grid-cols-2 items-center justify-items-center gap-4 lg:gap-6 px-4 sm:px-6 lg:px-8 xl:px-10 py-2 sm:py-3 lg:py-4">
+      <form onSubmit={handleSubmit} noValidate className="space-y-1">
+        <Field id="username" label="Username" error={fieldErr.username}>
+          {(a) => (
+            <input {...a} type="text" autoComplete="username" autoCapitalize="none" spellCheck={false}
+              value={username}
+              onChange={(e) => { setUsername(e.target.value); if (fieldErr.username) setFieldErr((f) => ({ ...f, username: "" })); }}
+              onBlur={() => setFieldErr((f) => ({ ...f, username: username.trim() ? "" : f.username }))}
+              placeholder="e.g. ADCS-001" className={inputCls()} />
+          )}
+        </Field>
 
-        {/* ============================================================
-         *  LEFT — LOGIN FORM (equal-width frame)
-         * ============================================================ */}
-        <section className="w-full h-full flex items-center justify-center lg:justify-end order-2 lg:order-1">
-          <motion.div
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
-            className="w-full max-w-[620px]"
-          >
-            {/* Premium card */}
-            <div className="relative">
-              {/* Gradient halo — softer, more premium */}
-              <div className="absolute -inset-[2px] rounded-3xl bg-gradient-to-br from-blue-500/40 via-cyan-400/20 to-indigo-500/40 opacity-70 blur-md" />
+        <Field id="password" label="Password" error={fieldErr.password}
+          right={<Link to="/forgot-password" className="link text-[13px]">Forgot password?</Link>}>
+          {(a) => (
+            <PasswordInput inputProps={a} autoComplete="current-password" value={password}
+              onChange={(e) => { setPassword(e.target.value); if (fieldErr.password) setFieldErr((f) => ({ ...f, password: "" })); }} />
+          )}
+        </Field>
 
-              <div className="relative rounded-3xl bg-white/95 dark:bg-slate-900/90 backdrop-blur-2xl border border-slate-200/90 dark:border-slate-700/60 shadow-[0_20px_60px_-15px_rgba(30,58,138,0.18)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.7)] px-7 sm:px-9 py-5 sm:py-6 ring-1 ring-white/60 dark:ring-white/5">
-
-                {/* Brand */}
-                <div className="flex flex-col items-center text-center mb-4">
-                  <div className="relative mb-2">
-                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-500/30 via-cyan-500/15 to-indigo-500/30 blur-lg" />
-                    <div className="relative w-14 h-14 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg shadow-blue-900/10 dark:shadow-black/40 p-1.5 flex items-center justify-center">
-                      <img
-                        src="/static/aust-logo-new.png"
-                        alt="AUST official logo"
-                        className="w-full h-full object-contain"
-                        onError={(e) => { e.currentTarget.src = "/static/aust-logo.png"; }}
-                      />
-                    </div>
-                  </div>
-
-                  <h1 className="font-display font-extrabold text-[22px] sm:text-[26px] text-app leading-tight tracking-tight">
-                    Welcome back to <span className="gradient-text">AUST</span>
-                  </h1>
-                  <p className="text-[12px] sm:text-[12.5px] text-muted-app mt-1 font-medium">
-                    Open & Distance Learning · Enterprise Portal
-                  </p>
-                </div>
-
-                {/* ===== Form ===== */}
-                <form onSubmit={handleSubmit} className="space-y-2.5">
-                  {/* Username */}
-                  <div>
-                    <label
-                      htmlFor="username"
-                      className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted-app block mb-1"
-                    >
-                      Username
-                    </label>
-                    <div className="relative group">
-                      <User
-                        size={15}
-                        className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-primary-500 transition-colors"
-                      />
-                      <input
-                        id="username"
-                        type="text"
-                        autoComplete="username"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        placeholder="Enter your username"
-                        className="input-base pl-10 pr-3 py-2.5 rounded-xl shadow-sm focus:shadow-md focus:shadow-blue-500/10 transition-shadow"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Password */}
-                  <div>
-                    <label
-                      htmlFor="password"
-                      className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted-app block mb-1"
-                    >
-                      Password
-                    </label>
-                    <div className="relative group">
-                      <Lock
-                        size={15}
-                        className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-focus-within:text-primary-500 transition-colors"
-                      />
-                      <input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        autoComplete="current-password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Enter your password"
-                        className="input-base pl-10 pr-11 py-2.5 rounded-xl shadow-sm focus:shadow-md focus:shadow-blue-500/10 transition-shadow"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        aria-label={showPassword ? "Hide password" : "Show password"}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-primary-500 transition-colors"
-                      >
-                        {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Security check (captcha) — Section 1 */}
-                  <div>
-                    <label htmlFor="captchaAnswer" className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted-app block mb-1">
-                      Security Check
-                    </label>
-                    <div className="flex items-stretch gap-2">
-                      <div data-testid="captcha-question" aria-live="polite"
-                        className="flex-1 min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 px-3 py-2.5 text-[13px] font-semibold text-app select-none tracking-wide">
-                        {captchaLoading ? "Loading…" : (captcha.question || "Unavailable")}
-                      </div>
-                      <button type="button" onClick={refreshCaptcha} disabled={captchaLoading || loading}
-                        aria-label="Get a new security question" title="Get a new question"
-                        className="px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-primary-600 disabled:opacity-50">
-                        <RotateCw size={15} className={captchaLoading ? "animate-spin" : ""} />
-                      </button>
-                      <input id="captchaAnswer" type="text" inputMode="numeric" autoComplete="off"
-                        value={captchaAnswer}
-                        onChange={(e) => { setCaptchaAnswer(e.target.value.replace(/[^\d-]/g, "")); setCaptchaError(""); }}
-                        placeholder="Answer" aria-invalid={!!captchaError}
-                        className={`input-base !w-28 px-3 py-2.5 rounded-xl shadow-sm text-center ${captchaError ? "border-rose-400" : ""}`} />
-                    </div>
-                    {captchaError && (
-                      <p role="alert" data-testid="captcha-error" className="text-[11.5px] text-rose-600 dark:text-rose-400 mt-1">{captchaError}</p>
-                    )}
-                  </div>
-
-                  {/* Remember + forgot */}
-                  <div className="flex items-center justify-between text-[12.5px] pt-0.5">
-                    <label className="flex items-center gap-1.5 text-app cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        className="rounded text-primary-600 w-3.5 h-3.5 border-slate-300 dark:border-slate-600"
-                        defaultChecked
-                      />
-                      Remember me
-                    </label>
-                    <Link
-                      to="/forgot-password"
-                      className="text-primary-600 dark:text-primary-400 font-semibold hover:underline"
-                    >
-                      Forgot password?
-                    </Link>
-                  </div>
-
-                  {/* Sign in button */}
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="group relative w-full overflow-hidden rounded-xl py-3 px-4 font-semibold tracking-wide text-white shadow-lg shadow-blue-600/30 transition-all hover:shadow-xl hover:shadow-blue-600/40 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 ring-1 ring-blue-700/40 mt-1"
-                    style={{
-                      background:
-                        "linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #1e40af 100%)",
-                    }}
-                  >
-                    {/* Animated shine */}
-                    <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent group-hover:translate-x-full transition-transform duration-700" />
-                    {/* Inner top highlight for premium glass-button look */}
-                    <span className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
-                    <span className="relative inline-flex items-center justify-center gap-2 text-[14px]">
-                      {loading ? (
-                        <>
-                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Signing in…
-                        </>
-                      ) : (
-                        <>
-                          Sign In Securely
-                          <ArrowRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
-                        </>
-                      )}
-                    </span>
-                  </button>
-                </form>
-
-                {/* Trust indicators — premium enterprise feel */}
-                <div className="mt-3.5 pt-3 border-t border-slate-200/70 dark:border-slate-700/50">
-                  <div className="flex items-center justify-center gap-3 text-[10.5px] font-semibold text-muted-app">
-                    <span className="inline-flex items-center gap-1.5">
-                      <ShieldIcon size={11} className="text-emerald-500" />
-                      256-bit SSL
-                    </span>
-                    <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600" />
-                    <span className="inline-flex items-center gap-1.5">
-                      <LockIcon size={11} className="text-blue-500" />
-                      Secure Login
-                    </span>
-                    <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600" />
-                    <span className="inline-flex items-center gap-1.5">
-                      <CheckCircle2 size={11} className="text-violet-500" />
-                      Verified Portal
-                    </span>
-                  </div>
-                </div>
-
-                {/* Footer note */}
-                <p className="text-center text-[10.5px] text-muted-app mt-2 leading-relaxed">
-                  By signing in, you agree to AUST ODL's{" "}
-                  <span className="underline cursor-pointer hover:text-primary-500">Terms</span> &{" "}
-                  <span className="underline cursor-pointer hover:text-primary-500">Privacy Policy</span>.
-                </p>
-              </div>
+        {/* Security check (captcha) — server-generated, single use */}
+        <div>
+          <label htmlFor="captchaAnswer" className="field-label">Security check</label>
+          <div className="flex items-stretch gap-2">
+            <div data-testid="captcha-question" aria-live="polite"
+              className="flex-1 min-w-0 flex items-center min-h-[48px] rounded border border-line bg-surface-muted px-3 text-[15px] font-medium text-fg tabular-nums select-none">
+              {captchaLoading ? <span className="skeleton h-4 w-28" aria-label="Loading question" /> : (captcha.question || "Unavailable — refresh")}
             </div>
-          </motion.div>
-        </section>
+            <button type="button" onClick={refreshCaptcha} disabled={captchaLoading || loading}
+              aria-label="Get a new security question" className="btn-secondary !min-h-[48px] !w-12 !px-0 shrink-0">
+              <RotateCw size={16} className={captchaLoading ? "animate-spin" : ""} aria-hidden="true" />
+            </button>
+            <input id="captchaAnswer" type="text" inputMode="numeric" autoComplete="off"
+              value={captchaAnswer}
+              onChange={(e) => { setCaptchaAnswer(e.target.value.replace(/[^\d-]/g, "")); setCaptchaError(""); }}
+              placeholder="Answer" aria-invalid={!!captchaError} aria-describedby={captchaError ? "captcha-error" : undefined}
+              className={`${inputCls()} !w-24 text-center tabular-nums shrink-0`} />
+          </div>
+          <p id="captcha-error" className="field-error">
+            {captchaError && <span role="alert" data-testid="captcha-error">{captchaError}</span>}
+          </p>
+        </div>
 
-        {/* ============================================================
-         *  RIGHT — CLEAN PREMIUM IMAGE CARD (equal width to form)
-         * ============================================================ */}
-        <section className="hidden lg:flex w-full h-full items-center justify-start order-1 lg:order-2">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.55, ease: "easeOut" }}
-            className="relative w-full max-w-[620px]"
-          >
-            {/* Soft outer glow */}
-            <div className="absolute -inset-3 rounded-[2rem] bg-gradient-to-br from-blue-500/30 via-cyan-400/20 to-indigo-500/30 blur-2xl opacity-80" />
+        <label className="flex items-center gap-2.5 pb-4 text-[14px] text-fg-secondary cursor-pointer select-none w-fit">
+          <input type="checkbox" defaultChecked />
+          Keep me signed in on this device
+        </label>
 
-            {/* Glass frame — uses clamp() so image always fits viewport without scroll */}
-            <div className="relative rounded-[1.75rem] p-3.5 sm:p-4 bg-white/75 dark:bg-slate-900/60 backdrop-blur-xl border border-white/60 dark:border-white/10 shadow-[0_30px_80px_-20px_rgba(30,58,138,0.25)] dark:shadow-[0_30px_80px_-20px_rgba(0,0,0,0.6)] ring-1 ring-white/40 dark:ring-white/5">
-              {/* Inner bordered image container — height clamps to viewport so the entire page is visible without scrolling */}
-              <div className="relative rounded-2xl overflow-hidden ring-1 ring-slate-200/80 dark:ring-slate-700/60 shadow-xl shadow-blue-950/10">
-                <img
-                  src="/static/aust-campus-new.jpg"
-                  alt="Abbottabad University of Science & Technology campus"
-                  className="block w-full object-cover"
-                  style={{ height: "clamp(440px, calc(100vh - 80px), 760px)" }}
-                  onError={(e) => { e.currentTarget.src = "/static/aust-campus.jpg"; }}
-                />
-              </div>
-            </div>
+        <SubmitButton loading={loading} loadingText="Signing in…">Sign in</SubmitButton>
+      </form>
 
-            {/* Decorative dots — outside the image, never overlapping it */}
-            <div className="absolute -top-2 -right-2 w-3.5 h-3.5 rounded-full bg-cyan-400 shadow-md shadow-cyan-400/50" />
-            <div className="absolute -bottom-2 -left-2 w-3.5 h-3.5 rounded-full bg-blue-500 shadow-md shadow-blue-500/50" />
-          </motion.div>
-        </section>
-      </div>
-    </div>
+      <p className="mt-8 text-[13px] leading-5 text-fg-muted">
+        New to AUST ODL? Your account is created after admission. <Link to="/register" className="link">Learn how to get access</Link>.
+      </p>
+    </AuthLayout>
   );
 };
 

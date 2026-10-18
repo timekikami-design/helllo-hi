@@ -51,10 +51,10 @@ const FocalDashboard = () => {
         subtitle="Manage enrollments, monitor academics, drop students, and broadcast reminders — all in one place."
         actions={
           <>
-            <Link to="/focal/enrollments" className="px-4 py-2 bg-white text-slate-900 text-sm font-bold rounded-xl">
+            <Link to="/focal/enrollments" className="btn btn-primary">
               Manage Enrollments
             </Link>
-            <Link to="/focal/quick-messages" className="px-4 py-2 bg-white/15 text-white text-sm font-bold rounded-xl border border-white/30">
+            <Link to="/focal/quick-messages" className="btn btn-secondary">
               Quick Reminder
             </Link>
           </>

@@ -1,10 +1,10 @@
-import { motion } from "framer-motion";
+// lms-frontend/src/pages/student/Library.jsx
+// Course library: a catalogue list of enrolled courses (code, title,
+// instructor, resource count) and, per course, a searchable resource list
+// with type icon + label. Data: student.library, student.libraryCourse.
 import { useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import {
-  BookOpen, FileText, Video, Link2, Download, Search, File, Eye, ArrowLeft,
-  User, CalendarDays, Layers, GraduationCap,
-} from "lucide-react";
+import { FileText, Video, Link2, Download, Search, File, Eye, ArrowLeft, ChevronRight, X } from "lucide-react";
 import PageHeader from "../../components/common/PageHeader";
 import { Skeleton } from "../../components/common/Skeleton";
 import ErrorState from "../../components/common/ErrorState";
@@ -16,10 +16,10 @@ import { fileUrl } from "../../services/api";
 
 const typeMeta = (t) => {
   const v = (t || "").toUpperCase();
-  if (v === "VIDEO") return { icon: Video, color: "text-rose-600", bg: "bg-rose-50 dark:bg-rose-900/30" };
-  if (v === "LINK" || v === "URL") return { icon: Link2, color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-900/30" };
-  if (v === "FILE" || v === "DOCUMENT" || v === "PDF") return { icon: FileText, color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-900/30" };
-  return { icon: File, color: "text-slate-600", bg: "bg-slate-50 dark:bg-slate-800" };
+  if (v === "VIDEO") return { icon: Video, label: "Video" };
+  if (v === "LINK" || v === "URL") return { icon: Link2, label: "Link" };
+  if (v === "FILE" || v === "DOCUMENT" || v === "PDF") return { icon: FileText, label: v === "PDF" ? "PDF" : "Document" };
+  return { icon: File, label: "File" };
 };
 
 const resolveUrl = (it) => {
@@ -34,21 +34,6 @@ const resolveUrl = (it) => {
 const fmtDate = (d) => {
   if (!d) return "";
   try { return new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); } catch { return d; }
-};
-
-// Deterministic gradient per course code so cards look distinct.
-const GRADIENTS = [
-  "from-blue-500 to-indigo-600",
-  "from-emerald-500 to-teal-600",
-  "from-rose-500 to-pink-600",
-  "from-amber-500 to-orange-600",
-  "from-violet-500 to-purple-600",
-  "from-cyan-500 to-sky-600",
-];
-const gradientFor = (code) => {
-  let h = 0;
-  for (const ch of String(code)) h = (h * 31 + ch.charCodeAt(0)) % GRADIENTS.length;
-  return GRADIENTS[h];
 };
 
 const Library = () => {
@@ -95,67 +80,67 @@ const Library = () => {
     return items.filter((it) => (it.title || "").toLowerCase().includes(ql) || (it.fileName || "").toLowerCase().includes(ql));
   }, [resData, q]);
 
+  const header = (sub, crumbs) => <PageHeader title="Course library" subtitle={sub} icon="BookOpen" breadcrumb={crumbs} />;
+
   if (loading) {
     return (
       <div>
-        <PageHeader title="Course Library" subtitle="Your enrolled courses and their resources" icon="BookOpen" breadcrumb={["Dashboard", "Course Library"]} />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-44 rounded-2xl" />)}</div>
+        {header("Resources for the courses you are enrolled in.", ["Dashboard", "Course library"])}
+        <div aria-busy="true">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-16 w-full mb-2" />)}</div>
       </div>
     );
   }
 
   // ---- Course detail view ----
   if (active) {
+    const total = resData?.total ?? active.resourceCount;
     return (
       <div>
-        <PageHeader title="Course Library" subtitle={`${active.courseCode} — ${active.courseTitle}`} icon="BookOpen" breadcrumb={["Dashboard", "Course Library", active.courseCode]} />
-        <button onClick={closeCourse} className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-600 hover:text-primary-700 mb-4"><ArrowLeft size={15} /> Back to courses</button>
+        <button type="button" onClick={closeCourse} className="inline-flex items-center gap-1.5 text-[13px] text-fg-muted hover:text-fg mb-4"><ArrowLeft size={14} aria-hidden="true" /> All courses</button>
+        {header(`${active.courseCode} · ${active.teacherName} · ${active.semester} · ${total} resource${total === 1 ? "" : "s"}`, ["Dashboard", "Course library", active.courseCode])}
 
-        <div className="card-base p-5 mb-5">
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-            <span className="inline-flex items-center gap-1.5 text-app font-bold"><GraduationCap size={15} className="text-primary-600" /> {active.courseTitle}</span>
-            <span className="inline-flex items-center gap-1.5 text-muted-app"><User size={14} /> {active.teacherName}</span>
-            <span className="inline-flex items-center gap-1.5 text-muted-app"><CalendarDays size={14} /> {active.semester}</span>
-            <span className="inline-flex items-center gap-1.5 text-muted-app"><Layers size={14} /> {(resData?.total ?? active.resourceCount)} resource{(resData?.total ?? active.resourceCount) === 1 ? "" : "s"}</span>
-          </div>
-        </div>
-
-        <div className="relative mb-4 max-w-md">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search resources..." className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+        <div className="relative mb-5 max-w-md">
+          <label htmlFor="lib-q" className="sr-only">Search resources</label>
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted pointer-events-none" aria-hidden="true" />
+          <input id="lib-q" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search resources" className="input-base w-full !pl-9 !pr-9" />
+          {q && <button type="button" onClick={() => setQ("")} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg"><X size={14} aria-hidden="true" /></button>}
         </div>
 
         {resLoading ? (
-          <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-xl" />)}</div>
+          <div aria-busy="true">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 w-full mb-2" />)}</div>
         ) : resError ? (
           <ErrorState description={resError} onRetry={() => openCourse(active)} />
         ) : filteredResources.length === 0 ? (
-          <EmptyState icon="BookOpen" title="No resources" description="No resources have been uploaded for this course yet." />
+          q ? (
+            <EmptyState icon="Search" title="No matching resources" description={`Nothing matches “${q}”.`} action={<button type="button" className="btn btn-secondary" onClick={() => setQ("")}>Clear search</button>} />
+          ) : (
+            <EmptyState icon="BookOpen" title="No resources yet" description="Resources appear here when your instructor uploads them." />
+          )
         ) : (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
+          <ul className="divide-y divide-line border-y border-line">
             {filteredResources.map((it, ii) => {
               const m = typeMeta(it.type);
               const Icon = m.icon;
               const url = resolveUrl(it);
               return (
-                <div key={it.id || ii} className="px-5 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                  <div className={`p-2 rounded-lg ${m.bg}`}><Icon size={16} className={m.color} /></div>
+                <li key={it.id || ii} className="py-3 flex items-center gap-3">
+                  <Icon size={18} className="text-fg-muted shrink-0" aria-hidden="true" />
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm text-slate-900 dark:text-slate-100 truncate">{it.title}</p>
-                    <p className="text-[11px] text-slate-400">{it.week != null ? `Week ${it.week} · ` : ""}{fmtDate(it.createdAt)}</p>
+                    <p className="text-[14px] font-medium text-fg truncate">{it.title}</p>
+                    <p className="text-[12px] text-fg-muted">{m.label}{it.week != null ? ` · Week ${it.week}` : ""}{it.createdAt ? ` · ${fmtDate(it.createdAt)}` : ""}</p>
                   </div>
                   {url ? (
-                    <div className="flex items-center gap-1.5">
-                      <button onClick={() => setViewing({ url, title: it.title, fileName: it.fileName })} className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary-600 text-white hover:bg-primary-700"><Eye size={13} /> View</button>
-                      <a href={url} target="_blank" rel="noreferrer" download title="Download" className="inline-flex items-center justify-center px-2 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"><Download size={13} /></a>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button type="button" onClick={() => setViewing({ url, title: it.title, fileName: it.fileName })} className="btn btn-secondary btn-compact"><Eye size={14} aria-hidden="true" /> View<span className="sr-only"> {it.title}</span></button>
+                      <a href={url} target="_blank" rel="noreferrer" download aria-label={`Download ${it.title}`} className="btn-icon"><Download size={16} aria-hidden="true" /></a>
                     </div>
                   ) : (
-                    <span className="text-xs text-slate-400">Unavailable</span>
+                    <span className="text-[13px] text-fg-muted">Unavailable</span>
                   )}
-                </div>
+                </li>
               );
             })}
-          </div>
+          </ul>
         )}
 
         <ResourceViewer open={!!viewing} onClose={() => setViewing(null)} resource={viewing} />
@@ -163,49 +148,32 @@ const Library = () => {
     );
   }
 
-  // ---- Course cards grid ----
+  // ---- Course catalogue ----
   return (
     <div>
-      <PageHeader title="Course Library" subtitle="Browse resources for the courses you are enrolled in" icon="BookOpen" breadcrumb={["Dashboard", "Course Library"]} />
+      {header("Resources for the courses you are enrolled in.", ["Dashboard", "Course library"])}
 
       {error ? (
         <ErrorState description={error} onRetry={reload} />
       ) : courses.length === 0 ? (
         <EmptyState icon="BookOpen" title="No enrolled courses" description="Once you are enrolled in courses, their libraries will appear here." />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {courses.map((c, i) => (
-            <motion.button
-              key={c.offeringId}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              onClick={() => openCourse(c)}
-              className="text-left bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden hover:shadow-lg hover:border-primary-300 dark:hover:border-primary-700 transition group"
-            >
-              <div className={`h-20 bg-gradient-to-br ${gradientFor(c.courseCode)} p-4 flex flex-col justify-between`}>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/90 font-mono text-xs font-bold bg-white/20 px-2 py-0.5 rounded-md">{c.courseCode}</span>
-                  <BookOpen size={20} className="text-white/80" />
-                </div>
-                <p className="text-white font-display font-bold text-sm line-clamp-1">{c.courseTitle}</p>
-              </div>
-              <div className="p-4 space-y-2">
-                <p className="text-sm font-bold text-app line-clamp-1">{c.courseTitle}</p>
-                <div className="space-y-1.5 text-xs text-muted-app">
-                  <p className="flex items-center gap-1.5"><User size={13} /> {c.teacherName}</p>
-                  <p className="flex items-center gap-1.5"><CalendarDays size={13} /> {c.semester}</p>
-                </div>
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
-                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-primary-600 dark:text-primary-400">
-                    <Layers size={13} /> {c.resourceCount} resource{c.resourceCount === 1 ? "" : "s"}
-                  </span>
-                  <span className="text-xs font-semibold text-muted-app group-hover:text-primary-600">Open →</span>
-                </div>
-              </div>
-            </motion.button>
+        <ul className="divide-y divide-line border-y border-line">
+          {courses.map((c) => (
+            <li key={c.offeringId}>
+              <button type="button" onClick={() => openCourse(c)}
+                className="w-full text-left py-4 -mx-2 px-2 rounded grid grid-cols-[72px_1fr_auto] sm:grid-cols-[96px_1fr_160px_auto] gap-x-4 items-center hover:bg-surface-muted/60 transition-colors">
+                <span className="text-[13px] font-semibold text-fg-secondary tabular-nums">{c.courseCode}</span>
+                <span className="min-w-0">
+                  <span className="block text-[15px] font-medium text-fg truncate">{c.courseTitle}</span>
+                  <span className="block text-[12px] text-fg-muted truncate">{c.teacherName} · {c.semester}</span>
+                </span>
+                <span className="hidden sm:block text-[13px] text-fg-secondary tabular-nums">{c.resourceCount} resource{c.resourceCount === 1 ? "" : "s"}</span>
+                <ChevronRight size={16} className="text-fg-muted" aria-hidden="true" />
+              </button>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );

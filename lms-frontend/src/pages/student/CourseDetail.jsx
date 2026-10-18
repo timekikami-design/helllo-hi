@@ -1,9 +1,12 @@
+// lms-frontend/src/pages/student/CourseDetail.jsx
+// Subject space: course header, sticky section tabs, and quiet sections for
+// overview (attendance + assessment weights + latest), materials,
+// announcements and — when the course has one — the lab section.
+// Data sources are unchanged: student.course, student.courseGradebook,
+// student.labTasks.
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import { ArrowLeft, FileText, Megaphone, CalendarCheck, Download, BookOpen, FlaskConical, ChevronRight } from "lucide-react";
-import PageHeader from "../../components/common/PageHeader";
-import Badge from "../../components/common/Badge";
+import { useParams, Link } from "react-router-dom";
+import { ArrowLeft, FileText, Megaphone, Download, FlaskConical, ChevronRight, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import { Skeleton } from "../../components/common/Skeleton";
 import ErrorState from "../../components/common/ErrorState";
 import EmptyState from "../../components/common/EmptyState";
@@ -11,19 +14,54 @@ import useApi from "../../hooks/useApi";
 import api, { fileUrl } from "../../services/api";
 
 const teacherName = (o) => o?.teacher?.profile?.fullName || o?.teacher?.username || "TBA";
-// Real instructor photo (live from the teacher's profile). Falls back to a
-// generated initials avatar when no photo has been uploaded.
 const teacherPhoto = (o) => {
   const url = o?.teacher?.profile?.photoUrl;
   return url ? fileUrl(url) : null;
 };
-const avatarFor = (name) =>
-  `https://ui-avatars.com/api/?name=${encodeURIComponent(name || "Instructor")}&background=2563eb&color=fff`;
+const initials = (n = "") => n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");
+
+const Avatar = ({ offering }) => {
+  const [broken, setBroken] = useState(false);
+  const src = teacherPhoto(offering);
+  const name = teacherName(offering);
+  if (src && !broken) {
+    return <img src={src} onError={() => setBroken(true)} alt="" className="h-10 w-10 rounded-full object-cover border border-line" />;
+  }
+  return (
+    <span aria-hidden="true" className="h-10 w-10 rounded-full bg-surface-muted text-fg-secondary text-[13px] font-semibold flex items-center justify-center border border-line">
+      {initials(name)}
+    </span>
+  );
+};
+
+const Section = ({ title, action, children }) => (
+  <section className="py-6 border-b border-line last:border-b-0">
+    <div className="flex items-baseline justify-between gap-3 mb-4">
+      <h2 className="text-[16px] font-semibold text-fg">{title}</h2>
+      {action}
+    </div>
+    {children}
+  </section>
+);
+
+const Rail = ({ value, tone = "brand", label }) => (
+  <div className="rail" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(value)} aria-label={label}>
+    <span style={{ width: `${Math.max(0, Math.min(100, value))}%` }} className={tone === "bad" ? "!bg-bad" : tone === "warn" ? "!bg-warn" : ""} />
+  </div>
+);
+
+const submissionState = (t) => {
+  if (t.submission?.marks != null) return { Icon: CheckCircle2, cls: "text-ok", text: `Graded · ${t.submission.marks} / ${t.totalMarks}` };
+  if (t.submission) return { Icon: Clock, cls: "text-note", text: "Submitted" };
+  const overdue = t.dueDate && new Date(t.dueDate) < new Date();
+  return overdue
+    ? { Icon: AlertCircle, cls: "text-bad", text: "Overdue" }
+    : { Icon: Clock, cls: "text-warn", text: "Not submitted" };
+};
 
 const CourseDetail = () => {
   const { offeringId } = useParams();
-  const navigate = useNavigate();
   const { data, loading, error, reload } = useApi(() => api.student.course(offeringId), [offeringId]);
 
   const offering = data?.offering;
@@ -33,7 +71,7 @@ const CourseDetail = () => {
   const announcements = data?.announcements || [];
   // B1.d — Theory and Lab are two separate sections of ONE course.
   const hasLab = !!course?.hasLab;
-  const [section, setSection] = useState("theory");
+  const [section, setSection] = useState("overview");
   const labApi = useApi(() => (hasLab ? api.student.labTasks() : Promise.resolve({ courses: [] })), [hasLab, offeringId]);
   const gb = useApi(() => api.student.courseGradebook(offeringId), [offeringId]);
   const labCourse = (labApi.data?.courses || []).find((c) => String(c.offeringId) === String(offeringId));
@@ -42,176 +80,215 @@ const CourseDetail = () => {
   const theoryCats = cats.filter((c) => c.key !== "lab");
   const labCat = cats.find((c) => c.key === "lab");
 
+  const tabs = [
+    ["overview", "Overview"],
+    ["materials", `Materials${materials.length ? ` (${materials.length})` : ""}`],
+    ["announcements", `Announcements${announcements.length ? ` (${announcements.length})` : ""}`],
+    ...(hasLab ? [["lab", "Lab"]] : []),
+  ];
+
+  const weights = theoryCats.length
+    ? theoryCats.map((c) => ({ key: c.key, label: c.label, weight: c.weight }))
+    : offering
+      ? [
+          { key: "a", label: "Assignments", weight: offering.assignmentWeight },
+          { key: "q", label: "Quizzes", weight: offering.quizWeight },
+          { key: "m", label: "Midterm", weight: offering.midWeight },
+          { key: "f", label: "Final", weight: offering.finalWeight },
+        ].filter((w) => w.weight != null)
+      : [];
+
+  const pct = Number(att?.percentage ?? 0);
+  const attTone = att && att.totalSessions > 0 ? (pct < 75 ? "bad" : pct < 80 ? "warn" : "brand") : "brand";
+
   return (
     <div>
-      <button
-        onClick={() => navigate("/student/courses")}
-        className="inline-flex items-center gap-1.5 text-sm text-muted-app hover:text-primary-600 mb-3"
-      >
-        <ArrowLeft size={15} /> Back to Courses
-      </button>
-
-      <PageHeader
-        title={loading ? "Loading…" : course?.title || "Course"}
-        subtitle={course ? `${course.code} · ${teacherName(offering)}` : ""}
-        icon="BookOpen"
-        breadcrumb={["Courses", course?.code || ""]}
-      />
+      <Link to="/student/courses" className="inline-flex items-center gap-1.5 text-[13px] text-fg-muted hover:text-fg mb-4">
+        <ArrowLeft size={14} aria-hidden="true" /> My courses
+      </Link>
 
       {loading ? (
-        <div className="space-y-4">
-          <Skeleton className="h-28 w-full rounded-2xl" />
-          <Skeleton className="h-40 w-full rounded-2xl" />
+        <div className="space-y-4" aria-busy="true">
+          <Skeleton className="h-6 w-40" />
+          <Skeleton className="h-10 w-2/3" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-48 w-full" />
         </div>
       ) : error ? (
         <ErrorState description={error} onRetry={reload} />
       ) : (
-        <div className="space-y-6">
-          {/* Course Instructor — real name + live profile photo */}
-          {offering?.teacher && (
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 flex items-center gap-4">
-              <img
-                src={teacherPhoto(offering) || avatarFor(teacherName(offering))}
-                onError={(e) => { e.currentTarget.src = avatarFor(teacherName(offering)); }}
-                alt={teacherName(offering)}
-                className="w-14 h-14 rounded-2xl object-cover border border-slate-200 dark:border-slate-700"
-              />
-              <div className="min-w-0">
-                <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-400">Course Instructor</p>
-                <p className="font-bold text-app leading-tight truncate">{teacherName(offering)}</p>
-                {offering.teacher.profile?.designation && (
-                  <p className="text-xs text-muted-app truncate">{offering.teacher.profile.designation}</p>
-                )}
+        <>
+          {/* ===== Header ===== */}
+          <header className="pb-6">
+            <p className="text-[13px] text-fg-muted tabular-nums">
+              <span className="font-semibold text-fg-secondary">{course?.code}</span>
+              {course?.creditHours != null && <> · {course.creditHours} credit hours</>}
+              {hasLab && <> · Theory + Lab</>}
+            </p>
+            <h1 className="font-serif text-[30px] sm:text-[36px] leading-tight text-fg mt-1">{course?.title || "Course"}</h1>
+            {offering?.teacher && (
+              <div className="mt-4 flex items-center gap-3">
+                <Avatar offering={offering} />
+                <div className="min-w-0">
+                  <p className="text-[14px] font-medium text-fg truncate">{teacherName(offering)}</p>
+                  <p className="text-[12px] text-fg-muted truncate">{offering.teacher.profile?.designation || "Course instructor"}</p>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </header>
 
-          {hasLab && (
-            <div className="flex gap-2 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 w-fit" role="tablist">
-              {[["theory", "Theory", BookOpen, `${course.theoryCredit ?? course.creditHours - (course.labCredit || 0)} Cr`], ["lab", "Lab", FlaskConical, `${course.labCredit ?? 1} Cr`]].map(([k, l, Icon, cr]) => (
-                <button key={k} role="tab" aria-selected={section === k} onClick={() => setSection(k)}
-                  className={`px-4 py-2 rounded-xl text-sm font-semibold inline-flex items-center gap-1.5 ${section === k ? (k === "lab" ? "bg-indigo-600 text-white shadow" : "bg-primary-600 text-white shadow") : "text-slate-600 dark:text-slate-300"}`}>
-                  <Icon size={15} /> {l} <span className="text-[10px] opacity-80">{cr}</span>
+          {/* ===== Sticky tabs ===== */}
+          <div className="sticky top-14 lg:top-16 z-10 -mx-4 sm:-mx-6 lg:-mx-10 px-4 sm:px-6 lg:px-10 bg-canvas border-b border-line">
+            <div role="tablist" aria-label="Course sections" className="flex gap-1 overflow-x-auto">
+              {tabs.map(([k, l]) => (
+                <button key={k} role="tab" id={`tab-${k}`} aria-selected={section === k} aria-controls={`panel-${k}`}
+                  onClick={() => setSection(k)}
+                  className={`relative h-11 px-3 text-[14px] whitespace-nowrap font-medium transition-colors ${section === k ? "text-fg after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-brand" : "text-fg-muted hover:text-fg"}`}>
+                  {l}
                 </button>
               ))}
             </div>
-          )}
+          </div>
 
-          {hasLab && section === "lab" ? (
-            <div className="space-y-6">
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-indigo-100 dark:border-indigo-900 p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-bold text-app flex items-center gap-2"><FlaskConical size={18} className="text-indigo-600" /> Lab Tasks</h3>
-                  <button onClick={() => navigate("/student/lab-tasks")} className="text-xs font-semibold text-indigo-600 hover:underline inline-flex items-center gap-0.5">Submit lab work <ChevronRight size={13} /></button>
-                </div>
-                {labApi.loading ? <Skeleton className="h-20 w-full rounded-xl" /> : labTasks.length === 0 ? (
-                  <EmptyState icon="FlaskConical" title="No lab tasks yet" description="Lab tasks posted by your instructor will appear here." className="py-6" />
-                ) : (
-                  <div className="space-y-2">
-                    {labTasks.map((t) => (
-                      <div key={t.id} className="flex items-center justify-between p-3 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/20">
-                        <div className="min-w-0">
-                          <p className="font-semibold text-sm text-app truncate">{t.title}</p>
-                          <p className="text-xs text-muted-app">Due {fmtDate(t.dueDate)} · {t.totalMarks} marks</p>
-                        </div>
-                        <span className="text-xs font-bold">{t.submission?.marks != null ? `${t.submission.marks} / ${t.totalMarks}` : t.submission ? "Submitted" : "Not submitted"}</span>
+          <div role="tabpanel" id={`panel-${section}`} aria-labelledby={`tab-${section}`}>
+            {section === "overview" && (
+              <>
+                <Section title="Attendance" action={<Link to="/student/attendance" className="link text-[13px]">Details</Link>}>
+                  {att && att.totalSessions > 0 ? (
+                    <div className="max-w-xl">
+                      <div className="flex items-baseline justify-between mb-2">
+                        <span className="text-[28px] font-semibold text-fg tabular-nums">{pct}%</span>
+                        <span className="text-[13px] text-fg-muted tabular-nums">
+                          {att.present} present · {att.absent} absent · {att.late} late · {att.totalSessions} sessions
+                        </span>
                       </div>
+                      <div className="relative">
+                        <Rail value={pct} tone={attTone} label="Attendance" />
+                        <span aria-hidden="true" className="absolute top-[-4px] bottom-[-4px] w-px bg-fg-muted" style={{ left: "75%" }} />
+                      </div>
+                      <p className={`mt-2 text-[12px] flex items-center gap-1.5 ${pct < 75 ? "text-bad" : "text-fg-muted"}`}>
+                        {pct < 75 && <AlertCircle size={13} aria-hidden="true" />}
+                        {pct < 75 ? "Below the 75% requirement" : "Minimum requirement is 75%"}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-[14px] text-fg-muted">No sessions have been recorded for this course yet.</p>
+                  )}
+                </Section>
+
+                {weights.length > 0 && (
+                  <Section title="Assessment weights">
+                    <dl className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-line border border-line rounded-lg overflow-hidden max-w-2xl">
+                      {weights.map((w) => (
+                        <div key={w.key} className="bg-surface p-4">
+                          <dt className="label-caps">{w.label}</dt>
+                          <dd className="text-[20px] font-semibold text-fg tabular-nums mt-1">{w.weight}%</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </Section>
+                )}
+
+                <Section title="Latest from your instructor" action={announcements.length > 1 && (
+                  <button type="button" onClick={() => setSection("announcements")} className="link text-[13px]">All announcements</button>
+                )}>
+                  {announcements[0] ? (
+                    <article className="max-w-2xl">
+                      <p className="text-[12px] text-fg-muted">{fmtDate(announcements[0].createdAt)}</p>
+                      <h3 className="text-[15px] font-semibold text-fg mt-0.5">{announcements[0].title}</h3>
+                      <p className="text-[14px] text-fg-secondary mt-1 whitespace-pre-wrap line-clamp-4">{announcements[0].body || announcements[0].content}</p>
+                    </article>
+                  ) : (
+                    <p className="text-[14px] text-fg-muted">No announcements yet.</p>
+                  )}
+                </Section>
+              </>
+            )}
+
+            {section === "materials" && (
+              <Section title="Course materials">
+                {materials.length === 0 ? (
+                  <EmptyState icon="FileText" title="No materials yet" description="Materials will appear here when your instructor uploads them." />
+                ) : (
+                  <ul className="divide-y divide-line border-y border-line">
+                    {materials.map((m) => (
+                      <li key={m.id} className="flex items-center gap-3 py-3">
+                        <FileText size={18} className="text-fg-muted shrink-0" aria-hidden="true" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[14px] font-medium text-fg truncate">{m.title}</p>
+                          <p className="text-[12px] text-fg-muted">{fmtDate(m.createdAt)}</p>
+                        </div>
+                        {m.fileUrl && (
+                          <a href={fileUrl(m.fileUrl)} target="_blank" rel="noreferrer" className="btn btn-secondary btn-compact">
+                            <Download size={14} aria-hidden="true" /> Download<span className="sr-only"> {m.title}</span>
+                          </a>
+                        )}
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 )}
-              </div>
-              {labCat && (
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5">
-                  <h3 className="font-bold text-app mb-2 flex items-center gap-2"><CalendarCheck size={18} /> Lab Weightage</h3>
-                  <p className="text-sm text-muted-app">Lab counts for <b className="text-app">{labCat.weight}%</b> of this course · earned so far <b className="text-indigo-700 dark:text-indigo-300">{Number(labCat.obtained || 0).toFixed(2)}</b></p>
-                </div>
-              )}
-            </div>
-          ) : (
-          <div className="space-y-6">
-          {/* Attendance summary */}
-          {att && (
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-              {[
-                { label: "Attendance", value: `${att.percentage}%`, color: "blue" },
-                { label: "Present", value: att.present, color: "emerald" },
-                { label: "Absent", value: att.absent, color: "rose" },
-                { label: "Late", value: att.late, color: "amber" },
-                { label: "Sessions", value: att.totalSessions, color: "slate" },
-              ].map((s) => (
-                <div key={s.label} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4 text-center">
-                  <p className="text-2xl font-extrabold text-app">{s.value}</p>
-                  <p className="text-xs text-muted-app mt-1">{s.label}</p>
-                </div>
-              ))}
-            </div>
-          )}
+              </Section>
+            )}
 
-          {/* Grade weights */}
-          {offering && (
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5">
-              <h3 className="font-bold text-app mb-3 flex items-center gap-2"><CalendarCheck size={18} /> Assessment Weights</h3>
-              <div className="flex flex-wrap gap-2">
-                {theoryCats.length ? theoryCats.map((c, i) => (
-                  <Badge key={c.key} color={["blue", "purple", "amber", "rose", "emerald", "slate"][i % 6]}>{c.label} {c.weight}%</Badge>
-                )) : (
-                  <>
-                    <Badge color="blue">Assignments {offering.assignmentWeight}%</Badge>
-                    <Badge color="purple">Quizzes {offering.quizWeight}%</Badge>
-                    <Badge color="amber">Midterm {offering.midWeight}%</Badge>
-                    <Badge color="rose">Final {offering.finalWeight}%</Badge>
-                  </>
+            {section === "announcements" && (
+              <Section title="Announcements">
+                {announcements.length === 0 ? (
+                  <EmptyState icon="Megaphone" title="No announcements" description="Announcements for this course will appear here." />
+                ) : (
+                  <ol className="divide-y divide-line border-y border-line max-w-3xl">
+                    {announcements.map((a) => (
+                      <li key={a.id} className="py-4">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <h3 className="text-[15px] font-semibold text-fg">{a.title}</h3>
+                          <time className="text-[12px] text-fg-muted whitespace-nowrap">{fmtDate(a.createdAt)}</time>
+                        </div>
+                        <p className="text-[14px] text-fg-secondary mt-1 whitespace-pre-wrap">{a.body || a.content}</p>
+                      </li>
+                    ))}
+                  </ol>
                 )}
-              </div>
-            </div>
-          )}
+              </Section>
+            )}
 
-          {/* Materials */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5">
-            <h3 className="font-bold text-app mb-3 flex items-center gap-2"><FileText size={18} /> Course Materials</h3>
-            {materials.length === 0 ? (
-              <EmptyState icon="FileText" title="No materials" description="The instructor hasn't uploaded any materials yet." className="py-8" />
-            ) : (
-              <div className="space-y-2">
-                {materials.map((m) => (
-                  <div key={m.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40">
-                    <div>
-                      <p className="font-semibold text-sm text-app">{m.title}</p>
-                      <p className="text-xs text-muted-app">{fmtDate(m.createdAt)}</p>
-                    </div>
-                    {m.fileUrl && (
-                      <a href={fileUrl(m.fileUrl)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-primary-600 text-sm font-semibold hover:underline">
-                        <Download size={14} /> Download
-                      </a>
-                    )}
-                  </div>
-                ))}
-              </div>
+            {section === "lab" && hasLab && (
+              <>
+                <Section title="Lab tasks" action={
+                  <Link to="/student/lab-tasks" className="link text-[13px] inline-flex items-center gap-0.5">Submit lab work <ChevronRight size={13} aria-hidden="true" /></Link>
+                }>
+                  {labApi.loading ? <Skeleton className="h-20 w-full" /> : labTasks.length === 0 ? (
+                    <EmptyState icon="FlaskConical" title="No lab tasks yet" description="Lab tasks posted by your instructor will appear here." />
+                  ) : (
+                    <ul className="divide-y divide-line border-y border-line">
+                      {labTasks.map((t) => {
+                        const st = submissionState(t);
+                        return (
+                          <li key={t.id} className="flex items-center gap-3 py-3">
+                            <FlaskConical size={18} className="text-fg-muted shrink-0" aria-hidden="true" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[14px] font-medium text-fg truncate">{t.title}</p>
+                              <p className="text-[12px] text-fg-muted tabular-nums">Due {fmtDate(t.dueDate)} · {t.totalMarks} marks</p>
+                            </div>
+                            <span className={`inline-flex items-center gap-1.5 text-[13px] font-medium ${st.cls}`}>
+                              <st.Icon size={14} aria-hidden="true" /> {st.text}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </Section>
+                {labCat && (
+                  <Section title="Lab weightage">
+                    <p className="text-[14px] text-fg-secondary">
+                      Lab counts for <b className="text-fg tabular-nums">{labCat.weight}%</b> of this course. Earned so far:{" "}
+                      <b className="text-fg tabular-nums">{Number(labCat.obtained || 0).toFixed(2)}</b>
+                    </p>
+                  </Section>
+                )}
+              </>
             )}
           </div>
-
-          {/* Announcements */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5">
-            <h3 className="font-bold text-app mb-3 flex items-center gap-2"><Megaphone size={18} /> Announcements</h3>
-            {announcements.length === 0 ? (
-              <EmptyState icon="Megaphone" title="No announcements" description="No announcements posted for this course." className="py-8" />
-            ) : (
-              <div className="space-y-3">
-                {announcements.map((a) => (
-                  <motion.div key={a.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 rounded-xl border border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center justify-between">
-                      <p className="font-semibold text-app">{a.title}</p>
-                      <span className="text-xs text-muted-app">{fmtDate(a.createdAt)}</span>
-                    </div>
-                    <p className="text-sm text-muted-app mt-1 whitespace-pre-wrap">{a.body || a.content}</p>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-          </div>
-          </div>
-          )}
-        </div>
+        </>
       )}
     </div>
   );

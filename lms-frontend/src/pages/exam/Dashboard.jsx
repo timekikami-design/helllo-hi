@@ -40,8 +40,8 @@ const ExamDashboard = () => {
         subtitle={`Plan date sheets, schedule online exams, compile and publish results.${data.term ? ` · ${data.term}` : ""}`}
         actions={
           <>
-            <Link to="/exam/schedule" className="px-4 py-2 bg-white text-slate-900 text-sm font-bold rounded-xl">Online Exams</Link>
-            <Link to="/exam/reports" className="px-4 py-2 bg-white/15 text-white text-sm font-bold rounded-xl border border-white/30">Export Reports</Link>
+            <Link to="/exam/schedule" className="btn btn-primary">Online Exams</Link>
+            <Link to="/exam/reports" className="btn btn-secondary">Export Reports</Link>
           </>
         }
       />

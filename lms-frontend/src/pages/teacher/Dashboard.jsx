@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Users, BookOpen, FileText, FileQuestion, Award, CalendarCheck, ArrowRight, ClipboardCheck } from "lucide-react";
-import PageHeader from "../../components/common/PageHeader";
+import RoleBanner from "../../components/enterprise/RoleBanner";
 import StatCard from "../../components/common/StatCard";
 import Badge from "../../components/common/Badge";
 import { Skeleton } from "../../components/common/Skeleton";
@@ -32,11 +32,10 @@ const TeacherDashboard = () => {
 
   return (
     <div>
-      <PageHeader
-        title={`Welcome, ${user?.name || user?.username || "Instructor"}`}
-        subtitle="Manage your courses, assessments, attendance and grades"
-        icon="LayoutDashboard"
-        breadcrumb={["Dashboard"]}
+      <RoleBanner
+        eyebrow="Instructor"
+        title="Teaching overview"
+        subtitle="Your courses, grading queue, attendance and results."
       />
 
       {loading ? (

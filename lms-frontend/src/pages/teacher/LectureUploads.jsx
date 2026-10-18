@@ -177,10 +177,10 @@ const TeacherLectureUploads = () => {
 
       if (editing) {
         await api.teacher.updateLecture(form.id, fd);
-        toast("Lecture updated ✓", { type: "success" });
+        toast("Lecture updated", { type: "success" });
       } else {
         await api.teacher.createLecture(fd);
-        toast("Lecture uploaded ✓", { type: "success" });
+        toast("Lecture uploaded", { type: "success" });
       }
       setOpenUpload(false);
       reload();

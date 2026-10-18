@@ -2,10 +2,26 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AUST ODL — Abbottabad University of Science & Technology</title>
-    <meta name="description" content="Premium Learning Management System for AUST Open & Distance Learning — Associate Degree in Computer Science (ADCS). Live classes via BigBlueButton, AI insights, digital library, and more." />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#F6F5F2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0F1419" media="(prefers-color-scheme: dark)" />
+    <title>AUST ODL — Abbottabad University of Science &amp; Technology</title>
+    <meta name="description" content="Learning portal of the Open &amp; Distance Learning wing, Abbottabad University of Science &amp; Technology." />
+    <!-- Apply the saved / system theme before first paint (no white flash in dark mode). -->
+    <script>
+      (function () {
+        try {
+          var p = localStorage.getItem('aust_theme');
+          var dark = p === 'dark' || ((p === null || p === 'system') && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+        } catch (e) { /* storage unavailable */ }
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   </head>
   <body>
     <div id="root"></div>
