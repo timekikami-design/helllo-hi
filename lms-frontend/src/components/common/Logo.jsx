@@ -16,7 +16,7 @@ const Logo = ({ size = "md", showText = true, light = false, to = "/" }) => {
       <img src={logoUrl} alt="" width={s.img} height={s.img} className="shrink-0 object-contain" draggable={false} />
       {showText && (
         <span className="flex flex-col min-w-0">
-          <span className={`${s.name} font-semibold tracking-[-0.01em] truncate ${light ? "text-white" : "text-fg"}`}>AUST <span className={light ? "text-brass-300" : "text-brass"}>ODL</span></span>
+          <span className={`${s.name} font-semibold tracking-[-0.01em] truncate ${light ? "text-white" : "text-fg"}`}>AUST <span className={light ? "text-accent-300" : "text-brass"}>ODL</span></span>
           <span className={`${s.sub} font-medium truncate ${light ? "text-white/70" : "text-fg-muted"}`}>Open &amp; Distance Learning</span>
         </span>
       )}

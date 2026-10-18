@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
+import { NavLink } from "react-router-dom";
 import * as Icons from "lucide-react";
 import Logo from "../common/Logo";
 import { useAuth } from "../../context/AuthContext";
@@ -267,17 +266,39 @@ const ROLE_BASE = {
   provost: "/provost",
 };
 
+/* Group consecutive items under their section heading. */
+function groupMenu(menu) {
+  const groups = [];
+  let cur = { section: null, items: [] };
+  for (const item of menu) {
+    if (item.section) { if (cur.items.length || cur.section) groups.push(cur); cur = { section: item.section, items: [] }; }
+    else cur.items.push(item);
+  }
+  if (cur.items.length || cur.section) groups.push(cur);
+  return groups;
+}
+const titleCase = (s) => String(s || "").toLowerCase().replace(/(^|[\s&/(])([a-z])/g, (m, p, c) => p + c.toUpperCase()).replace(/\bQec\b/, "QEC").replace(/\bAi\b/, "AI");
+
+const initialsOf = (name = "") => name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join("").toUpperCase() || "U";
+const FOCUSABLE = 'a[href],button:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+/**
+ * Navigation surface.
+ *  • ≥1024px: sticky sidebar, 240px expanded or 64px icon rail (persisted).
+ *  • <1024px: slide-over drawer (focus trap, Escape, scroll lock, focus return).
+ * Active route: primary-soft background + 2px primary edge + aria-current.
+ */
 const Sidebar = ({ isOpen, onClose, collapsed, onToggleCollapse }) => {
   const { user, logout } = useAuth();
-  const location = useLocation();
   const menu = MENUS[user?.role] || studentMenu;
   const base = ROLE_BASE[user?.role] || "/student";
   const meta = ROLE_META[user?.role] || ROLE_META.student;
+  const drawerRef = useRef(null);
 
   // Live sidebar badge counts for the Exam Controller (replaces hardcoded badges).
   const [counts, setCounts] = useState({});
   useEffect(() => {
-    if (user?.role !== "exam_coordinator") return;
+    if (user?.role !== "exam_coordinator") return undefined;
     let live = true;
     const fetchCounts = () => {
       Promise.all([api.exam.counts().catch(() => ({})), api.workflow.summary().catch(() => null)])
@@ -288,142 +309,150 @@ const Sidebar = ({ isOpen, onClose, collapsed, onToggleCollapse }) => {
         });
     };
     fetchCounts();
-    const t = setInterval(fetchCounts, 60000); // refresh every minute
+    const t = setInterval(fetchCounts, 60000);
     return () => { live = false; clearInterval(t); };
   }, [user?.role]);
 
+  // Mobile drawer: focus trap, Escape, scroll lock, focus return.
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const prev = document.activeElement;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const el = drawerRef.current;
+    setTimeout(() => el?.querySelector(FOCUSABLE)?.focus(), 0);
+    const onKey = (e) => {
+      if (e.key === "Escape") { onClose?.(); return; }
+      if (e.key !== "Tab" || !el) return;
+      const items = [...el.querySelectorAll(FOCUSABLE)];
+      if (!items.length) return;
+      const first = items[0]; const last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prevOverflow; prev?.focus?.(); };
+  }, [isOpen, onClose]);
+
   const resolveBadge = (item) => {
-    if (item.badge) return item.badge;            // static badge (e.g. "Online")
     if (item.badgeKey) {
       const n = counts[item.badgeKey];
-      return n && n > 0 ? String(n) : null;       // hide zero counts
+      return n && n > 0 ? String(n) : null;
     }
-    return null;
+    // Static marketing badges ("AI", "Live", "QEC" …) are not status: shown only
+    // when meaningful (e.g. "Online"), never animated.
+    return item.badge && !["Live", "AI", "QEC"].includes(item.badge) ? item.badge : null;
   };
+
+  const groups = groupMenu(menu);
+  const rail = collapsed; // desktop icon rail
+
+  const renderNav = (isRail) => (
+    <nav aria-label="Primary" className="flex-1 overflow-y-auto overscroll-contain px-2 py-3">
+      {groups.map((g, gi) => (
+        <div key={gi} className={gi > 0 ? "mt-4" : ""}>
+          {g.section && (isRail
+            ? <div className="mx-3 mb-2 border-t border-line" aria-hidden="true" />
+            : <p className="px-3 mb-1 text-[11px] leading-4 font-medium tracking-[0.06em] uppercase text-fg-muted">{titleCase(g.section)}</p>)}
+          <ul className="space-y-px">
+            {g.items.map((item) => {
+              const Icon = Icons[item.icon] || Icons.Circle;
+              const badge = resolveBadge(item);
+              return (
+                <li key={item.to}>
+                  <NavLink
+                    to={item.to}
+                    end={item.to === base}
+                    onClick={onClose}
+                    aria-label={isRail ? item.label : undefined}
+                    data-tip={isRail ? item.label : undefined}
+                    className={({ isActive }) => `rail-tip group relative flex items-center ${isRail ? "justify-center h-10 w-10 mx-auto" : "gap-3 h-9 px-3"} rounded text-[14px] leading-5 transition-colors duration-150 ${
+                      isActive
+                        ? "bg-brand-soft text-brand font-semibold before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[2px] before:rounded-full before:bg-brand"
+                        : "text-fg-secondary hover:bg-surface hover:text-fg"
+                    }`}
+                  >
+                    <Icon size={17} strokeWidth={1.75} className="shrink-0" aria-hidden="true" />
+                    {!isRail && <span className="flex-1 truncate">{item.label}</span>}
+                    {!isRail && badge && <span className="badge badge-neutral h-5 px-1.5 text-[11px] tabular-nums">{badge}</span>}
+                    {isRail && badge && <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-brass-decor" aria-hidden="true" />}
+                  </NavLink>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </nav>
+  );
+
+  const identity = (isRail) => (
+    <div className="border-t border-line px-2 py-3">
+      <NavLink to={`${base}/settings`} onClick={onClose} aria-label={isRail ? `${user?.name || "Account"} — settings` : undefined} data-tip={isRail ? user?.name : undefined}
+        className={`rail-tip flex items-center ${isRail ? "justify-center h-10 w-10 mx-auto" : "gap-3 px-2 py-1.5"} rounded hover:bg-surface transition-colors`}>
+        {user?.avatar
+          ? <img src={user.avatar} alt="" className="h-8 w-8 rounded-full object-cover shrink-0" />
+          : <span className="h-8 w-8 rounded-full bg-brand text-brand-on inline-flex items-center justify-center text-[12px] font-semibold shrink-0" aria-hidden="true">{initialsOf(user?.name)}</span>}
+        {!isRail && (
+          <span className="min-w-0 flex-1">
+            <span className="block text-[14px] leading-5 font-medium text-fg truncate">{user?.name || "Account"}</span>
+            <span className="block text-[12px] leading-4 text-fg-muted truncate">{meta.label}</span>
+          </span>
+        )}
+      </NavLink>
+      <button type="button" onClick={logout} aria-label={isRail ? "Sign out" : undefined} data-tip={isRail ? "Sign out" : undefined}
+        className={`rail-tip mt-1 flex items-center ${isRail ? "justify-center h-10 w-10 mx-auto" : "gap-3 h-9 px-3 w-full"} rounded text-[14px] text-fg-secondary hover:bg-surface hover:text-bad transition-colors`}>
+        <Icons.LogOut size={17} strokeWidth={1.75} aria-hidden="true" />
+        {!isRail && <span>Sign out</span>}
+      </button>
+    </div>
+  );
 
   return (
     <>
-      {/* Mobile overlay */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden"
-          />
-        )}
-      </AnimatePresence>
-
+      {/* Desktop / laptop: persistent sidebar or icon rail */}
       <aside
-        className={`fixed lg:sticky top-0 left-0 h-screen ${collapsed ? "lg:w-[78px]" : "w-72"} bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 z-50 transform transition-all duration-300
-        ${isOpen ? "translate-x-0 w-72" : "-translate-x-full"} lg:translate-x-0 flex flex-col`}
+        aria-label="Sidebar"
+        className="hidden lg:flex sticky top-0 h-dvh shrink-0 flex-col bg-surface-muted border-r border-line transition-[width] duration-200 ease-out"
+        style={{ width: rail ? "var(--rail-w)" : "var(--sidebar-w)" }}
       >
-        {/* Logo */}
-        <div className={`px-4 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center ${collapsed ? "lg:justify-center" : "justify-between"}`}>
-          {!collapsed ? <Logo size="sm" to={base} /> : (
-            <div className="hidden lg:block">
-              <Logo size="sm" showText={false} to={base} />
-            </div>
-          )}
-          {!collapsed && (
-            <div className="flex items-center gap-1">
-              <button onClick={onToggleCollapse} className="hidden lg:flex p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 dark:text-slate-400">
-                <Icons.PanelLeftClose size={18} />
-              </button>
-              <button onClick={onClose} className="lg:hidden p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 dark:text-slate-400">
-                <Icons.X size={20} />
-              </button>
-            </div>
+        <div className={`flex items-center h-16 border-b border-line ${rail ? "justify-center" : "justify-between px-4"}`}>
+          {rail ? <Logo size="sm" showText={false} to={base} /> : <Logo size="sm" to={base} />}
+          {!rail && (
+            <button type="button" onClick={onToggleCollapse} aria-label="Collapse sidebar" aria-expanded="true" className="btn-icon h-8 w-8 min-h-0">
+              <Icons.PanelLeftClose size={17} aria-hidden="true" />
+            </button>
           )}
         </div>
-        {collapsed && (
-          <button onClick={onToggleCollapse} className="hidden lg:flex mx-auto mt-2 p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 dark:text-slate-400">
-            <Icons.PanelLeftOpen size={18} />
+        {rail && (
+          <button type="button" onClick={onToggleCollapse} aria-label="Expand sidebar" aria-expanded="false" data-tip="Expand" className="rail-tip btn-icon mx-auto mt-2 h-8 w-8 min-h-0">
+            <Icons.PanelLeftOpen size={17} aria-hidden="true" />
           </button>
         )}
-
-        {/* User card */}
-        {!collapsed && (
-          <div className="px-3 py-3 border-b border-slate-100 dark:border-slate-800">
-            <div className={`flex items-center gap-3 p-2.5 rounded-xl bg-gradient-to-br ${meta.color} bg-opacity-10 border border-app`}
-              style={{ backgroundImage: undefined }}>
-              <div className="relative">
-                {user?.avatar ? (
-                  <img src={user.avatar} alt={user?.name} className="w-10 h-10 rounded-full border-2 border-white dark:border-slate-800 shadow object-cover" />
-                ) : (
-                  <span className="w-10 h-10 rounded-full border-2 border-white dark:border-slate-800 shadow inline-flex items-center justify-center bg-gradient-to-br from-primary-600 to-indigo-600 text-white font-bold text-sm">
-                    {(user?.name || "U").trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join("").toUpperCase()}
-                  </span>
-                )}
-                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-800" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-sm text-app truncate">{user?.name}</p>
-                <p className="text-[10px] text-primary-700 dark:text-primary-400 font-bold uppercase tracking-wider truncate">
-                  {meta.label}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Menu */}
-        <nav className="flex-1 overflow-y-auto no-scrollbar px-2.5 py-3 space-y-0.5">
-          {menu.map((item, idx) => {
-            if (item.section) {
-              if (collapsed) return <div key={idx} className="my-2 border-t border-slate-100 dark:border-slate-800" />;
-              return (
-                <p key={idx} className="text-[10px] tracking-[0.15em] font-bold text-slate-400 dark:text-slate-500 px-2 mt-4 mb-1.5 uppercase">{item.section}</p>
-              );
-            }
-            const Icon = Icons[item.icon] || Icons.Circle;
-            const active = location.pathname === item.to;
-            const badge = resolveBadge(item);
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.to === base}
-                onClick={onClose}
-                title={collapsed ? item.label : ""}
-                className={({ isActive }) =>
-                  `relative flex items-center ${collapsed ? "lg:justify-center" : "gap-3"} px-3 py-2.5 rounded-xl text-sm font-medium transition-all group
-                  ${isActive
-                    ? "bg-gradient-to-r from-primary-600 to-blue-500 text-white shadow-lg shadow-primary-500/30"
-                    : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-primary-700 dark:hover:text-primary-300"
-                  }`
-                }
-              >
-                <Icon size={18} className="shrink-0" />
-                {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
-                {!collapsed && badge && (
-                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                    item.badgeColor === "rose" ? "bg-rose-500 text-white animate-pulse" :
-                    item.badgeColor === "amber" ? "bg-amber-500 text-white" :
-                    item.badgeColor === "violet" ? "bg-violet-500 text-white" :
-                    "bg-blue-500 text-white"
-                  }`}>{badge}</span>
-                )}
-                {active && !collapsed && <Icons.ChevronRight size={14} className="opacity-80" />}
-              </NavLink>
-            );
-          })}
-        </nav>
-
-        {/* Logout */}
-        <div className="px-2.5 py-3 border-t border-slate-100 dark:border-slate-800">
-          <button
-            onClick={logout}
-            title={collapsed ? "Logout" : ""}
-            className={`w-full flex items-center ${collapsed ? "lg:justify-center" : "gap-3"} px-3 py-2.5 rounded-xl text-sm font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition`}
-          >
-            <Icons.LogOut size={18} />
-            {!collapsed && <span>Logout</span>}
-          </button>
-        </div>
+        {renderNav(rail)}
+        {identity(rail)}
       </aside>
+
+      {/* Mobile / tablet: slide-over drawer */}
+      <div className={`lg:hidden fixed inset-0 z-50 ${isOpen ? "" : "pointer-events-none"}`} aria-hidden={!isOpen}>
+        <div onClick={onClose} className={`absolute inset-0 bg-[rgb(11_15_20/0.5)] transition-opacity duration-200 ${isOpen ? "opacity-100" : "opacity-0"}`} />
+        <aside
+          ref={drawerRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation"
+          className={`absolute inset-y-0 left-0 flex w-[288px] max-w-[86vw] flex-col bg-surface-muted border-r border-line shadow-pop transition-transform duration-[250ms] ease-out ${isOpen ? "translate-x-0" : "-translate-x-full"}`}
+        >
+          <div className="flex items-center justify-between h-14 px-4 border-b border-line">
+            <Logo size="sm" to={base} />
+            <button type="button" onClick={onClose} aria-label="Close navigation" className="btn-icon -mr-2">
+              <Icons.X size={18} aria-hidden="true" />
+            </button>
+          </div>
+          {isOpen && renderNav(false)}
+          {isOpen && identity(false)}
+        </aside>
+      </div>
     </>
   );
 };
