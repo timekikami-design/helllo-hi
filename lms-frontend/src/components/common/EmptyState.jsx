@@ -20,7 +20,8 @@ const EmptyState = ({
       </span>
       <h3 className="text-sub font-semibold text-fg">{title}</h3>
       {text && <p className="mt-1 max-w-md text-[14px] leading-5 text-fg-muted">{text}</p>}
-      {action && (
+      {action && typeof action !== "function" && <div className="mt-5">{action}</div>}
+      {typeof action === "function" && (
         <button type="button" onClick={action} className="btn-secondary mt-5">
           {actionLabel || "Continue"}
         </button>
