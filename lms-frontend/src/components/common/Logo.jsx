@@ -1,37 +1,24 @@
+// lms-frontend/src/components/common/Logo.jsx
+// AUST emblem + wordmark. `light` renders on the navy brand panel.
 import { Link } from "react-router-dom";
 import logoUrl from "../../assets/aust-logo.png";
 
-/**
- * AUST ODL — Official University Logo
- * Uses the real Abbottabad University of Science & Technology emblem
- * (replaces the previous emoji/icon placeholder).
- */
+const SIZES = {
+  sm: { img: 32, name: "text-[15px] leading-5", sub: "text-[11px] leading-4" },
+  md: { img: 40, name: "text-[16px] leading-6", sub: "text-[12px] leading-4" },
+  lg: { img: 56, name: "text-[20px] leading-7", sub: "text-[12px] leading-4" },
+};
+
 const Logo = ({ size = "md", showText = true, light = false, to = "/" }) => {
-  const sizes = {
-    sm: { img: "h-9 w-9", text: "text-base", sub: "text-[9px]" },
-    md: { img: "h-11 w-11", text: "text-lg", sub: "text-[10px]" },
-    lg: { img: "h-16 w-16", text: "text-2xl", sub: "text-[11px]" },
-  };
+  const s = SIZES[size] || SIZES.md;
   return (
-    <Link to={to} className="flex items-center gap-3 group">
-      <div className="relative shrink-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/30 via-indigo-500/20 to-cyan-400/30 rounded-full blur-md opacity-70 group-hover:opacity-100 transition" />
-        <img
-          src={logoUrl}
-          alt="Abbottabad University of Science & Technology"
-          className={`relative ${sizes[size].img} object-contain drop-shadow-md`}
-          draggable={false}
-        />
-      </div>
+    <Link to={to} className="flex items-center gap-3 min-w-0 rounded" aria-label="AUST Open & Distance Learning — home">
+      <img src={logoUrl} alt="" width={s.img} height={s.img} className="shrink-0 object-contain" draggable={false} />
       {showText && (
-        <div className="flex flex-col leading-tight min-w-0">
-          <span className={`font-display font-extrabold ${sizes[size].text} ${light ? "text-white" : "text-app"} truncate`}>
-            AUST<span className="gradient-text"> ODL</span>
-          </span>
-          <span className={`${sizes[size].sub} tracking-[0.18em] font-bold uppercase ${light ? "text-blue-100" : "text-slate-500 dark:text-slate-400"} truncate`}>
-            Abbottabad · Pakistan
-          </span>
-        </div>
+        <span className="flex flex-col min-w-0">
+          <span className={`${s.name} font-semibold tracking-[-0.01em] truncate ${light ? "text-white" : "text-fg"}`}>AUST <span className={light ? "text-brass-300" : "text-brass"}>ODL</span></span>
+          <span className={`${s.sub} font-medium truncate ${light ? "text-white/70" : "text-fg-muted"}`}>Open &amp; Distance Learning</span>
+        </span>
       )}
     </Link>
   );
