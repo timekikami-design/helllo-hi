@@ -1,41 +1,35 @@
-import { motion } from "framer-motion";
+// lms-frontend/src/components/common/PageHeader.jsx
+// Page title block: breadcrumb → title → one-line subtitle → actions.
+// Hierarchy comes from type and spacing, not from icon tiles or gradients.
+// The `icon` prop is accepted for compatibility and rendered as a small
+// muted glyph beside the breadcrumb only.
 import * as Icons from "lucide-react";
 
-const PageHeader = ({ title, subtitle, icon = "LayoutDashboard", actions, breadcrumb }) => {
-  const Icon = Icons[icon] || Icons.LayoutDashboard;
+const PageHeader = ({ title, subtitle, icon, actions, breadcrumb }) => {
+  const Icon = icon ? Icons[icon] : null;
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="mb-6"
-    >
-      {breadcrumb && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-app mb-2.5 font-medium">
-          {breadcrumb.map((b, i) => (
-            <span key={i} className="flex items-center gap-1.5">
-              {i > 0 && <Icons.ChevronRight size={12} className="opacity-50" />}
-              <span className={i === breadcrumb.length - 1 ? "text-primary-600 dark:text-primary-400 font-semibold" : ""}>{b}</span>
-            </span>
-          ))}
-        </div>
+    <header className="mb-8 pb-6 border-b border-line">
+      {breadcrumb && breadcrumb.length > 0 && (
+        <nav aria-label="Breadcrumb" className="mb-3">
+          <ol className="flex flex-wrap items-center gap-1.5 text-[13px] text-fg-muted">
+            {Icon && <li aria-hidden="true" className="mr-1 text-fg-muted"><Icon size={14} strokeWidth={1.75} /></li>}
+            {breadcrumb.map((b, i) => (
+              <li key={i} className="flex items-center gap-1.5">
+                {i > 0 && <Icons.ChevronRight size={12} aria-hidden="true" className="opacity-60" />}
+                <span aria-current={i === breadcrumb.length - 1 ? "page" : undefined} className={i === breadcrumb.length - 1 ? "text-fg-secondary font-medium" : ""}>{b}</span>
+              </li>
+            ))}
+          </ol>
+        </nav>
       )}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex items-center gap-3.5">
-          <div className="relative">
-            <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary-600 to-blue-500 blur-lg opacity-40" />
-            <div className="relative p-3 rounded-xl bg-gradient-to-br from-primary-600 to-blue-500 shadow-lg shadow-primary-500/30">
-              <Icon size={22} className="text-white" strokeWidth={2.4} />
-            </div>
-          </div>
-          <div>
-            <h1 className="font-display font-extrabold text-2xl md:text-[28px] text-app leading-tight">{title}</h1>
-            {subtitle && <p className="text-sm text-muted-app mt-1">{subtitle}</p>}
-          </div>
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-[24px] leading-[30px] md:text-title font-semibold text-fg tracking-[-0.015em]">{title}</h1>
+          {subtitle && <p className="mt-2 max-w-3xl text-[15px] leading-6 text-fg-muted">{subtitle}</p>}
         </div>
-        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+        {actions && <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>}
       </div>
-    </motion.div>
+    </header>
   );
 };
 

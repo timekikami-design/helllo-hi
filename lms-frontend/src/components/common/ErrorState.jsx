@@ -1,31 +1,31 @@
-import { motion } from "framer-motion";
-import { AlertOctagon, RefreshCcw } from "lucide-react";
+// lms-frontend/src/components/common/ErrorState.jsx
+// Recoverable error. Never exposes raw API messages, codes or stacks:
+// a technical-looking description is replaced by the standard copy.
+import { AlertCircle, RotateCcw, WifiOff } from "lucide-react";
 
-const ErrorState = ({
-  title = "Something went wrong",
-  description = "We couldn't load this section. Please try again.",
-  onRetry,
-  className = "",
-}) => (
-  <motion.div
-    initial={{ opacity: 0, y: 10 }}
-    animate={{ opacity: 1, y: 0 }}
-    className={`flex flex-col items-center justify-center text-center py-14 px-6 rounded-2xl border border-rose-200/60 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/20 ${className}`}
-  >
-    <div className="w-16 h-16 rounded-2xl bg-rose-100 dark:bg-rose-950/50 flex items-center justify-center mb-4">
-      <AlertOctagon size={28} className="text-rose-600 dark:text-rose-400" />
+const TECHNICAL = /(request failed|\b[45]\d\d\b|status|stack|undefined|null|TypeError|SyntaxError|fetch|network|JSON|ECONN|prisma|sql)/i;
+
+const ErrorState = ({ title, description, onRetry, className = "" }) => {
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+  const heading = offline ? "You’re offline" : (title && !TECHNICAL.test(title) ? title : "Something went wrong");
+  const body = offline
+    ? "Check your internet connection and try again."
+    : (description && !TECHNICAL.test(String(description)) ? description : "We couldn’t load this content.");
+  const Icon = offline ? WifiOff : AlertCircle;
+  return (
+    <div role="alert" className={`flex flex-col items-center justify-center text-center py-12 px-6 border border-line rounded-lg bg-surface ${className}`}>
+      <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-bad-soft text-bad" aria-hidden="true">
+        <Icon size={18} strokeWidth={1.75} />
+      </span>
+      <h3 className="text-sub font-semibold text-fg">{heading}</h3>
+      <p className="mt-1 max-w-md text-[14px] leading-5 text-fg-muted">{body}</p>
+      {onRetry && (
+        <button type="button" onClick={onRetry} className="btn-secondary mt-5">
+          <RotateCcw size={15} aria-hidden="true" /> Try again
+        </button>
+      )}
     </div>
-    <h3 className="font-bold text-lg text-app">{title}</h3>
-    <p className="text-sm text-muted-app max-w-sm mt-1">{description}</p>
-    {onRetry && (
-      <button
-        onClick={onRetry}
-        className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold transition"
-      >
-        <RefreshCcw size={14} /> Try Again
-      </button>
-    )}
-  </motion.div>
-);
+  );
+};
 
 export default ErrorState;
