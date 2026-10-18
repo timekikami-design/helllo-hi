@@ -1,10 +1,11 @@
-import { motion } from "framer-motion";
+// lms-frontend/src/pages/student/Attendance.jsx
+// Course-wise attendance. Overview = summary strip + one row per course with
+// a rail showing the 75% requirement line; status always carries icon + text.
+// Detail = live (date-wise) and recorded lecture attendance for one course.
+// Data: student.attendance, student.courseAttendance (unchanged).
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import {
-  CalendarCheck, TrendingUp, AlertTriangle, CheckCircle2, ArrowLeft,
-  Video, MonitorPlay, User, PlayCircle, Circle,
-} from "lucide-react";
+import { AlertTriangle, CheckCircle2, ArrowLeft, Video, User, PlayCircle, ChevronRight, Clock, MinusCircle, XCircle } from "lucide-react";
 import PageHeader from "../../components/common/PageHeader";
 import { Skeleton } from "../../components/common/Skeleton";
 import ErrorState from "../../components/common/ErrorState";
@@ -12,40 +13,49 @@ import EmptyState from "../../components/common/EmptyState";
 import useApi from "../../hooks/useApi";
 import api from "../../services/api";
 
-// Status → color theme.
-const statusTheme = (status) => {
+const THRESHOLD = 75;
+
+const statusInfo = (status) => {
   switch (status) {
-    case "Excellent": return { text: "text-emerald-600", ring: "#10b981", bg: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" };
-    case "Good": return { text: "text-blue-600", ring: "#3b82f6", bg: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" };
-    case "Warning": return { text: "text-amber-600", ring: "#f59e0b", bg: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" };
-    default: return { text: "text-rose-600", ring: "#ef4444", bg: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300" };
+    case "Excellent": return { Icon: CheckCircle2, cls: "text-ok", tone: "ok" };
+    case "Good": return { Icon: CheckCircle2, cls: "text-ok", tone: "brand" };
+    case "Warning": return { Icon: AlertTriangle, cls: "text-warn", tone: "warn" };
+    default: return { Icon: AlertTriangle, cls: "text-bad", tone: "bad" };
   }
 };
 
-// Reusable circular progress ring.
-const CircularProgress = ({ value = 0, size = 96, stroke = 9, color = "#10b981", label }) => {
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const offset = c - (Math.min(100, Math.max(0, value)) / 100) * c;
+const sessionInfo = (st) => {
+  switch (st) {
+    case "PRESENT": return { Icon: CheckCircle2, cls: "text-ok", label: "Present" };
+    case "LATE": return { Icon: Clock, cls: "text-warn", label: "Late" };
+    case "LEAVE": return { Icon: MinusCircle, cls: "text-note", label: "Leave" };
+    case "ABSENT": return { Icon: XCircle, cls: "text-bad", label: "Absent" };
+    default: return { Icon: MinusCircle, cls: "text-fg-muted", label: "Not marked" };
+  }
+};
+
+const toneCls = { ok: "!bg-ok", brand: "", warn: "!bg-warn", bad: "!bg-bad" };
+
+// Progress rail with the 75% requirement marker.
+const AttendanceRail = ({ value = 0, tone = "brand", label, threshold = true }) => {
+  const v = Math.max(0, Math.min(100, Number(value) || 0));
   return (
-    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={stroke} className="text-slate-100 dark:text-slate-800" />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={offset} style={{ transition: "stroke-dashoffset 0.6s ease" }} />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-display font-extrabold text-lg text-app">{value}%</span>
-        {label && <span className="text-[9px] text-muted-app font-semibold uppercase">{label}</span>}
+    <div className="relative">
+      <div className="rail" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(v)} aria-label={label}>
+        <span style={{ width: `${v}%` }} className={toneCls[tone]} />
       </div>
+      {threshold && (
+        <span aria-hidden="true" title={`${THRESHOLD}% requirement`} className="absolute -top-1 -bottom-1 w-px bg-fg-muted" style={{ left: `${THRESHOLD}%` }} />
+      )}
     </div>
   );
 };
 
-const fmtDate = (d) => { if (!d) return "—"; try { return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }); } catch { return d; } };
-const dayName = (d) => { if (!d) return "—"; try { return new Date(d).toLocaleDateString("en-GB", { weekday: "long" }); } catch { return "—"; } };
+const fmtDate = (d) => { if (!d) return "—"; try { return new Date(d).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }); } catch { return d; } };
+const dayName = (d) => { if (!d) return "—"; try { return new Date(d).toLocaleDateString(undefined, { weekday: "long" }); } catch { return "—"; } };
 
 // ---- Course detail (semester attendance for one course) ----
-const CourseDetail = ({ course, onBack, onWatched }) => {
+const CourseDetail = ({ course, onBack }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -60,81 +70,87 @@ const CourseDetail = ({ course, onBack, onWatched }) => {
 
   useEffect(() => { load(); }, [load]);
 
-  // Point 6 — manual "mark watched" for recorded lectures has been removed.
-  // Attendance is now granted automatically from real watch progress (handled
-  // in the Recorded Lectures player). This view is read-only for recorded
-  // lecture attendance; live-class attendance is unchanged.
-  const theme = statusTheme(data?.status);
+  // Recorded-lecture attendance is granted automatically from real watch
+  // progress in the Recorded Lectures player; this view is read-only.
+  const si = statusInfo(data?.status);
 
   return (
     <div>
-      <PageHeader title="Attendance" subtitle={`${course.courseCode} — ${course.courseTitle}`} icon="CalendarCheck" breadcrumb={["Dashboard", "Attendance", course.courseCode]} />
-      <button onClick={onBack} className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-600 hover:text-primary-700 mb-4"><ArrowLeft size={15} /> Back to overview</button>
+      <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 text-[13px] text-fg-muted hover:text-fg mb-4">
+        <ArrowLeft size={14} aria-hidden="true" /> All courses
+      </button>
+      <PageHeader title={course.courseTitle} subtitle={`${course.courseCode} · attendance this semester`} icon="CalendarCheck" breadcrumb={["Dashboard", "Attendance", course.courseCode]} />
 
       {loading ? (
-        <div className="space-y-4"><Skeleton className="h-40 rounded-2xl" /><Skeleton className="h-64 rounded-2xl" /></div>
+        <div className="space-y-4" aria-busy="true"><Skeleton className="h-32 w-full" /><Skeleton className="h-64 w-full" /></div>
       ) : error ? (
         <ErrorState description={error} onRetry={load} />
       ) : data ? (
         <>
-          {/* Summary cards */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-5">
-            <div className="card-base p-5 flex flex-col items-center justify-center lg:col-span-1">
-              <CircularProgress value={data.overallPercentage} size={120} stroke={11} color={theme.ring} label="Overall" />
-              <span className={`mt-3 text-xs font-bold px-3 py-1 rounded-full ${theme.bg}`}>{data.status}</span>
+          {/* Summary */}
+          <section className="rounded-lg border border-line bg-surface p-5 sm:p-6 mb-8">
+            <div className="flex flex-wrap items-end justify-between gap-4 mb-4">
+              <div>
+                <p className="label-caps">Overall</p>
+                <p className="text-[36px] leading-none font-semibold text-fg tabular-nums mt-1">{data.overallPercentage}%</p>
+              </div>
+              <p className={`inline-flex items-center gap-1.5 text-[14px] font-medium ${si.cls}`}>
+                <si.Icon size={16} aria-hidden="true" /> {data.status}
+                {Number(data.overallPercentage) < THRESHOLD && <span className="text-fg-muted font-normal"> · below the {THRESHOLD}% requirement</span>}
+              </p>
             </div>
-            <div className="lg:col-span-3 grid grid-cols-2 sm:grid-cols-2 gap-4">
-              <div className="card-base p-4">
-                <div className="flex items-center gap-2 mb-2 text-blue-600"><MonitorPlay size={18} /><span className="text-xs font-bold uppercase">Live Classes ({data.liveWeight}%)</span></div>
-                <p className="text-2xl font-display font-extrabold text-app">{data.livePercentage}%</p>
-                <p className="text-xs text-muted-app mt-1">{data.attendedLiveClasses} / {data.totalLiveClasses} attended</p>
-                <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full mt-2"><div className="h-full rounded-full bg-blue-500" style={{ width: `${data.livePercentage}%` }} /></div>
+            <AttendanceRail value={data.overallPercentage} tone={si.tone} label="Overall attendance" />
+            <p className="text-[12px] text-fg-muted mt-2">Line marks the {THRESHOLD}% requirement. Overall = live × {data.liveWeight}% + recorded × {data.recordedWeight}%.</p>
+
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-6 pt-6 border-t border-line">
+              <div>
+                <dt className="label-caps">Live classes · {data.liveWeight}%</dt>
+                <dd className="mt-1">
+                  <span className="text-[20px] font-semibold text-fg tabular-nums">{data.livePercentage}%</span>
+                  <span className="text-[13px] text-fg-muted tabular-nums"> · {data.attendedLiveClasses} of {data.totalLiveClasses} attended</span>
+                  <div className="mt-2"><AttendanceRail value={data.livePercentage} label="Live class attendance" threshold={false} /></div>
+                </dd>
               </div>
-              <div className="card-base p-4">
-                <div className="flex items-center gap-2 mb-2 text-violet-600"><Video size={18} /><span className="text-xs font-bold uppercase">Recorded ({data.recordedWeight}%)</span></div>
-                <p className="text-2xl font-display font-extrabold text-app">{data.recordedPercentage}%</p>
-                <p className="text-xs text-muted-app mt-1">{data.watchedRecordedLectures} / {data.totalRecordedLectures} watched</p>
-                <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full mt-2"><div className="h-full rounded-full bg-violet-500" style={{ width: `${data.recordedPercentage}%` }} /></div>
+              <div>
+                <dt className="label-caps">Recorded lectures · {data.recordedWeight}%</dt>
+                <dd className="mt-1">
+                  <span className="text-[20px] font-semibold text-fg tabular-nums">{data.recordedPercentage}%</span>
+                  <span className="text-[13px] text-fg-muted tabular-nums"> · {data.watchedRecordedLectures} of {data.totalRecordedLectures} watched</span>
+                  <div className="mt-2"><AttendanceRail value={data.recordedPercentage} label="Recorded lecture attendance" threshold={false} /></div>
+                </dd>
               </div>
-              <div className="card-base p-4 col-span-2 flex items-center gap-4 flex-wrap text-sm">
-                <span className="inline-flex items-center gap-1.5 text-muted-app"><User size={14} /> {data.teacherName}</span>
-                <span className="text-emerald-600 font-semibold">Present: {data.present}</span>
-                <span className="text-rose-600 font-semibold">Absent: {data.absent}</span>
-                <span className="text-amber-600 font-semibold">Late: {data.late}</span>
-                <span className="text-blue-600 font-semibold">Leave: {data.leave}</span>
-                <span className="text-muted-app text-xs ml-auto">Formula: Live × 40% + Recorded × 60%</span>
-              </div>
-            </div>
-          </div>
+            </dl>
+            <p className="mt-6 text-[13px] text-fg-secondary flex flex-wrap gap-x-4 gap-y-1 tabular-nums">
+              <span className="inline-flex items-center gap-1 text-fg-muted"><User size={13} aria-hidden="true" /> {data.teacherName}</span>
+              <span>Present {data.present}</span><span>Absent {data.absent}</span><span>Late {data.late}</span><span>Leave {data.leave}</span>
+            </p>
+          </section>
 
           {/* Date-wise live class attendance */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden mb-5">
-            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="font-display font-bold text-base text-app">Live Class Attendance (Date-wise)</h3>
-            </div>
+          <section className="mb-8">
+            <h2 className="text-[16px] font-semibold text-fg mb-3">Live class sessions</h2>
             {(!data.byDate || data.byDate.length === 0) ? (
-              <p className="px-5 py-6 text-sm text-muted-app">No live class sessions recorded yet.</p>
+              <p className="text-[14px] text-fg-muted">No live class sessions recorded yet.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+                <table className="w-full text-[14px]">
                   <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-800/50 text-left text-xs font-semibold text-muted-app uppercase">
-                      <th className="px-4 py-3">Date</th>
-                      <th className="px-4 py-3">Day</th>
-                      <th className="px-4 py-3">Topic</th>
-                      <th className="px-4 py-3 text-center">Status</th>
+                    <tr className="text-left">
+                      <th scope="col" className="px-4 py-3">Date</th>
+                      <th scope="col" className="px-4 py-3">Day</th>
+                      <th scope="col" className="px-4 py-3">Topic</th>
+                      <th scope="col" className="px-4 py-3">Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.byDate.map((s, i) => {
-                      const st = s.status;
-                      const color = st === "PRESENT" ? "bg-emerald-100 text-emerald-700" : st === "LATE" ? "bg-amber-100 text-amber-700" : st === "LEAVE" ? "bg-blue-100 text-blue-700" : st === "ABSENT" ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-600";
+                      const x = sessionInfo(s.status);
                       return (
-                        <tr key={i} className="border-t border-slate-100 dark:border-slate-800">
-                          <td className="px-4 py-3 font-semibold text-app">{fmtDate(s.date)}</td>
-                          <td className="px-4 py-3 text-muted-app">{dayName(s.date)}</td>
-                          <td className="px-4 py-3 text-muted-app">{s.topic || "—"}</td>
-                          <td className="px-4 py-3 text-center"><span className={`text-xs font-bold px-2 py-0.5 rounded-full ${color}`}>{st === "NOT_MARKED" ? "Not Marked" : st}</span></td>
+                        <tr key={i}>
+                          <td className="px-4 py-3 font-medium text-fg tabular-nums whitespace-nowrap">{fmtDate(s.date)}</td>
+                          <td className="px-4 py-3 text-fg-secondary">{dayName(s.date)}</td>
+                          <td className="px-4 py-3 text-fg-secondary">{s.topic || "—"}</td>
+                          <td className="px-4 py-3"><span className={`inline-flex items-center gap-1.5 font-medium ${x.cls}`}><x.Icon size={14} aria-hidden="true" /> {x.label}</span></td>
                         </tr>
                       );
                     })}
@@ -142,53 +158,49 @@ const CourseDetail = ({ course, onBack, onWatched }) => {
                 </table>
               </div>
             )}
-          </div>
+          </section>
 
           {/* Recorded lectures */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="font-display font-bold text-base text-app">Recorded Lectures</h3>
-            </div>
+          <section>
+            <h2 className="text-[16px] font-semibold text-fg mb-3">Recorded lectures</h2>
             {(!data.lectures || data.lectures.length === 0) ? (
-              <p className="px-5 py-6 text-sm text-muted-app">No recorded lectures available for this course yet.</p>
+              <p className="text-[14px] text-fg-muted">No recorded lectures available for this course yet.</p>
             ) : (
-              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+              <ul className="divide-y divide-line border-y border-line">
                 {data.lectures.map((l) => (
-                  <div key={l.key} className="px-5 py-3 flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${l.watched ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600" : "bg-slate-50 dark:bg-slate-800 text-slate-500"}`}>
-                      {l.watched ? <CheckCircle2 size={16} /> : <Video size={16} />}
-                    </div>
+                  <li key={l.key} className="py-3 flex items-center gap-3">
+                    {l.watched
+                      ? <CheckCircle2 size={18} className="text-ok shrink-0" aria-hidden="true" />
+                      : <Video size={18} className="text-fg-muted shrink-0" aria-hidden="true" />}
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm text-app truncate">{l.title}</p>
-                      <p className="text-[11px] text-muted-app">{l.week != null ? `Week ${l.week} · ` : ""}{fmtDate(l.date)}</p>
-                      {/* Point 6 — attendance is auto-granted from real watch progress
-                          (>= threshold). No manual "mark watched" action. */}
+                      <p className="text-[14px] font-medium text-fg truncate">{l.title}</p>
+                      <p className="text-[12px] text-fg-muted">{l.week != null ? `Week ${l.week} · ` : ""}{fmtDate(l.date)}</p>
                       {!l.watched && (
-                        <div className="mt-1.5 max-w-[220px]">
-                          <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full bg-primary-500" style={{ width: `${Math.min(100, Number(l.progressPercent) || 0)}%` }} />
+                        <div className="mt-1.5 max-w-[240px]">
+                          <div className="rail" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(Number(l.progressPercent) || 0)} aria-label={`${l.title} watched`}>
+                            <span style={{ width: `${Math.min(100, Number(l.progressPercent) || 0)}%` }} />
                           </div>
-                          <p className="text-[10px] text-muted-app mt-0.5">{Math.round(Number(l.progressPercent) || 0)}% watched · reaches {data.watchThreshold || 70}% to mark present</p>
+                          <p className="text-[12px] text-fg-muted mt-1 tabular-nums">{Math.round(Number(l.progressPercent) || 0)}% watched · {data.watchThreshold || 70}% marks you present</p>
                         </div>
                       )}
                     </div>
                     {l.watched ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600"><CheckCircle2 size={13} /> Attended</span>
+                      <span className="inline-flex items-center gap-1 text-[13px] font-medium text-ok"><CheckCircle2 size={14} aria-hidden="true" /> Attended</span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-muted-app"><PlayCircle size={13} /> Watch in Recorded Lectures</span>
+                      <span className="hidden sm:inline-flex items-center gap-1 text-[13px] text-fg-muted"><PlayCircle size={14} aria-hidden="true" /> Watch in Recorded Lectures</span>
                     )}
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
-          </div>
+          </section>
         </>
       ) : null}
     </div>
   );
 };
 
-// ---- Main: course-wise attendance dashboard ----
+// ---- Main: course-wise attendance overview ----
 const Attendance = () => {
   const { data, loading, error, reload } = useApi(() => api.student.attendance(), []);
   const [searchParams] = useSearchParams();
@@ -196,7 +208,7 @@ const Attendance = () => {
 
   const rows = useMemo(() => data?.courses || [], [data]);
 
-  // Deep-link from a course card.
+  // Deep-link from a course card (?course=CODE).
   useEffect(() => {
     const code = searchParams.get("course");
     if (code && rows.length && !active) {
@@ -211,80 +223,81 @@ const Attendance = () => {
     const avg = Math.round((rows.reduce((a, b) => a + (b.overallPercentage || 0), 0) / n) * 100) / 100;
     const totalLive = rows.reduce((a, b) => a + (b.totalLiveClasses || 0), 0);
     const totalRecorded = rows.reduce((a, b) => a + (b.totalRecordedLectures || 0), 0);
-    const shortCount = rows.filter((b) => (b.overallPercentage || 0) < 75).length;
+    const shortCount = rows.filter((b) => (b.overallPercentage || 0) < THRESHOLD).length;
     return { avg, totalLive, totalRecorded, shortCount };
   }, [rows]);
 
   if (active) {
-    return <CourseDetail course={active} onBack={() => { setActive(null); reload(); }} onWatched={reload} />;
+    return <CourseDetail course={active} onBack={() => { setActive(null); reload(); }} />;
   }
+
+  const header = <PageHeader title="Attendance" subtitle={`Live classes and recorded lectures combined. ${THRESHOLD}% is required in every course.`} icon="CalendarCheck" breadcrumb={["Dashboard", "Attendance"]} />;
 
   if (loading) {
     return (
       <div>
-        <PageHeader title="Attendance" subtitle="Course-wise attendance across your enrolled courses" icon="CalendarCheck" breadcrumb={["Dashboard", "Attendance"]} />
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}</div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-52 rounded-2xl" />)}</div>
+        {header}
+        <div aria-busy="true"><Skeleton className="h-24 w-full mb-6" />{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 w-full mb-2" />)}</div>
       </div>
     );
   }
 
   return (
     <div>
-      <PageHeader title="Attendance" subtitle="Course-wise attendance — Live Classes (40%) + Recorded Lectures (60%)" icon="CalendarCheck" breadcrumb={["Dashboard", "Attendance"]} />
+      {header}
 
       {error ? (
         <ErrorState description={error} onRetry={reload} />
       ) : rows.length === 0 ? (
-        <EmptyState icon="CalendarCheck" title="No enrolled courses" description="Your attendance dashboard appears once you are enrolled in courses." />
+        <EmptyState icon="CalendarCheck" title="No enrolled courses" description="Your attendance appears here once you are enrolled in courses." />
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+          <dl className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-line border border-line rounded-lg overflow-hidden mb-8">
             {[
-              { label: "Average Attendance", value: `${totals.avg}%`, color: "from-emerald-500 to-teal-600", icon: CheckCircle2 },
-              { label: "Total Live Classes", value: totals.totalLive, color: "from-blue-500 to-indigo-600", icon: MonitorPlay },
-              { label: "Recorded Lectures", value: totals.totalRecorded, color: "from-violet-500 to-purple-600", icon: Video },
-              { label: "Short Attendance", value: totals.shortCount, color: "from-rose-500 to-pink-600", icon: AlertTriangle },
-            ].map((s, i) => (
-              <motion.div key={s.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className={`relative bg-gradient-to-br ${s.color} rounded-2xl p-4 text-white overflow-hidden`}>
-                <div className="absolute -right-2 -top-2 w-20 h-20 bg-white/10 rounded-full blur-xl" />
-                <s.icon size={22} className="mb-2" />
-                <p className="font-display text-3xl font-extrabold">{s.value}</p>
-                <p className="text-xs opacity-90">{s.label}</p>
-              </motion.div>
+              { label: "Average", value: `${totals.avg}%` },
+              { label: "Live classes", value: totals.totalLive },
+              { label: "Recorded lectures", value: totals.totalRecorded },
+              { label: `Below ${THRESHOLD}%`, value: totals.shortCount, bad: totals.shortCount > 0 },
+            ].map((s) => (
+              <div key={s.label} className="bg-surface p-4 sm:p-5">
+                <dt className="label-caps">{s.label}</dt>
+                <dd className={`mt-1 text-[24px] font-semibold tabular-nums inline-flex items-center gap-2 ${s.bad ? "text-bad" : "text-fg"}`}>
+                  {s.bad && <AlertTriangle size={18} aria-hidden="true" />}{s.value}
+                  {s.bad && <span className="sr-only"> courses need attention</span>}
+                </dd>
+              </div>
             ))}
-          </div>
+          </dl>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {rows.map((c, i) => {
-              const theme = statusTheme(c.status);
+          <h2 className="text-[16px] font-semibold text-fg mb-1">By course</h2>
+          <p className="text-[13px] text-fg-muted mb-3">The line on each bar marks the {THRESHOLD}% requirement.</p>
+          <ul className="divide-y divide-line border-y border-line">
+            {rows.map((c) => {
+              const si = statusInfo(c.status);
               return (
-                <motion.button
-                  key={c.offeringId}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  onClick={() => setActive(c)}
-                  className="text-left card-base p-5 hover:shadow-lg hover:border-primary-300 dark:hover:border-primary-700 transition group"
-                >
-                  <div className="flex items-start gap-4">
-                    <CircularProgress value={c.overallPercentage} size={92} stroke={9} color={theme.ring} />
-                    <div className="flex-1 min-w-0">
-                      <span className="font-mono text-xs font-bold text-primary-600 dark:text-primary-400">{c.courseCode}</span>
-                      <p className="font-display font-bold text-sm text-app line-clamp-2 mt-0.5">{c.courseTitle}</p>
-                      <p className="text-[11px] text-muted-app flex items-center gap-1 mt-1"><User size={11} /> {c.teacherName}</p>
-                      <span className={`inline-block mt-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${theme.bg}`}>{c.status}</span>
+                <li key={c.offeringId}>
+                  <button type="button" onClick={() => setActive(c)}
+                    className="w-full text-left py-4 grid grid-cols-[1fr_auto] md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto] gap-x-6 gap-y-3 items-center hover:bg-surface-muted/60 -mx-2 px-2 rounded transition-colors">
+                    <div className="min-w-0">
+                      <p className="text-[12px] text-fg-muted"><span className="font-semibold text-fg-secondary">{c.courseCode}</span> · {c.teacherName}</p>
+                      <p className="text-[15px] font-medium text-fg truncate">{c.courseTitle}</p>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
-                    <div className="flex items-center gap-1.5 text-muted-app"><MonitorPlay size={13} className="text-blue-500" /> Live: <span className="font-bold text-app">{c.attendedLiveClasses}/{c.totalLiveClasses}</span></div>
-                    <div className="flex items-center gap-1.5 text-muted-app"><Video size={13} className="text-violet-500" /> Rec: <span className="font-bold text-app">{c.watchedRecordedLectures}/{c.totalRecordedLectures}</span></div>
-                  </div>
-                  <p className="text-[11px] text-primary-600 dark:text-primary-400 font-semibold mt-3 group-hover:underline">View detailed attendance →</p>
-                </motion.button>
+                    <div className="col-span-2 md:col-span-1 row-start-2 md:row-start-auto">
+                      <div className="flex items-baseline justify-between text-[13px] mb-1.5 tabular-nums">
+                        <span className="font-semibold text-fg">{c.overallPercentage}%</span>
+                        <span className="text-fg-muted">Live {c.attendedLiveClasses}/{c.totalLiveClasses} · Recorded {c.watchedRecordedLectures}/{c.totalRecordedLectures}</span>
+                      </div>
+                      <AttendanceRail value={c.overallPercentage} tone={si.tone} label={`${c.courseCode} attendance`} />
+                    </div>
+                    <span className={`inline-flex items-center gap-1.5 text-[13px] font-medium whitespace-nowrap ${si.cls}`}>
+                      <si.Icon size={14} aria-hidden="true" /> {c.status}
+                      <ChevronRight size={16} className="text-fg-muted ml-1" aria-hidden="true" />
+                    </span>
+                  </button>
+                </li>
               );
             })}
-          </div>
+          </ul>
         </>
       )}
     </div>
