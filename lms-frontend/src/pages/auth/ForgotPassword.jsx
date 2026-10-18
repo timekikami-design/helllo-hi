@@ -1,48 +1,37 @@
-import { Link, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import { Mail, ArrowRight, ArrowLeft, KeyRound } from "lucide-react";
-import Logo from "../../components/common/Logo";
-import ThemeToggle from "../../components/common/ThemeToggle";
-import { useToast } from "../../context/ToastContext";
+// lms-frontend/src/pages/auth/ForgotPassword.jsx
+// The LMS has no self-service reset endpoint (accounts and passwords are
+// issued by the university). Instead of simulating "code sent", this page
+// explains the real recovery path honestly.
+import { Link } from "react-router-dom";
+import { ArrowLeft, Building2, Mail, IdCard } from "lucide-react";
+import { AuthLayout, AuthHeading } from "../../components/auth/AuthLayout";
 
-const ForgotPassword = () => {
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const submit = (e) => {
-    e.preventDefault();
-    toast("Verification code sent to your email", { type: "success" });
-    navigate("/verify-otp");
-  };
-  return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-app">
-      <div className="absolute top-5 right-5 z-50"><ThemeToggle /></div>
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md card-base p-8 shadow-2xl">
-        <Logo size="md" />
-        <div className="mt-8 text-center">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30 flex items-center justify-center">
-            <KeyRound size={28} className="text-white" />
-          </div>
-          <h1 className="font-display font-extrabold text-2xl text-app mt-4">Forgot Password?</h1>
-          <p className="text-muted-app mt-1 text-sm">Enter your AUST email and we'll send you a verification code.</p>
-        </div>
-        <form onSubmit={submit} className="mt-6 space-y-4">
+const ForgotPassword = () => (
+  <AuthLayout statement="Locked out? The ODL office will get you back in.">
+    <AuthHeading eyebrow="Account recovery" title="Reset your password">
+      Passwords for AUST ODL accounts are issued and reset by the university. Self-service reset isn’t available yet.
+    </AuthHeading>
+
+    <ol className="divide-y divide-[rgb(var(--border))] border-y border-line">
+      {[
+        { Icon: Building2, title: "Contact the ODL office", body: "Ask the Open & Distance Learning office or your department coordinator to reset your LMS password." },
+        { Icon: IdCard, title: "Keep your details ready", body: "Your username (roll number for students) and CNIC are used to verify you." },
+        { Icon: Mail, title: "Sign in with the temporary password", body: "You’ll be asked to choose a new password the first time you sign in." },
+      ].map(({ Icon, title, body }, i) => (
+        <li key={i} className="flex gap-4 py-4">
+          <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-muted text-fg-secondary text-[13px] font-semibold tabular-nums" aria-hidden="true">{i + 1}</span>
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-app block mb-1.5">Email Address</label>
-            <div className="relative">
-              <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-              <input className="input-base pl-10" type="email" placeholder="you@aust.edu.pk" required />
-            </div>
+            <p className="flex items-center gap-2 text-[15px] font-semibold text-fg"><Icon size={15} className="text-fg-muted" aria-hidden="true" />{title}</p>
+            <p className="mt-1 text-[14px] leading-5 text-fg-muted">{body}</p>
           </div>
-          <button className="w-full btn-primary flex items-center justify-center gap-2 py-3">
-            Send Verification Code <ArrowRight size={16} />
-          </button>
-        </form>
-        <Link to="/login" className="flex items-center justify-center gap-2 text-sm text-primary-600 dark:text-primary-400 font-semibold mt-6 hover:underline">
-          <ArrowLeft size={14} /> Back to Login
-        </Link>
-      </motion.div>
-    </div>
-  );
-};
+        </li>
+      ))}
+    </ol>
+
+    <Link to="/login" className="btn-secondary btn-lg w-full mt-8">
+      <ArrowLeft size={16} aria-hidden="true" /> Back to sign in
+    </Link>
+  </AuthLayout>
+);
 
 export default ForgotPassword;
