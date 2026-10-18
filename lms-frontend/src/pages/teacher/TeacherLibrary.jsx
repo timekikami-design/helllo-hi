@@ -221,10 +221,10 @@ const TeacherLibrary = () => {
 
       if (editing) {
         await api.teacher.updateLibraryResource(form.id, fd);
-        toast("Resource updated ✓", { type: "success" });
+        toast("Resource updated", { type: "success" });
       } else {
         await api.teacher.createLibraryResource(fd);
-        toast("Resource added to your library ✓", { type: "success" });
+        toast("Resource added to your library", { type: "success" });
       }
       setOpenUpload(false);
       reload();

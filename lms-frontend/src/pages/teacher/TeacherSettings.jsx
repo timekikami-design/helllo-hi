@@ -185,7 +185,7 @@ const TeacherSettings = () => {
       // Real-time avatar sync everywhere.
       if (newPhoto) updateUser({ avatar: fileUrl(newPhoto) });
       refreshUser();
-      toast("Profile photo updated ✓", { type: "success" });
+      toast("Profile photo updated", { type: "success" });
     } catch (e) {
       toast(e.message || "Failed to upload photo", { type: "error" });
     } finally {

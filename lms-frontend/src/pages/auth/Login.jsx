@@ -109,7 +109,7 @@ const Login = () => {
       // We hand off to the Admissions-hosted Super Admin command center.
       if (data && data.superAdmin && data.adminToken) {
         const base = resolveAdmissionsUrl();
-        toast("Opening Super Admin Command Center…", { type: "success", title: "Welcome, Super Admin" });
+        toast("Opening Super Admin Command Center…", { type: "success", title: "Signed in" });
         const payload = encodeURIComponent(
           JSON.stringify({ token: data.adminToken, user: data.adminUser })
         );
@@ -130,7 +130,7 @@ const Login = () => {
         backendRole: data.role,
         mustChangePassword: false,
       });
-      toast("Welcome back to AUST ODL", { type: "success", title: "Login Successful" });
+      toast("You are signed in.", { type: "success" });
       navigate(ROLE_BASE[frontendRole] || `/${frontendRole}`, { replace: true });
     } catch (err) {
       // Surface the backend error message through the existing toast UI.

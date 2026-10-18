@@ -105,7 +105,7 @@ const TeacherLiveClasses = () => {
       // Only sends recordingUrl (+ status ENDED) — the backend rejects any
       // schedule change from a teacher, so this is schedule-safe.
       await api.teacher.updateLiveClass(rec.id, { recordingUrl: rec.recordingUrl.trim(), status: "ENDED" });
-      toast("Recording link saved ✓", { type: "success" });
+      toast("Recording link saved", { type: "success" });
       setRecOpen(false);
       reload();
     } catch (e) {

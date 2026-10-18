@@ -189,7 +189,7 @@ const NewDistribution = () => {
       const failCount = res.errors?.length || 0;
       if (okCount) {
         toast(
-          `${okCount} distribution${okCount === 1 ? "" : "s"} created${failCount ? ` · ${failCount} failed` : " ✓"}`,
+          `${okCount} distribution${okCount === 1 ? "" : "s"} created${failCount ? ` · ${failCount} failed` : "."}`,
           { type: failCount ? "warning" : "success", title: "Distribution" }
         );
         // Drop the rows that succeeded so only failures remain for correction.

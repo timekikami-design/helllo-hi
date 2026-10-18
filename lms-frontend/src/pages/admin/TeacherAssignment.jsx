@@ -83,7 +83,7 @@ const TeacherAssignment = () => {
     setBusy(true);
     try {
       await api.coordinator.assignDistributionTeacher(assigning.id, assignTeacher);
-      toast("Teacher assigned ✓", { type: "success" });
+      toast("Teacher assigned", { type: "success" });
       setAssigning(null);
       await reload();
     } catch (err) {
@@ -95,7 +95,7 @@ const TeacherAssignment = () => {
     const next = d.status === "ACTIVE" ? "COMPLETED" : "ACTIVE";
     try {
       await api.coordinator.updateDistribution(d.id, { status: next });
-      toast(`Marked ${next.toLowerCase()} ✓`, { type: "success" });
+      toast(`Marked ${next.toLowerCase()}`, { type: "success" });
       await reload();
     } catch (err) { toast(err?.data?.error || err.message, { type: "error" }); }
   };
@@ -104,7 +104,7 @@ const TeacherAssignment = () => {
     setBusy(true);
     try {
       await api.coordinator.deleteDistribution(deleting.id, force);
-      toast("Distribution removed ✓", { type: "success" });
+      toast("Distribution removed", { type: "success" });
       setDeleting(null);
       await reload();
     } catch (err) {
@@ -345,7 +345,7 @@ const CreateDistributionModal = ({ open, onClose, programs, teachers, sessions, 
         teacherId: teacherId || undefined,
         capacity: capacity ? parseInt(capacity, 10) : undefined,
       });
-      toast("Distribution created ✓", { type: "success" });
+      toast("Distribution created", { type: "success" });
       onCreated?.();
     } catch (e) {
       setErr(e?.data?.error || e.message || "Failed to create distribution.");
@@ -539,7 +539,7 @@ const EditDistributionModal = ({ distribution, onClose, teachers, semesters, onS
         creditHours: creditHours !== "" ? parseInt(creditHours, 10) : undefined,
         capacity: capacity !== "" ? parseInt(capacity, 10) : undefined,
       });
-      toast("Distribution updated ✓", { type: "success" });
+      toast("Distribution updated", { type: "success" });
       onSaved?.();
     } catch (e) {
       setErr(e?.data?.error || e.message || "Failed to update distribution.");
