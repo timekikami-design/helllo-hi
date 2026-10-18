@@ -1,54 +1,54 @@
-import { useState, useEffect } from "react";
+// lms-frontend/src/components/layout/DashboardLayout.jsx
+// App shell: skip link → sidebar / rail → top bar → offline banner → main.
+// The page area is contained (min-w-0, no page-level horizontal scroll),
+// guarded by an error boundary per route, and fades in subtly.
+import { useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
-import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../context/AuthContext";
 import FeeBlockGate from "../student/FeeBlockGate";
+import ErrorBoundary from "../common/ErrorBoundary";
+import NetworkStatus from "../common/NetworkStatus";
+
+const COLLAPSE_KEY = "aust_sidebar_collapsed";
 
 const DashboardLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("aust_sidebar_collapsed") === "true";
+    try { return typeof window !== "undefined" && window.localStorage.getItem(COLLAPSE_KEY) === "true"; } catch (_) { return false; }
   });
   const location = useLocation();
   const { user } = useAuth();
   const isStudent = user?.role === "student";
 
   useEffect(() => {
-    localStorage.setItem("aust_sidebar_collapsed", String(collapsed));
+    try { window.localStorage.setItem(COLLAPSE_KEY, String(collapsed)); } catch (_) { /* storage unavailable */ }
   }, [collapsed]);
 
-  // Close mobile sidebar on route change
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [location.pathname]);
+  // Close the mobile drawer on navigation and move focus to the new page.
+  useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
+
+  const closeDrawer = useCallback(() => setSidebarOpen(false), []);
+  const toggleCollapse = useCallback(() => setCollapsed((c) => !c), []);
 
   return (
-    <div className="min-h-screen flex bg-mesh">
-      <Sidebar
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        collapsed={collapsed}
-        onToggleCollapse={() => setCollapsed((c) => !c)}
-      />
+    <div className="min-h-dvh flex bg-canvas text-fg">
+      <a href="#main-content" className="skip-link">Skip to content</a>
+      <Sidebar isOpen={sidebarOpen} onClose={closeDrawer} collapsed={collapsed} onToggleCollapse={toggleCollapse} />
       <div className="flex-1 min-w-0 flex flex-col">
         <Navbar onMenuClick={() => setSidebarOpen(true)} />
-        <AnimatePresence mode="wait">
-          <motion.main
-            key={location.pathname}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            className="flex-1 px-4 lg:px-8 py-6 max-w-[1700px] w-full mx-auto"
-          >
+        <NetworkStatus />
+        <main id="main-content" tabIndex={-1} key={location.pathname} className="page-enter flex-1 min-w-0 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 py-6 lg:py-10 focus:outline-none">
+          <ErrorBoundary resetKey={location.pathname}>
             {isStudent ? <FeeBlockGate><Outlet /></FeeBlockGate> : <Outlet />}
-          </motion.main>
-        </AnimatePresence>
-        <footer className="px-4 lg:px-8 py-4 text-center text-xs text-muted-app border-t border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-950/60 backdrop-blur">
-          © 2025 Abbottabad University of Science & Technology · ODL Wing · All rights reserved.
+          </ErrorBoundary>
+        </main>
+        <footer className="px-4 sm:px-6 lg:px-10 py-6 border-t border-line text-[12px] leading-4 text-fg-muted">
+          <div className="mx-auto max-w-[1440px] flex flex-wrap justify-between gap-2">
+            <span>Abbottabad University of Science &amp; Technology · Open &amp; Distance Learning</span>
+            <span className="tabular-nums">© {new Date().getFullYear()}</span>
+          </div>
         </footer>
       </div>
     </div>
