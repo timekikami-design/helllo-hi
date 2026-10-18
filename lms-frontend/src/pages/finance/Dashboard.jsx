@@ -33,8 +33,8 @@ const FinanceDashboard = () => {
         subtitle="Track fee collection, approve payments, monitor defaulters, and publish financial reports."
         actions={
           <>
-            <Link to="/finance/approvals" className="px-4 py-2 bg-white text-slate-900 text-sm font-bold rounded-xl">Approve Payments</Link>
-            <Link to="/finance/reports" className="px-4 py-2 bg-white/15 text-white text-sm font-bold rounded-xl border border-white/30">Reports</Link>
+            <Link to="/finance/approvals" className="btn btn-primary">Approve Payments</Link>
+            <Link to="/finance/reports" className="btn btn-secondary">Reports</Link>
           </>
         }
       />
