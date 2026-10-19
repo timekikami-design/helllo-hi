@@ -12,6 +12,12 @@ const Modal = ({ open, onClose, title, subtitle, children, maxWidth = "max-w-2xl
   const panelRef = useRef(null);
   const lastFocus = useRef(null);
   const titleId = useId();
+  // Keep the latest onClose in a ref. Callers usually pass an inline arrow
+  // (a new function every render); depending on it re-ran this effect on
+  // every keystroke, which restored focus to the trigger and then re-focused
+  // the first field — so typing in any modal input lost focus after a word.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return undefined;
@@ -25,7 +31,7 @@ const Modal = ({ open, onClose, title, subtitle, children, maxWidth = "max-w-2xl
       (first || el).focus();
     }, 0);
     const onKey = (e) => {
-      if (e.key === "Escape") { e.stopPropagation(); onClose?.(); return; }
+      if (e.key === "Escape") { e.stopPropagation(); onCloseRef.current?.(); return; }
       if (e.key !== "Tab" || !panelRef.current) return;
       const items = [...panelRef.current.querySelectorAll(FOCUSABLE)].filter((n) => n.offsetParent !== null);
       if (!items.length) return;
@@ -40,7 +46,7 @@ const Modal = ({ open, onClose, title, subtitle, children, maxWidth = "max-w-2xl
       document.body.style.overflow = prevOverflow;
       if (lastFocus.current && typeof lastFocus.current.focus === "function") lastFocus.current.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open || typeof document === "undefined") return null;
 

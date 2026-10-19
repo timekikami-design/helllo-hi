@@ -183,7 +183,8 @@ export default function MarksPinGate({ children, title = "Marks Module" }) {
         ) : locked ? (
           <div className="rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 p-3 text-sm flex gap-2">
             <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-            Too many wrong attempts. The Marks module is locked until {new Date(status.lockedUntil).toLocaleTimeString()}.
+            {/* lockedUntil is stripped by the API's sensitive-field sanitizer, so fall back to the fixed lockout length. */}
+            Too many wrong attempts. The Marks module is locked {status.lockedUntil && !Number.isNaN(new Date(status.lockedUntil).getTime()) ? `until ${new Date(status.lockedUntil).toLocaleTimeString()}` : "for 15 minutes"}.
           </div>
         ) : status.mustReset ? (
           <form onSubmit={doCompleteReset} className="space-y-4" data-testid="pin-reset-form">

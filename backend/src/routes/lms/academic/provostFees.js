@@ -237,9 +237,32 @@ async function concessionRows(where) {
     return {
       ...r, student: p.fullName || r.studentId, roll: p.rollNumber || '', program: p.program || '',
       department: p.department || '', currentSemester: p.semester,
+      // Identity fields for the universal search on the Concessions page.
+      cnic: p.cnic || '', email: p.email || '', phone: p.phone || '',
+      registrationNumber: p.registrationNumber || '', username: p.username || '',
       grantedBy: names[r.grantedById] || r.grantedById, revokedBy: r.revokedById ? (names[r.revokedById] || r.revokedById) : null,
     };
   });
+}
+
+// Universal search: name / roll / ID card (registration no.) / username /
+// email / phone / CNIC / title. Case-insensitive, partial, trimmed. CNIC
+// matches with or without dashes; phone with or without spaces, dashes or a
+// +92 / 0092 / 0 prefix.
+const phoneCore = (d) => d.replace(/^(0092|92|0)/, '');
+function concessionMatches(r, raw) {
+  const t = str(raw).trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!t) return true;
+  const fields = [r.student, r.roll, r.title, r.registrationNumber, r.username, r.email, r.cnic, r.phone];
+  if (fields.some((v) => str(v).toLowerCase().includes(t))) return true;
+  if (!/^[\d\s\-+()]+$/.test(t)) return false;
+  const qd = t.replace(/\D/g, '');
+  if (!qd) return false;
+  const digits = (v) => str(v).replace(/\D/g, '');
+  if ([r.cnic, r.roll, r.registrationNumber].some((v) => digits(v).includes(qd))) return true;
+  const qp = phoneCore(qd);
+  const pd = phoneCore(digits(r.phone));
+  return !!qp && !!pd && pd.includes(qp);
 }
 
 router.get('/finance/concessions', PROVOST, asyncHandler(async (req, res) => {
@@ -251,10 +274,7 @@ router.get('/finance/concessions', PROVOST, asyncHandler(async (req, res) => {
   if (q(req, 'program')) items = items.filter((r) => r.program === q(req, 'program'));
   if (q(req, 'department')) items = items.filter((r) => r.department === q(req, 'department'));
   if (q(req, 'semester')) items = items.filter((r) => String(r.currentSemester) === q(req, 'semester'));
-  if (q(req, 'q')) {
-    const s = q(req, 'q').toLowerCase();
-    items = items.filter((r) => [r.student, r.roll, r.title].some((v) => str(v).toLowerCase().includes(s)));
-  }
+  if (q(req, 'q')) items = items.filter((r) => concessionMatches(r, q(req, 'q')));
   res.json({ items });
 }));
 

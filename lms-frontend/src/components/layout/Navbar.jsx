@@ -244,7 +244,7 @@ const Navbar = ({ onMenuClick }) => {
                       <span>Theme</span><ThemeToggle />
                     </div>
                     <button role="menuitem" type="button"
-                      onClick={() => { logout(); navigate("/login"); }}
+                      onClick={() => { logout(); navigate("/login", { replace: true }); }}
                       className="w-full flex items-center gap-2.5 h-10 px-3 rounded text-[14px] text-bad hover:bg-bad-soft">
                       <LogOut size={15} aria-hidden="true" /> Sign out
                     </button>

@@ -219,10 +219,10 @@ export const AuthProvider = ({ children }) => {
           if (!cancelled) setLoading(false);
         }
       } else {
-        const stored = localStorage.getItem("aust_user");
-        if (stored) {
-          try { setUser(JSON.parse(stored)); } catch (_) { /* ignore */ }
-        }
+        // No LMS token → signed out. A cached `aust_user` without a token is
+        // stale; trusting it rendered protected pages whose API calls 401'd
+        // and bounced the browser back to /login repeatedly.
+        localStorage.removeItem("aust_user");
         if (!cancelled) setLoading(false);
       }
     })();
@@ -261,9 +261,9 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem("aust_user");
+    // Clear the LMS session without a hard reload; navigate client-side.
+    authService.logout(false);
     setUser(null);
-    // Clear the backend LMS session + redirect to the LMS login page.
-    authService.logout(true);
   };
 
   /* refreshUser()

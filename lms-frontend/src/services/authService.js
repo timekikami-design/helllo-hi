@@ -102,10 +102,18 @@ function logout(redirect = true) {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(ROLE_KEY);
   sessionStorage.removeItem(TEMP_TOKEN_KEY);
-  if (redirect && typeof window !== 'undefined') {
-    window.location.href = '/login';
+  // Also drop the cached profile; leaving it behind made the app treat a
+  // signed-out browser as signed in, fire API calls without a token, and
+  // reload /login once per 401 (the "login page keeps refreshing" loop).
+  localStorage.removeItem('aust_user');
+  // Redirect at most once per page load, and never when already on /login —
+  // several concurrent 401s each called this and each forced a full reload.
+  if (redirect && typeof window !== 'undefined' && !redirecting && window.location.pathname !== '/login') {
+    redirecting = true;
+    window.location.replace('/login');
   }
 }
+let redirecting = false;
 
 function getToken() {
   return localStorage.getItem(TOKEN_KEY);

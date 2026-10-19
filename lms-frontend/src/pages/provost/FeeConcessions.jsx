@@ -29,16 +29,37 @@ const KIND_CHIP = {
   SCHOLARSHIP: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300",
   INSTALLMENT: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
 };
+// Universal search (same rules as the backend list endpoint): name / roll /
+// ID card / email / phone / CNIC / title — case-insensitive, partial, trimmed;
+// CNIC with or without dashes; phone with or without spaces, dashes, +92 / 0.
+const phoneCore = (d) => d.replace(/^(0092|92|0)/, "");
+const digitsOf = (v) => String(v || "").replace(/\D/g, "");
+function matchesSearch(r, raw) {
+  const t = String(raw || "").trim().toLowerCase().replace(/\s+/g, " ");
+  if (!t) return true;
+  if ([r.student, r.roll, r.title, r.registrationNumber, r.username, r.email, r.cnic, r.phone].some((v) => String(v || "").toLowerCase().includes(t))) return true;
+  if (!/^[\d\s\-+()]+$/.test(t)) return false;
+  const qd = digitsOf(t);
+  if (!qd) return false;
+  if ([r.cnic, r.roll, r.registrationNumber].some((v) => digitsOf(v).includes(qd))) return true;
+  const qp = phoneCore(qd);
+  const pd = phoneCore(digitsOf(r.phone));
+  return !!qp && !!pd && pd.includes(qp);
+}
+
 const EMPTY = { studentId: "", kind: "CONCESSION", title: "", mode: "percent", percent: "", amount: "", installments: "3", firstDueDate: "", semester: "", note: "" };
 
 export default function FeeConcessions() {
   const { toast } = useToast();
   const [kind, setKind] = useState("");
   const [search, setSearch] = useState("");
+  // ~300ms debounce; the input itself stays controlled so focus is never lost.
+  const [query, setQuery] = useState("");
+  useEffect(() => { const t = setTimeout(() => setQuery(search), 300); return () => clearTimeout(t); }, [search]);
   const { data, loading, error, reload } = useApi(() => api.provost.feeMgmt.concessions(kind ? `?kind=${kind}` : ""), [kind]);
   const { data: students } = useApi(() => api.provost.feeMgmt.students(""), []);
   useRealtime(api.provost.eventsUrl, { "fee:concession": () => reload() });
-  const items = useMemo(() => (data?.items || []).filter((r) => !search || [r.student, r.roll, r.title].some((v) => String(v || "").toLowerCase().includes(search.toLowerCase()))), [data, search]);
+  const items = useMemo(() => (data?.items || []).filter((r) => matchesSearch(r, query)), [data, query]);
 
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
@@ -99,7 +120,7 @@ export default function FeeConcessions() {
       <div className="card-base p-3 mb-5 flex flex-col md:flex-row gap-2">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-app" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search student, roll or title…" className="input-base w-full pl-10 text-sm" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, roll no., ID card, email, phone or CNIC…" data-testid="conc-search" className="input-base w-full pl-10 text-sm" />
         </div>
         <select value={kind} onChange={(e) => setKind(e.target.value)} className="input-base text-sm md:w-48">
           <option value="">All types</option>{Object.entries(KIND_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -107,7 +128,9 @@ export default function FeeConcessions() {
       </div>
 
       {error ? <ErrorState description={error} onRetry={reload} /> : loading ? <Skeleton className="h-80 w-full rounded-2xl" /> : items.length === 0 ? (
-        <div className="card-base"><EmptyState icon="Percent" title="No concessions yet" description="Grant a concession, scholarship or instalment plan to a student." /></div>
+        <div className="card-base">{query.trim() && (data?.items || []).length > 0
+          ? <EmptyState icon="SearchX" title="No records found" description="No concession, scholarship or instalment plan matches your search. Clear the search to see the full list." />
+          : <EmptyState icon="Percent" title="No concessions yet" description="Grant a concession, scholarship or instalment plan to a student." />}</div>
       ) : (
         <div className="card-base overflow-hidden">
           <div className="overflow-x-auto">

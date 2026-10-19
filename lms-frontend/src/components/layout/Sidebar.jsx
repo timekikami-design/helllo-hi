@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import * as Icons from "lucide-react";
 import Logo from "../common/Logo";
 import { useAuth } from "../../context/AuthContext";
@@ -290,6 +290,8 @@ const FOCUSABLE = 'a[href],button:not([disabled]),[tabindex]:not([tabindex="-1"]
  */
 const Sidebar = ({ isOpen, onClose, collapsed, onToggleCollapse }) => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const signOut = () => { logout(); navigate("/login", { replace: true }); };
   const menu = MENUS[user?.role] || studentMenu;
   const base = ROLE_BASE[user?.role] || "/student";
   const meta = ROLE_META[user?.role] || ROLE_META.student;
@@ -400,7 +402,7 @@ const Sidebar = ({ isOpen, onClose, collapsed, onToggleCollapse }) => {
           </span>
         )}
       </NavLink>
-      <button type="button" onClick={logout} aria-label={isRail ? "Sign out" : undefined} data-tip={isRail ? "Sign out" : undefined}
+      <button type="button" onClick={signOut} aria-label={isRail ? "Sign out" : undefined} data-tip={isRail ? "Sign out" : undefined}
         className={`rail-tip mt-1 flex items-center ${isRail ? "justify-center h-10 w-10 mx-auto" : "gap-3 h-9 px-3 w-full"} rounded text-[14px] text-fg-secondary hover:bg-surface hover:text-bad transition-colors`}>
         <Icons.LogOut size={17} strokeWidth={1.75} aria-hidden="true" />
         {!isRail && <span>Sign out</span>}

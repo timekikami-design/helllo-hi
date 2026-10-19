@@ -14,6 +14,16 @@ const EMPTY = {
   whatsapp: "", gender: "", maritalStatus: "", address: "",
 };
 
+// Declared at module scope: defined inside the page component it was a new
+// component type on every render, so React remounted the <input> on each
+// keystroke and the field lost focus after one character/word.
+const Field = ({ label, k, type = "text", placeholder, form, set }) => (
+  <div>
+    <label className="text-[10px] font-bold uppercase text-muted-app block mb-1">{label}</label>
+    <input type={type} className="input-base py-2 text-sm w-full" value={form[k]} placeholder={placeholder} onChange={(e) => set(k, e.target.value)} />
+  </div>
+);
+
 const ExamSettings = () => {
   const { user, refreshUser } = useAuth();
   const { toast } = useToast();
@@ -96,13 +106,6 @@ const ExamSettings = () => {
   const roleLabel = (account?.role || user?.role || "Exam Controller").replace(/([a-z])([A-Z])/g, "$1 $2");
   const initials = (form.fullName || account?.username || "EC").split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
 
-  const Field = ({ label, k, type = "text", placeholder }) => (
-    <div>
-      <label className="text-[10px] font-bold uppercase text-muted-app block mb-1">{label}</label>
-      <input type={type} className="input-base py-2 text-sm w-full" value={form[k]} placeholder={placeholder} onChange={(e) => set(k, e.target.value)} />
-    </div>
-  );
-
   return (
     <div>
       <PageHeader title="Settings" subtitle="Manage your Exam Controller profile, photo and security." icon="Settings" breadcrumb={["Exam Controller", "Settings"]} />
@@ -144,12 +147,12 @@ const ExamSettings = () => {
           ) : (
             <>
               <div className="grid sm:grid-cols-2 gap-3">
-                <Field label="Name" k="fullName" placeholder="Full name" />
-                <Field label="Father Name" k="fatherName" placeholder="Father's name" />
-                <Field label="CNIC" k="cnic" placeholder="00000-0000000-0" />
-                <Field label="Email" k="email" type="email" placeholder="name@example.com" />
-                <Field label="Phone" k="phone" placeholder="03xx-xxxxxxx" />
-                <Field label="WhatsApp" k="whatsapp" placeholder="03xx-xxxxxxx" />
+                <Field form={form} set={set} label="Name" k="fullName" placeholder="Full name" />
+                <Field form={form} set={set} label="Father Name" k="fatherName" placeholder="Father's name" />
+                <Field form={form} set={set} label="CNIC" k="cnic" placeholder="00000-0000000-0" />
+                <Field form={form} set={set} label="Email" k="email" type="email" placeholder="name@example.com" />
+                <Field form={form} set={set} label="Phone" k="phone" placeholder="03xx-xxxxxxx" />
+                <Field form={form} set={set} label="WhatsApp" k="whatsapp" placeholder="03xx-xxxxxxx" />
                 <div>
                   <label className="text-[10px] font-bold uppercase text-muted-app block mb-1">Gender</label>
                   <select className="input-base py-2 text-sm w-full" value={form.gender} onChange={(e) => set("gender", e.target.value)}>
