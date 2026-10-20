@@ -83,6 +83,12 @@ async function listUsers(req, res) {
           profile: { select: { department: true, fullName: true } },
         },
       });
+      // Change 4 — additional departments of teachers (additive field).
+      const extraDepts = {};
+      try {
+        const rows = await prisma.lmsTeacherDepartment.findMany({ where: { lmsUserId: { in: lms.filter((u) => u.role === 'Teacher').map((u) => u.id) } }, orderBy: { createdAt: 'asc' } });
+        for (const r of rows) (extraDepts[r.lmsUserId] ||= []).push(r.department);
+      } catch (_) { /* table not migrated yet — degrade to single department */ }
       lms.forEach((u) => out.push({
         system: 'lms',
         id: u.id,
@@ -98,6 +104,7 @@ async function listUsers(req, res) {
         rollNumber: u.linkedRollNumber,
         // Department binding (strict isolation key for Focal Person / Course Coordinator).
         department: u.profile?.department || null,
+        departments: u.role === 'Teacher' ? [...new Set([u.profile?.department, ...(extraDepts[u.id] || [])].filter(Boolean))] : undefined,
         fullName: u.profile?.fullName || null,
         createdAt: u.createdAt,
       }));
@@ -352,6 +359,17 @@ async function setLmsUserDepartment(req, res) {
       // Governance roles (Provost/QEC/ExamController) are intentionally NOT
       // department-bound — they keep university-wide oversight.
       return res.status(400).json({ error: `Role "${user.role}" is not department-bound.` });
+    }
+
+    // Change 4 — a Teacher can belong to several departments: the first one
+    // assigned stays the primary (profile.department), later ones are ADDED,
+    // and the department's coordinators / focal persons / members are told in
+    // real time. Every other role keeps the single-department behaviour below.
+    if (user.role === 'Teacher' && department && req.body.mode !== 'replace') {
+      const { assignTeacherDepartment } = require('../../services/teacherDepartments');
+      const r = await assignTeacherDepartment(id, department, req.user && req.user.id);
+      await logSaActivity({ req, module: 'users', action: 'assign_department', description: `Assigned LMS Teacher ${user.username} to department "${department}"${r.primary ? ' (primary)' : ''}`, metadata: { id, department } });
+      return res.json({ message: r.added ? 'Department assigned' : 'Teacher already belongs to this department', id, department, departments: r.departments });
     }
 
     const existing = await prisma.lmsStudentProfile.findUnique({ where: { lmsUserId: id } });

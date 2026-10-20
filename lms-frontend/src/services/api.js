@@ -259,6 +259,8 @@ const teacher = {
   // EventSource cannot set Authorization headers, so the token is passed
   // as a query param and verified server-side.
   eventsUrl: () => `${API_BASE}/lms/academic/teacher/events?token=${encodeURIComponent(authService.getToken() || '')}`,
+  // Change 3 — the teacher's assigned departments (read-only).
+  departments: () => get('/lms/academic/teacher/departments'),
   // In-app notifications (bell) — exam reminders etc.
   notifications: () => get('/lms/academic/teacher/notifications'),
   readNotification: (id) => put(`/lms/academic/teacher/notifications/${id}/read`),

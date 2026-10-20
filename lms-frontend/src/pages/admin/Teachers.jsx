@@ -10,6 +10,7 @@ import PageHeader from "../../components/common/PageHeader";
 import Modal from "../../components/common/Modal";
 import Badge from "../../components/common/Badge";
 import useApi from "../../hooks/useApi";
+import useRealtime from "../../hooks/useRealtime";
 import api, { fileUrl } from "../../services/api";
 import { Skeleton } from "../../components/common/Skeleton";
 import ErrorState from "../../components/common/ErrorState";
@@ -75,6 +76,9 @@ const Teachers = () => {
     () => api.coordinator.instructors(query),
     [query]
   );
+  // Change 4 — a teacher assigned to this department by the Super Admin
+  // appears immediately (real-time `department` event).
+  useRealtime(api.coordinator.eventsUrl, { department: () => reload() });
   const instructors = data?.instructors || [];
   const summary = data?.summary || { total: 0, active: 0, inactive: 0, assigned: 0 };
 

@@ -163,8 +163,13 @@ async function buildDeptScope(lmsUser) {
     : [];
   const offeringIds = offerings.map((o) => o.id);
 
-  // 4. Teachers who teach any of those offerings.
-  const teacherIds = [...new Set(offerings.map((o) => o.teacherId).filter(Boolean))];
+  // 4. Teachers who teach any of those offerings, plus (Change 4) teachers the
+  //    Super Admin assigned to this department as an additional department.
+  let extraTeacherIds = [];
+  try {
+    extraTeacherIds = (await prisma.lmsTeacherDepartment.findMany({ where: { department: { in: deptNameVariants } }, select: { lmsUserId: true } })).map((r) => r.lmsUserId);
+  } catch (_) { /* table not migrated yet */ }
+  const teacherIds = [...new Set([...offerings.map((o) => o.teacherId).filter(Boolean), ...extraTeacherIds])];
 
   // 5. Students belonging to the department. A student profile may store
   //    the department either by full name (e.g. "Department of Computing")
@@ -247,6 +252,13 @@ async function resolveDepartmentInstructorIds(scope) {
       select: { lmsUserId: true },
     });
     profs.forEach((p) => ids.add(p.lmsUserId));
+  }
+  // Change 4 — teachers assigned to this department as an additional department.
+  if (deptNameVariants.length) {
+    try {
+      const extra = await prisma.lmsTeacherDepartment.findMany({ where: { department: { in: deptNameVariants } }, select: { lmsUserId: true } });
+      extra.forEach((r) => ids.add(r.lmsUserId));
+    } catch (_) { /* table not migrated yet */ }
   }
 
   if (!ids.size) return [];

@@ -2437,6 +2437,12 @@ router.post('/messages/:userId', validate([
 }));
 
 // ---------- PROFILE / SETTINGS ----------
+// Change 3 — read-only list of the teacher's departments (primary first).
+router.get('/departments', asyncHandler(async (req, res) => {
+  const { departmentsOf } = require('../../../services/teacherDepartments');
+  res.json({ departments: await departmentsOf(req.lmsUser.id) });
+}));
+
 router.get('/profile', asyncHandler(async (req, res) => {
   const profile = await prisma.lmsStudentProfile.findUnique({ where: { lmsUserId: req.lmsUser.id } });
   res.json({ profile, username: req.lmsUser.username, role: req.lmsUser.role });

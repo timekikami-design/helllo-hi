@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { User, Bell, Globe, Save, Loader2, Camera, Shield, KeyRound, Eye, EyeOff } from "lucide-react";
+import { User, Bell, Globe, Save, Loader2, Camera, Shield, KeyRound, Eye, EyeOff, Building2 } from "lucide-react";
 import PageHeader from "../../components/common/PageHeader";
 import { Skeleton } from "../../components/common/Skeleton";
 import ErrorState from "../../components/common/ErrorState";
 import api, { fileUrl } from "../../services/api";
 import { useToast } from "../../context/ToastContext";
 import { useAuth } from "../../context/AuthContext";
+import useApi from "../../hooks/useApi";
+import useRealtime from "../../hooks/useRealtime";
 
 const MAX_PHOTO_BYTES = 2 * 1024 * 1024; // 2MB (matches uploadLmsAvatar)
 // Strong-password policy — mirrors the server-side rule in lmsAuthV2.js.
@@ -248,6 +250,8 @@ const TeacherSettings = () => {
               <h3 className="font-display font-bold text-xl mb-1">Profile Information</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">Manage your personal details and contact information.</p>
 
+              <MyDepartments />
+
               {/* Photo + identity */}
               <div className="flex items-center gap-4 mb-6">
                 <div className="relative">
@@ -384,5 +388,33 @@ const TeacherSettings = () => {
     </div>
   );
 };
+
+
+/* Change 3 — read-only "My Departments" card. Updates live when the Super
+   Admin assigns a department (real-time `department` event). */
+function MyDepartments() {
+  const { data, setData } = useApi(() => api.teacher.departments(), []);
+  useRealtime(api.teacher.eventsUrl, {
+    department: (d) => { if (d && Array.isArray(d.departments)) setData({ departments: d.departments }); },
+  });
+  const list = data?.departments || [];
+  return (
+    <div className="mb-6 rounded-xl border border-slate-100 dark:border-slate-800 p-4" data-testid="my-departments">
+      <p className="text-sm font-bold text-app flex items-center gap-2 mb-2"><Building2 size={15} className="text-primary-600" /> My Departments</p>
+      {list.length === 0 ? (
+        <p className="text-xs text-slate-500 dark:text-slate-400">No department has been assigned to you yet.</p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {list.map((d) => (
+            <span key={d.name} className={`px-2.5 py-1 rounded-full text-xs font-semibold ${d.isPrimary ? "bg-primary-600 text-white" : "bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-300"}`}>
+              {d.name}{d.isPrimary ? " · Primary" : ""}
+            </span>
+          ))}
+        </div>
+      )}
+      <p className="text-[11px] text-slate-400 mt-2">Assigned by the Super Admin. Read-only.</p>
+    </div>
+  );
+}
 
 export default TeacherSettings;

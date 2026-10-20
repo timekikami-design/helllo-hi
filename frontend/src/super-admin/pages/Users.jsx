@@ -30,7 +30,7 @@ const Users = () => {
   const [deptValue, setDeptValue] = useState('');
 
   // Department-bound LMS staff roles whose isolation depends on a department.
-  const DEPT_BOUND_ROLES = ['FocalPerson', 'CourseCoordinator'];
+  const DEPT_BOUND_ROLES = ['FocalPerson', 'CourseCoordinator', 'Teacher'];
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -97,6 +97,7 @@ const Users = () => {
 
   const doAssignDept = async () => {
     if (!deptEdit) return;
+    if (deptEdit.role === 'Teacher' && !deptValue) { toast.push('Select a department', 'error'); return; }
     setBusy(true);
     try {
       await saApi.setLmsUserDepartment(deptEdit.id, deptValue);
@@ -122,7 +123,8 @@ const Users = () => {
     { key: 'roleLabel', header: 'Role', render: (r) => <Badge color="gray">{r.roleLabel || r.role}</Badge> },
     { key: 'department', header: 'Department', render: (r) => (
       r.system === 'lms' && DEPT_BOUND_ROLES.includes(r.role)
-        ? (r.department ? <Badge color="blue">{r.department}</Badge> : <Badge color="red">Unassigned</Badge>)
+        ? (r.departments && r.departments.length > 1 ? <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap' }}>{r.departments.map((d) => <Badge key={d} color="blue">{d}</Badge>)}</span>
+          : r.department ? <Badge color="blue">{r.department}</Badge> : <Badge color="red">Unassigned</Badge>)
         : <span style={{ color: 'var(--sa-text-muted)' }}>—</span>
     ) },
     { key: 'isActive', header: 'Status', render: (r) => (
@@ -133,7 +135,7 @@ const Users = () => {
       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
         <button className="sa-btn sa-btn-ghost sa-btn-sm" title="Change role" onClick={() => { setRoleEdit(r); setNewRole(r.role); }}><i className="fas fa-user-tag" /></button>
         {r.system === 'lms' && DEPT_BOUND_ROLES.includes(r.role) && (
-          <button className="sa-btn sa-btn-ghost sa-btn-sm" title="Assign department" onClick={() => { setDeptEdit(r); setDeptValue(r.department || ''); }}><i className="fas fa-building" /></button>
+          <button className="sa-btn sa-btn-ghost sa-btn-sm" title="Assign department" onClick={() => { setDeptEdit(r); setDeptValue(r.role === 'Teacher' ? '' : (r.department || '')); }}><i className="fas fa-building" /></button>
         )}
         <button className="sa-btn sa-btn-ghost sa-btn-sm" title="Reset password" onClick={() => setConfirm({ user: r, action: 'reset' })}><i className="fas fa-key" /></button>
         {r.isLocked && <button className="sa-btn sa-btn-ghost sa-btn-sm" title="Unlock" onClick={() => setConfirm({ user: r, action: 'unlock' })}><i className="fas fa-lock-open" /></button>}
@@ -216,12 +218,18 @@ const Users = () => {
         <div className="sa-field">
           <label>Department</label>
           <select className="sa-select" value={deptValue} onChange={(e) => setDeptValue(e.target.value)}>
-            <option value="">— Unassigned (sees nothing) —</option>
+            <option value="">{deptEdit?.role === 'Teacher' ? '— Select a department —' : '— Unassigned (sees nothing) —'}</option>
             {departments.map((d) => <option key={d} value={d}>{d}</option>)}
           </select>
+          {deptEdit?.role === 'Teacher' ? (
+            <div style={{ fontSize: 11.5, color: 'var(--sa-text-muted)', marginTop: 4 }}>
+              Current: {(deptEdit.departments || []).length ? deptEdit.departments.join(', ') : 'none'}. The selected department is added to this teacher (the first one stays primary).
+            </div>
+          ) : (
           <div style={{ fontSize: 11.5, color: 'var(--sa-text-muted)', marginTop: 4 }}>
             Strict isolation: this staff member will only see the selected department's students, programs, courses and reports.
           </div>
+          )}
         </div>
       </FormModal>
 
