@@ -3494,6 +3494,11 @@ router.get('/scheme', asyncHandler(async (req, res) => {
   const completedReg = new Set(regs.filter((r) => r.status === 'COMPLETED').map((r) => r.offering.course.code));
   const inProgress = new Set(regs.filter((r) => r.status === 'ENROLLED' && (!term || r.offering.termId === term.id)).map((r) => r.offering.course.code));
   const courseStatus = (code) => (passedByCode[code] || completedReg.has(code) ? 'COMPLETED' : inProgress.has(code) ? 'IN_PROGRESS' : 'PENDING');
+  // Changes 9/10 — shared Pass/Fail + enrollment status (one source for every
+  // screen). A failed course stays FAILED (and not "Completed") even when it is
+  // carried into a later semester, until a later attempt passes.
+  const { studentCourseStatusResolver } = require('../../../services/courseStatusService');
+  const statusOf = await studentCourseStatusResolver(studentId);
 
   res.json({
     program: { id: program.id, code: program.code, name: program.name, shortForm: program.shortForm, totalSemesters: program.totalSemesters },
@@ -3503,7 +3508,9 @@ router.get('/scheme', asyncHandler(async (req, res) => {
       // Semester-level status derived from its courses.
       status: (() => {
         const st = s.courses.map((c) => courseStatus(c.code));
-        if (st.length && st.every((x) => x === 'COMPLETED')) return 'COMPLETED';
+        // Change 9 — a semester with a failed course is not "Completed".
+        const failed = s.courses.some((c) => statusOf(c.code).result === 'FAIL');
+        if (st.length && st.every((x) => x === 'COMPLETED') && !failed) return 'COMPLETED';
         if (st.some((x) => x === 'IN_PROGRESS')) return 'IN_PROGRESS';
         return 'PENDING';
       })(),
@@ -3515,6 +3522,10 @@ router.get('/scheme', asyncHandler(async (req, res) => {
         creditLabel: creditLabel(c),
         status: courseStatus(c.code),
         grade: passedByCode[c.code] ? passedByCode[c.code].grade : null,
+        // Change 10 — exactly one enrollment status + Pass/Fail where a result exists.
+        enrollment: statusOf(c.code).enrollment,
+        result: statusOf(c.code).result,
+        carried: statusOf(c.code).carried,
       })),
     })),
   });

@@ -6,6 +6,7 @@ import { Skeleton } from "../../components/common/Skeleton";
 import ErrorState from "../../components/common/ErrorState";
 import EmptyState from "../../components/common/EmptyState";
 import useApi from "../../hooks/useApi";
+import useRealtime from "../../hooks/useRealtime";
 import api from "../../services/api";
 import { formatCredits } from "../../utils/credit";
 
@@ -16,8 +17,18 @@ const statusStyle = (s) => {
   return { icon: Circle, color: "text-slate-400", chip: "bg-slate-100 text-slate-600", label: "Upcoming" };
 };
 
+// Change 10 — one enrollment status per course + Pass / Fail where a result exists.
+const ENROLL = {
+  COMPLETED: { icon: CheckCircle2, color: "text-emerald-600", chip: "bg-emerald-100 text-emerald-700", label: "Completed" },
+  CURRENTLY_ENROLLED: { icon: Clock, color: "text-blue-600", chip: "bg-blue-100 text-blue-700", label: "Currently Enrolled" },
+  UPCOMING: { icon: Circle, color: "text-slate-400", chip: "bg-slate-100 text-slate-600", label: "Upcoming" },
+};
+const enrollOf = (c) => ENROLL[c.enrollment] || null;
+
 const StudyScheme = () => {
   const { data, loading, error, reload } = useApi(() => api.student.scheme(), []);
+  // Real time: results published / re-enrolled → labels update without a refresh.
+  useRealtime(api.student.eventsUrl, { result: () => reload(), enrollment: () => reload() });
 
   const program = data?.program || null;
   const semesters = useMemo(() => data?.semesters || [], [data]);
@@ -28,7 +39,7 @@ const StudyScheme = () => {
       (s.courses || []).forEach((c) => {
         courses += 1;
         credits += c.creditHours || 0;
-        if (["COMPLETED", "PASSED"].includes((c.status || "").toUpperCase())) {
+        if (c.enrollment ? c.enrollment === "COMPLETED" : ["COMPLETED", "PASSED"].includes((c.status || "").toUpperCase())) {
           doneCourses += 1;
           done += c.creditHours || 0;
         }
@@ -86,7 +97,7 @@ const StudyScheme = () => {
                   </div>
                   <div className="divide-y divide-slate-100 dark:divide-slate-800">
                     {(sem.courses || []).map((c, j) => {
-                      const st = statusStyle(c.status);
+                      const st = enrollOf(c) || statusStyle(c.status);
                       const StIcon = st.icon;
                       return (
                         <div key={c.code || j} className="px-5 py-3 flex items-center gap-3">
@@ -95,7 +106,12 @@ const StudyScheme = () => {
                           <span className="flex-1 text-sm text-slate-900 dark:text-slate-100">{c.title}</span>
                           <span className="text-xs text-slate-500 dark:text-slate-400">{formatCredits(c)} CH{c.hasLab ? " (T+L)" : ""}</span>
                           {c.grade && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">{c.grade}</span>}
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${st.chip}`}>{st.label}</span>
+                          <span data-testid="course-enrollment" className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${st.chip}`}>{st.label}</span>
+                          {c.result && (
+                            <span data-testid="course-result" title={c.carried ? "Failed earlier — carried forward until passed" : undefined} className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${c.result === "PASS" ? "bg-emerald-600 text-white" : "bg-rose-600 text-white"}`}>
+                              {c.result === "PASS" ? "Passed" : "Failed"}
+                            </span>
+                          )}
                         </div>
                       );
                     })}
