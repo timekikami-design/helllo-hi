@@ -34,10 +34,12 @@ function liveConvert(obtained, total, weight) {
   return round2(Math.min(Math.max((n / Number(total)) * cap, 0), cap));
 }
 
-function Cell({ cell, item, editable, onSave, onDraft, total: totalOverride }) {
+function Cell({ cell, item, editable, onSave, onDraft, total: totalOverride, pendingSlot }) {
   const [val, setVal] = useState(null);
   const [saving, setSaving] = useState(false);
-  const noItem = !item.created && !item.editable;
+  // Change 1 — an allowed-but-not-yet-created item is still enterable here
+  // (pendingSlot); it is created automatically when its first mark is saved.
+  const noItem = !item.created && !item.editable && !pendingSlot;
   const total = totalOverride ?? cell?.total ?? item.totalMarks;
   // While a value is being typed, show its converted weight immediately.
   const typing = val !== null;
@@ -96,6 +98,8 @@ export default function GradebookPanel({ offeringId }) {
     return { ...d, [k]: v };
   });
   const [savingTotals, setSavingTotals] = useState(false);
+  // Change 1 — Total Marks typed once per not-yet-created item: { itemKey: "20" }
+  const [slotTotals, setSlotTotals] = useState({});
 
   // Real-time: student quiz submissions / other edits refresh the grid.
   useRealtime(api.teacher.eventsUrl, {
@@ -122,9 +126,11 @@ export default function GradebookPanel({ offeringId }) {
     }
     return round2(total);
   };
+  const isSlot = (it) => !it.created && !it.editable && !it.legacy && !it.category?.exam;
   const saveCell = async (row, item, marks) => {
     try {
-      await api.marks.saveCell(offeringId, { kind: item.kind, itemId: item.id, studentId: row.studentId, marks });
+      const slot = isSlot(item) ? { slot: Number(String(item.key).split("-slot-")[1]), totalMarks: slotTotals[item.key] } : {};
+      await api.marks.saveCell(offeringId, { kind: item.kind, itemId: item.id, studentId: row.studentId, marks, ...slot });
       await reload();
     } catch (e) { toast(e.message, { type: "error" }); throw e; }
   };
@@ -190,7 +196,12 @@ export default function GradebookPanel({ offeringId }) {
             </tr>
             <tr className="bg-slate-50 dark:bg-slate-900 text-[10px] text-slate-500">
               {columns.map((it) => (
-                <th key={it.key} className="px-2 py-1 text-center font-medium border-l border-slate-100 dark:border-slate-800 whitespace-nowrap">{it.label}<br /><span className="text-slate-400">{fmt(it.itemWeight)}%</span></th>
+                <th key={it.key} className="px-2 py-1 text-center font-medium border-l border-slate-100 dark:border-slate-800 whitespace-nowrap">{it.label}<br /><span className="text-slate-400">{fmt(it.itemWeight)}%</span>
+                  {open && isSlot(it) && (
+                    <input value={slotTotals[it.key] ?? ""} onChange={(e) => { const v = e.target.value.replace(/[^\d.]/g, ""); setSlotTotals((t) => ({ ...t, [it.key]: v })); }}
+                      placeholder="Total" aria-label={`${it.label} total marks`} className="mt-1 block mx-auto w-14 input-base text-center text-[11px] py-0.5 px-1" />
+                  )}
+                </th>
               ))}
             </tr>
           </thead>
@@ -204,8 +215,10 @@ export default function GradebookPanel({ offeringId }) {
                 {columns.map((it) => (
                   <Cell key={it.key} cell={row.cells[it.key]} item={it}
                     total={it.category?.key === "mid" ? (totals.mid !== undefined && totals.mid !== "" ? Number(totals.mid) : undefined)
-                      : it.category?.key === "final" ? (totals.final !== undefined && totals.final !== "" ? Number(totals.final) : undefined) : undefined}
-                    editable={open && row.editable && (it.created || it.editable) && !it.legacy}
+                      : it.category?.key === "final" ? (totals.final !== undefined && totals.final !== "" ? Number(totals.final) : undefined)
+                      : isSlot(it) ? (slotTotals[it.key] ? Number(slotTotals[it.key]) : undefined) : undefined}
+                    pendingSlot={open && isSlot(it)}
+                    editable={open && row.editable && (it.created || it.editable || isSlot(it)) && !it.legacy}
                     onDraft={(v) => setDraft(row.studentId, it.key, v === null ? undefined : v)}
                     onSave={(m) => saveCell(row, it, m)} />
                 ))}
@@ -215,7 +228,7 @@ export default function GradebookPanel({ offeringId }) {
           </tbody>
         </table>
       </div>
-      <p className="text-[11px] text-muted-app">Converted value = (obtained ÷ total) × item weight. Items the coordinator allowed but you have not created yet show as "not created" — create them from Assignments / Quizzes / Lab Tasks (limits apply).</p>
+      <p className="text-[11px] text-muted-app">Converted value = (obtained ÷ total) × item weight. For an item you have not created yet, enter its Total once (under the column name) and then type marks — the item is created automatically with the first saved mark (fill items in order).</p>
     </div>
   );
 }

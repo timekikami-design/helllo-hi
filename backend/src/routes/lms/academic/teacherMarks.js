@@ -172,11 +172,59 @@ router.put('/offerings/:id/exam-totals', asyncHandler(async (req, res) => {
   res.json({ message: 'Total marks saved', midTotalMarks, finalTotalMarks });
 }));
 
+// Change 1 — a coordinator-allowed Assignment / Quiz / Lab / Project slot that
+// the teacher has not created yet is created automatically (with the Total
+// Marks the teacher entered once in the Marks module) the first time a mark is
+// saved into it. Idempotent: an existing auto-created item for the same slot is
+// reused, and a per-slot lock prevents two concurrent saves creating twice.
+const slotLocks = new Map();
+async function ensureSlotItem(offering, kind, slot, totalMarks) {
+  const gb = await gradebook.buildGradebook(offering);
+  const cat = gb.categories.find((c) => c.key === kind && !c.exam);
+  const item = cat && cat.items.find((it) => it.key === `${kind}-slot-${slot}`);
+  if (!item) {
+    // Already created (by an earlier save or from the item's own module)?
+    const created = cat && cat.items.filter((it) => it.created && it.id)[Number(slot) - 1];
+    if (created) return created.id;
+    throw httpError(400, 'This item is not part of the Course Coordinator\'s weightage for this course.');
+  }
+  // Items fill in order (Quiz 1, Quiz 2, …) so a column never changes position.
+  const firstOpen = cat.items.find((it) => !it.created);
+  if (firstOpen && firstOpen.key !== item.key) throw httpError(400, `Enter marks for ${firstOpen.label} first.`);
+  const total = Number(totalMarks);
+  if (!Number.isFinite(total) || total <= 0 || total > 1000) throw httpError(400, `Enter the Total Marks for ${item.label} first (a positive number, max 1000).`);
+  const lockKey = `${offering.id}|${kind}|${slot}`;
+  while (slotLocks.has(lockKey)) await slotLocks.get(lockKey); // eslint-disable-line no-await-in-loop
+  let release; slotLocks.set(lockKey, new Promise((r) => { release = r; }));
+  try {
+    const title = item.label;
+    const today = new Date().toISOString().slice(0, 10);
+    if (kind === 'quiz') {
+      const ex = await prisma.quiz.findFirst({ where: { offeringId: offering.id, title, isDeleted: false } });
+      if (ex) return ex.id;
+      return (await prisma.quiz.create({ data: { offeringId: offering.id, title, totalMarks: total, isPublished: false, description: 'Created from the Marks module' } })).id;
+    }
+    if (kind === 'lab') {
+      const ex = await prisma.labTask.findFirst({ where: { offeringId: offering.id, title, isDeleted: false } });
+      if (ex) return ex.id;
+      return (await prisma.labTask.create({ data: { offeringId: offering.id, title, totalMarks: total, dueDate: today, isPublished: false, description: 'Created from the Marks module' } })).id;
+    }
+    const akind = kind === 'project' ? 'PROJECT' : 'ASSIGNMENT';
+    const ex = await prisma.assignment2.findFirst({ where: { offeringId: offering.id, title, kind: akind, isDeleted: false } });
+    if (ex) return ex.id;
+    return (await prisma.assignment2.create({ data: { offeringId: offering.id, kind: akind, title, totalMarks: total, dueDate: today, isPublished: false, description: 'Created from the Marks module' } })).id;
+  } finally { slotLocks.delete(lockKey); release(); }
+}
+
 // Edit one gradebook cell (Assignment / Quiz / Lab / Project item, or Mid / Final).
 router.put('/offerings/:id/cell', asyncHandler(async (req, res) => {
   const offering = await ownedOffering(req, req.params.id);
   assertOfferingOpen(offering);
-  const { kind, itemId, studentId } = req.body || {};
+  const { kind, studentId } = req.body || {};
+  let { itemId } = req.body || {};
+  if (!itemId && req.body && req.body.slot != null && ['assignment', 'quiz', 'lab', 'project'].includes(kind)) {
+    itemId = await ensureSlotItem(offering, kind, Number(req.body.slot), req.body.totalMarks);
+  }
   const raw = req.body.marks;
   if (!studentId) throw httpError(400, 'studentId is required');
   const reg = await prisma.courseRegistration.findFirst({ where: { offeringId: offering.id, studentId } });
