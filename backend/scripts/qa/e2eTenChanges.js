@@ -278,9 +278,13 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       // Pass the retake → PASSED everywhere, live.
       const sl = listen(st); const tl = listen(t1);
       await wait(600);
-      await prisma.$executeRawUnsafe(`INSERT INTO "CourseResult" (offeringId, studentId, totalPercent, letterGrade, gradePoints, status, workflowStage, publishedAt, unofficialAt, createdAt, updatedAt) VALUES (?, ?, 72, 'B-', 3.2, 'PUBLISHED', 'UNOFFICIAL', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, retake.id, fail.id);
-      const { broadcastStatusChange } = require(path.join(__dirname, '../../src/services/courseStatusService'));
-      await broadcastStatusChange({ studentIds: [fail.id], offeringIds: [retake.id] });
+      // Real flow: teacher submitted → Exam declares unofficial via the API
+      // (the SSE bus lives in the server process, so the broadcast must run there).
+      await prisma.$executeRawUnsafe(`INSERT INTO "CourseResult" (offeringId, studentId, totalPercent, letterGrade, gradePoints, status, workflowStage, createdAt, updatedAt) VALUES (?, ?, 72, 'B-', 3.2, 'DRAFT', 'SUBMITTED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, retake.id, fail.id);
+      await prisma.courseOffering.update({ where: { id: retake.id }, data: { resultSubmittedAt: new Date() } });
+      const cInfo = await prisma.lmsCourse.findUnique({ where: { id: course.id }, include: { program: true, semester: true } });
+      const dec = await call(exam, 'POST', '/lms/academic/exam/workflow/collection/declare-unofficial', { department: cInfo.program?.department || '—', program: cInfo.program?.shortForm || cInfo.program?.code, semester: String(cInfo.semester?.number || ''), confirm: true });
+      ok(dec.status === 200, `Change 9: exam declared the retake result (${dec.status} ${dec.body.message || dec.body.error || ''})`);
       await wait(1200);
       const sch3 = await call(st, 'GET', '/lms/academic/student/scheme');
       const c3 = sch3.body.semesters.flatMap((s) => s.courses).find((c) => c.code === fc.code);
