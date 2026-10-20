@@ -202,9 +202,12 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     await prisma.lmsStudentProfile.create({ data: { ...rest, lmsUserId: u2.id, fullName: 'QA Auto 2', rollNumber: 'QA-AUTO-2', registrationNumber: 'REG-QA-AUTO-2', cnic: '00000-2222222-2', session: 'Fall 2199', programShortForm: 'ZZNONE', program: 'No Such Program' } });
     const none = await autoEnrollStudent(u2.id);
     ok(none.enrolled === 0 && !!none.reason, `Change 5: no program/scheme yet → no error (${none.reason})`);
-    await prisma.lmsStudentProfile.update({ where: { lmsUserId: u2.id }, data: { programShortForm: tmpl.programShortForm, program: tmpl.program } });
+    // Log in first (login itself runs auto-enroll; nothing to enroll yet), then
+    // give the student a program and create the batch scheme → live push.
     const sl = listen((await lmsLogin(BASE, 'QA-AUTO-2', 'Qa@12345')).token);
     await wait(600);
+    await prisma.lmsStudentProfile.update({ where: { lmsUserId: u2.id }, data: { programShortForm: tmpl.programShortForm, program: tmpl.program } });
+    ok((await prisma.courseRegistration.count({ where: { studentId: u2.id } })) === 0, 'Change 5: nothing enrolled before the batch scheme exists');
     const s2100 = await call(coord, 'POST', `/lms/academic/coordinator/schemes/${sourceId}/clone`, { batch: 'Fall 2199' });
     await wait(4000);
     const regs2 = await prisma.courseRegistration.count({ where: { studentId: u2.id } });
@@ -253,7 +256,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     // Carry the failed course into a new term → still FAILED until passed.
     const fc = failed[0];
     const course = await prisma.lmsCourse.findFirst({ where: { code: fc.code } });
-    const newTerm = await prisma.academicTerm.create({ data: { title: 'QA Next Term', code: `QA-NEXT-${Date.now()}`, startDate: new Date(), endDate: new Date(Date.now() + 864e5 * 120), isCurrent: false, isActive: true } }).catch(() => null);
+    const newTerm = await prisma.academicTerm.create({ data: { title: 'QA Next Term', code: `QA-NEXT-${Date.now()}`, startDate: new Date().toISOString().slice(0, 10), endDate: new Date(Date.now() + 864e5 * 120).toISOString().slice(0, 10), isCurrent: false, isActive: true } }).catch((e) => { console.log('term create error:', e.message); return null; });
     let retake = null;
     if (newTerm) {
       const oldCur = await prisma.academicTerm.findFirst({ where: { isCurrent: true } });
