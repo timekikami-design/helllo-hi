@@ -82,7 +82,9 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       ok(quizzesAfter === quizzesBefore + 1, `Change 1: exactly one quiz auto-created (${quizzesBefore} → ${quizzesAfter})`);
       const gb2 = await call(teacher, 'GET', `/lms/academic/teacher/marks/offerings/${off.id}/gradebook`, null, mt);
       const cell = gb2.body.rows.find((r) => r.studentId === row.studentId).cells[gb2.body.categories.find((c) => c.key === 'quiz').items[n - 1].key];
-      ok(cell && cell.obtained === 15 && cell.total === 20 && cell.converted === 2.5, `Change 1: converted value uses the existing formula (15/20 × 5 = ${cell && cell.converted})`);
+      const itemW = gb2.body.categories.find((c) => c.key === 'quiz').items[n - 1].itemWeight;
+      const expectConv = Math.round((15 / 20) * itemW * 100) / 100;
+      ok(cell && cell.obtained === 15 && cell.total === 20 && cell.converted === expectConv, `Change 1: converted value uses the existing formula (15/20 × ${itemW} = ${cell && cell.converted})`);
       const cr = await prisma.courseResult.findUnique({ where: { offeringId_studentId: { offeringId: off.id, studentId: row.studentId } } });
       ok(cr && cr.quizMarks >= 2.5, `Change 1: flows into the stored result (quizMarks ${cr && cr.quizMarks})`);
       const as = await call(teacher, 'PUT', `/lms/academic/teacher/marks/offerings/${off.id}/cell`, { kind: 'assignment', slot: 1, totalMarks: 10, studentId: row.studentId, marks: 8 }, mt);
@@ -145,7 +147,17 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       const r = await call(coord, 'POST', '/lms/academic/coordinator/schemes', { programId: program.id, name: 'ADCS Scheme', batch: '' });
       sourceId = r.body.scheme.id;
     }
+    // Source scheme must have Semester-1 courses: add them through the API
+    // (exercises "add a course to a scheme").
+    if (!(await prisma.schemeCourse.count({ where: { schemeId: sourceId } }))) {
+      const sem1 = await prisma.lmsSemester.findFirst({ where: { programId: program.id, number: 1, isDeleted: false }, include: { courses: { where: { isDeleted: false } } } });
+      for (const c of sem1.courses) await call(coord, 'POST', `/lms/academic/coordinator/schemes/${sourceId}/items`, { courseId: c.id, semester: 1 });
+      const sem2 = await prisma.lmsSemester.findFirst({ where: { programId: program.id, number: 2, isDeleted: false }, include: { courses: { where: { isDeleted: false } } } });
+      for (const c of (sem2 ? sem2.courses : [])) await call(coord, 'POST', `/lms/academic/coordinator/schemes/${sourceId}/items`, { courseId: c.id, semester: 2 });
+    }
+    await wait(1500); // let the background Semester-1 re-run finish
     const srcBefore = await prisma.schemeCourse.findMany({ where: { schemeId: sourceId } });
+    ok(srcBefore.length > 0, `Change 8: courses added to a scheme (${srcBefore.length})`);
     const cl = await call(coord, 'POST', `/lms/academic/coordinator/schemes/${sourceId}/clone`, { batch: 'Fall 2099' });
     ok(cl.status === 201 && cl.body.copied === srcBefore.length, `Change 8: copy scheme to new batch (${cl.status}, ${cl.body.copied}/${srcBefore.length} courses)`);
     const newId = cl.body.scheme && cl.body.scheme.id;
