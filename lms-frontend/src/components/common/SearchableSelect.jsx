@@ -9,7 +9,7 @@ import { ChevronDown, Search, Check, X } from "lucide-react";
  * actual label text; never shows placeholder/dummy values.
  *
  * Props:
- *   - options: [{ value, label, hint? }]
+ *   - options: [{ value, label, hint?, keywords? }] (keywords: extra "|"-separated searchable text)
  *   - value:   currently selected value
  *   - onChange(value)
  *   - placeholder, searchPlaceholder
@@ -41,10 +41,16 @@ const SearchableSelect = ({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return options;
+    // Optional `keywords` (extra searchable text per option). For number-like
+    // queries (CNIC / phone) dashes, spaces and a +92 / 0092 / 0 prefix are
+    // ignored on both sides. Options without keywords behave as before.
+    const numeric = /^[\d\s\-+()]+$/.test(q) ? q.replace(/\D/g, "").replace(/^(0092|92|0)/, "") : "";
     return options.filter(
       (o) =>
         String(o.label || "").toLowerCase().includes(q) ||
-        String(o.hint || "").toLowerCase().includes(q)
+        String(o.hint || "").toLowerCase().includes(q) ||
+        (o.keywords && String(o.keywords).toLowerCase().includes(q)) ||
+        (numeric && o.keywords && String(o.keywords).split("|").some((k) => k.replace(/\D/g, "").includes(numeric)))
     );
   }, [options, query]);
 

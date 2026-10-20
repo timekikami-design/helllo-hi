@@ -7,6 +7,7 @@ import Modal from "../../components/common/Modal";
 import { Skeleton } from "../../components/common/Skeleton";
 import ErrorState from "../../components/common/ErrorState";
 import EmptyState from "../../components/common/EmptyState";
+import SearchableSelect from "../../components/common/SearchableSelect";
 import useApi from "../../hooks/useApi";
 import useRealtime from "../../hooks/useRealtime";
 import api from "../../services/api";
@@ -58,6 +59,12 @@ export default function FeeConcessions() {
   useEffect(() => { const t = setTimeout(() => setQuery(search), 300); return () => clearTimeout(t); }, [search]);
   const { data, loading, error, reload } = useApi(() => api.provost.feeMgmt.concessions(kind ? `?kind=${kind}` : ""), [kind]);
   const { data: students } = useApi(() => api.provost.feeMgmt.students(""), []);
+  const studentOptions = useMemo(() => (students?.items || []).map((s) => ({
+    value: s.studentId,
+    label: `${s.roll} — ${s.name} (${s.program || "—"} · Sem ${s.semester || "—"})`,
+    hint: [s.cnic, s.email, s.phone].filter(Boolean).join(" · "),
+    keywords: [s.name, s.roll, s.program, s.cnic, s.email, s.phone].filter(Boolean).join("|"),
+  })), [students]);
   useRealtime(api.provost.eventsUrl, { "fee:concession": () => reload() });
   const items = useMemo(() => (data?.items || []).filter((r) => matchesSearch(r, query)), [data, query]);
 
@@ -161,10 +168,17 @@ export default function FeeConcessions() {
         <div className="space-y-3">
           <div>
             <label className="text-[10px] uppercase font-bold text-muted-app mb-1 block">Student</label>
-            <select value={form.studentId} onChange={(e) => set("studentId", e.target.value)} className="input-base w-full text-sm" data-testid="conc-student">
-              <option value="">Select student…</option>
-              {(students?.items || []).map((s) => <option key={s.studentId} value={s.studentId}>{s.roll} — {s.name} ({s.program || "—"} · Sem {s.semester || "—"})</option>)}
-            </select>
+            {/* Change 2 — searchable: name, roll no., program, CNIC, email, phone. */}
+            <div data-testid="conc-student">
+              <SearchableSelect
+                value={form.studentId}
+                onChange={(v) => set("studentId", v)}
+                options={studentOptions}
+                placeholder="Select student…"
+                searchPlaceholder="Search name, roll no., program, CNIC, email or phone…"
+                emptyText="No students found"
+              />
+            </div>
           </div>
           {preview && (
             <div className="rounded-lg bg-app-subtle p-3 text-xs text-app" data-testid="conc-preview">

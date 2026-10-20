@@ -1328,6 +1328,9 @@ router.get('/finance/students', PROVOST, asyncHandler(async (req, res) => {
       name: p.fullName,
       roll: p.rollNumber,
       cnic: p.cnic,
+      // Change 2 — read-only contact fields for the searchable grant picker.
+      email: p.email,
+      phone: p.phone,
       program: p.program,
       department: p.department,
       semester: p.semester,
