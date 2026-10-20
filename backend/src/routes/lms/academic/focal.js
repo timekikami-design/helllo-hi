@@ -1257,7 +1257,7 @@ router.get('/students/:id', FOCAL_OR_GOV, asyncHandler(async (req, res) => {
       enrollmentHistory: student.registrations.map((r) => ({
         id: r.id, course: `${r.offering.course.code} — ${r.offering.course.title}`,
         term: r.offering.term ? r.offering.term.title : null,
-        status: r.status, type: r.registrationType, registeredAt: r.registeredAt,
+        status: r.status, type: r.registrationType, registeredAt: r.registeredAt, courseStatus: stOf(r.offering.course.code),
       })),
       registrations: student.registrations.map((r) => ({ id: r.id, course: `${r.offering.course.code} — ${r.offering.course.title}`, status: r.status, type: r.registrationType, teacher: teacherName(r.offering), courseStatus: stOf(r.offering.course.code) })),
       results,

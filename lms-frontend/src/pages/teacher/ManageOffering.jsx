@@ -6,6 +6,7 @@ import {
   Sparkles, FileSpreadsheet, FileDown, Search, Filter,
 } from "lucide-react";
 import PageHeader from "../../components/common/PageHeader";
+import CourseStatusBadge from "../../components/common/CourseStatusBadge";
 import Badge from "../../components/common/Badge";
 import Modal from "../../components/common/Modal";
 import { Skeleton } from "../../components/common/Skeleton";
@@ -194,7 +195,7 @@ function StudentsTab({ offeringId }) {
                 <td className="px-4 py-3 font-semibold text-app">{s.name}</td>
                 <td className="px-4 py-3 text-xs">{s.cnic || "—"}</td>
                 <td className="px-4 py-3 text-xs">{s.phone || "—"}</td>
-                <td className="px-4 py-3"><Badge color="emerald" size="sm">{(s.status || "").toLowerCase()}</Badge></td>
+                <td className="px-4 py-3"><Badge color="emerald" size="sm">{(s.status || "").toLowerCase()}</Badge> <CourseStatusBadge status={s.courseStatus} className="ml-1" /></td>
                 <td className="px-4 py-3 text-right whitespace-nowrap">
                   <button onClick={() => setProfile(s)} className="text-primary-600 text-xs font-semibold hover:underline mr-3">Profile</button>
                   <button onClick={() => exportPdf("individual", s.rollNumber)} className="text-muted-app text-xs hover:underline">PDF</button>

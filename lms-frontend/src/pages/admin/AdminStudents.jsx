@@ -5,6 +5,7 @@ import {
   ClipboardCheck, ArrowRightLeft,
 } from "lucide-react";
 import PageHeader from "../../components/common/PageHeader";
+import CourseStatusBadge from "../../components/common/CourseStatusBadge";
 import StatCard from "../../components/common/StatCard";
 import Badge from "../../components/common/Badge";
 import Modal from "../../components/common/Modal";
@@ -339,7 +340,7 @@ function StudentProfileView({ profile }) {
                     <td className="py-1.5 text-app">{e.course}</td>
                     <td className="py-1.5 text-center text-muted-app">{e.credits}</td>
                     <td className="py-1.5 text-muted-app">{e.term || "—"}</td>
-                    <td className="py-1.5 text-center"><Badge color={e.status === "ENROLLED" ? "emerald" : e.status === "DROPPED" ? "rose" : "amber"}>{e.status}</Badge></td>
+                    <td className="py-1.5 text-center"><Badge color={e.status === "ENROLLED" ? "emerald" : e.status === "DROPPED" ? "rose" : "amber"}>{e.status}</Badge> <CourseStatusBadge status={e.courseStatus} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -365,7 +366,7 @@ function StudentProfileView({ profile }) {
                     <td className="py-1.5 text-app">{c.course}</td>
                     <td className="py-1.5 text-center text-muted-app">{c.credits}</td>
                     <td className="py-1.5 text-center text-muted-app">{c.percent ?? "—"}</td>
-                    <td className="py-1.5 text-center font-bold text-app">{c.grade || "—"}</td>
+                    <td className="py-1.5 text-center font-bold text-app">{c.grade || "—"} <CourseStatusBadge status={c.courseStatus} className="ml-1" /></td>
                     <td className="py-1.5 text-center text-muted-app">{c.gpa ?? "—"}</td>
                   </tr>
                 ))}

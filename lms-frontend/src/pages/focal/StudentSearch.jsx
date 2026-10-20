@@ -1,5 +1,6 @@
 import { useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
+import CourseStatusBadge from "../../components/common/CourseStatusBadge";
 import EnterpriseTable from "../../components/enterprise/EnterpriseTable";
 import ExportButtons from "../../components/enterprise/ExportButtons";
 import Modal from "../../components/common/Modal";
@@ -200,7 +201,7 @@ const StudentSearch = () => {
                           <Td className="font-mono text-xs">{r.midMarks ?? "—"}</Td>
                           <Td className="font-mono text-xs">{r.finalMarks ?? "—"}</Td>
                           <Td className="font-mono">{r.percent}%</Td>
-                          <Td className="font-bold">{r.grade}</Td>
+                          <Td className="font-bold">{r.grade} <CourseStatusBadge status={r.courseStatus} className="ml-1" /></Td>
                           <Td className="font-mono">{r.gradePoints}</Td>
                         </tr>
                       ))}
@@ -304,7 +305,7 @@ const StudentSearch = () => {
                         <Td className="text-xs">{e.course}</Td>
                         <Td className="text-xs">{e.term || "—"}</Td>
                         <Td className="text-xs">{e.type}</Td>
-                        <Td><span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300">{e.status}</span></Td>
+                        <Td><span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300">{e.status}</span> <CourseStatusBadge status={e.courseStatus} /></Td>
                         <Td className="text-xs">{fmtDate(e.registeredAt)}</Td>
                       </tr>
                     ))}</tbody>
