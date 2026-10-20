@@ -64,6 +64,7 @@ export const NAV_GROUPS = [
   {
     label: 'System',
     items: [
+      { to: '/super-admin/system/landing-content', icon: 'fa-pen-to-square', label: 'Landing Page Content' },
       { to: '/super-admin/system/announcements', icon: 'fa-bullhorn', label: 'Announcements' },
       { to: '/super-admin/system/security', icon: 'fa-lock', label: 'Security & Policy' },
       { to: '/super-admin/system/config', icon: 'fa-sliders', label: 'Configuration' },
