@@ -322,6 +322,8 @@ async function gazette(batch, { program } = {}) {
     const sems = Object.values(s.semesters).sort((a, b) => (a.semester || 0) - (b.semester || 0)).map((sem) => ({
       ...sem,
       gpa: idx[s.studentId]?.[sem.semester || 0]?.gpa ?? computeGPA(sem.subjects),
+      // Change 6 — cumulative CGPA at this semester (same index; display only).
+      cgpa: idx[s.studentId]?.[sem.semester || 0]?.cgpa ?? null,
       credits: sem.subjects.reduce((a, x) => a + (x.creditHours || 0), 0),
       stage: sem.subjects.every((x) => x.stage === 'OFFICIAL') ? 'OFFICIAL' : sem.subjects.every((x) => ['UNOFFICIAL', 'OFFICIAL'].includes(x.stage)) ? 'UNOFFICIAL' : 'COMPILED',
     }));

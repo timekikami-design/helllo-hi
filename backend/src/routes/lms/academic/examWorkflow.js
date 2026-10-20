@@ -87,10 +87,19 @@ router.get('/gazette/export/:format', EXAM_OR_GOV, asyncHandler(async (req, res)
   const g = await svc.gazette(String(req.query.batch), { program: req.query.program || undefined });
   const title = `Result Gazette — Batch: ${g.batch}`;
   const subtitle = `Current Session: ${g.currentSession || '—'} · ${g.students.length} student(s)${req.query.program ? ` · ${req.query.program}` : ''}`;
-  const sections = X.gazetteSections(g);
-  await audit(req, 'EXAM_GAZETTE_EXPORT', 'Gazette', g.batch, { after: { format: req.params.format } });
-  if (req.params.format === 'excel') return X.excel(res, `gazette-${g.batch}`, title, subtitle, sections);
-  if (req.params.format === 'pdf') return X.pdf(res, `gazette-${g.batch}`, title, subtitle, sections);
+  // Change 6 — optional ?layout=horizontal|vertical. Without it the export is
+  // exactly the existing one (same sections, same PDF orientation).
+  const layout = ['horizontal', 'vertical'].includes(String(req.query.layout)) ? String(req.query.layout) : null;
+  const sections = layout === 'horizontal' ? X.gazetteHorizontalSections(g)
+    : layout === 'vertical' ? X.gazetteVerticalSections(g) : X.gazetteSections(g);
+  const fname = `gazette-${g.batch}${layout ? `-${layout}` : ''}`;
+  await audit(req, 'EXAM_GAZETTE_EXPORT', 'Gazette', g.batch, { after: { format: req.params.format, layout: layout || 'standard' } });
+  if (req.params.format === 'excel') return X.excel(res, fname, title, subtitle, sections);
+  if (req.params.format === 'pdf') {
+    if (layout === 'horizontal') return X.pdf(res, fname, title, subtitle, sections, { landscape: true, fontSize: 7 });
+    if (layout === 'vertical') return X.pdf(res, fname, title, subtitle, sections, { landscape: false });
+    return X.pdf(res, fname, title, subtitle, sections);
+  }
   throw httpError(400, 'format must be excel or pdf');
 }));
 
