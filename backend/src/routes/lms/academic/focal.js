@@ -1188,7 +1188,12 @@ router.get('/students/:id', FOCAL_OR_GOV, asyncHandler(async (req, res) => {
   // Real teacher name (profile.fullName) with a humanized-username fallback.
   const teacherName = (off) => (off && off.teacher ? displayName(off.teacher) : 'Unassigned');
 
+  // Change 9 — shared Pass/Fail per course code.
+  const { resultStatusForStudent } = require('../../../services/courseStatusService');
+  const courseSt = await resultStatusForStudent(student.id);
+  const stOf = (code) => (courseSt.get(code) ? courseSt.get(code).result : null);
   const results = published.map((r) => ({
+    courseStatus: stOf(r.offering.course.code),
     code: r.offering.course.code, title: r.offering.course.title, creditHours: r.offering.course.creditHours,
     term: r.offering.term ? r.offering.term.title : null,
     teacher: teacherName(r.offering),
@@ -1254,7 +1259,7 @@ router.get('/students/:id', FOCAL_OR_GOV, asyncHandler(async (req, res) => {
         term: r.offering.term ? r.offering.term.title : null,
         status: r.status, type: r.registrationType, registeredAt: r.registeredAt,
       })),
-      registrations: student.registrations.map((r) => ({ id: r.id, course: `${r.offering.course.code} — ${r.offering.course.title}`, status: r.status, type: r.registrationType, teacher: teacherName(r.offering) })),
+      registrations: student.registrations.map((r) => ({ id: r.id, course: `${r.offering.course.code} — ${r.offering.course.title}`, status: r.status, type: r.registrationType, teacher: teacherName(r.offering), courseStatus: stOf(r.offering.course.code) })),
       results,
       // Mid-term & final-term breakdowns surfaced explicitly (Requirement #3).
       midTerm: published.map((r) => ({ code: r.offering.course.code, title: r.offering.course.title, term: r.offering.term ? r.offering.term.title : null, teacher: teacherName(r.offering), marks: r.midMarks })),

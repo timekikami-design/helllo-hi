@@ -516,6 +516,10 @@ router.get('/students/:id/profile', COORD_OR_GOV, asyncHandler(async (req, res) 
     select: { totalPercent: true, letterGrade: true, gradePoints: true, offering: { select: { course: { select: { code: true, title: true, creditHours: true } } } } },
   });
   const avg = results.length ? Math.round((results.reduce((a, r) => a + (r.totalPercent || 0), 0) / results.length) * 10) / 10 : 0;
+  // Change 9 — shared Pass/Fail per course code.
+  const { resultStatusForStudent } = require('../../../services/courseStatusService');
+  const courseSt = await resultStatusForStudent(id);
+  const stOf = (code) => (courseSt.get(code) ? courseSt.get(code).result : null);
 
   const p = student.profile || {};
   res.json({
@@ -559,6 +563,7 @@ router.get('/students/:id/profile', COORD_OR_GOV, asyncHandler(async (req, res) 
       type: r.registrationType,
       status: r.status,
       registeredAt: r.registeredAt,
+      courseStatus: stOf(r.offering?.course?.code),
     })),
     attendanceSummary: { totalRecords: attRecords.length, present, percent: attendancePct },
     academicPerformance: {
@@ -569,6 +574,7 @@ router.get('/students/:id/profile', COORD_OR_GOV, asyncHandler(async (req, res) 
         percent: r.totalPercent,
         grade: r.letterGrade,
         gpa: r.gradePoints,
+        courseStatus: stOf(r.offering?.course?.code),
       })),
     },
   });

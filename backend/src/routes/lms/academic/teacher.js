@@ -292,7 +292,7 @@ router.get('/offerings/:id', asyncHandler(async (req, res) => {
 
 // Roster of students in an offering
 router.get('/offerings/:id/students', asyncHandler(async (req, res) => {
-  await getOwnedOffering(req, parseInt(req.params.id, 10));
+  const ownedOffering = await getOwnedOffering(req, parseInt(req.params.id, 10));
   const offeringId = parseInt(req.params.id, 10);
   const regs = await prisma.courseRegistration.findMany({
     where: { offeringId, status: { in: ['ENROLLED', 'COMPLETED'] } },
@@ -301,8 +301,15 @@ router.get('/offerings/:id/students', asyncHandler(async (req, res) => {
     },
     orderBy: { registeredAt: 'asc' },
   });
+  // Change 9 — shared Pass/Fail status of THIS course for each student
+  // (a student repeating a failed course shows "Failed" until passed).
+  const { resultStatusFor } = require('../../../services/courseStatusService');
+  const courseCode = ownedOffering && ownedOffering.course ? ownedOffering.course.code
+    : (await prisma.courseOffering.findUnique({ where: { id: offeringId }, select: { course: { select: { code: true } } } }))?.course?.code;
+  const statusMap = await resultStatusFor(regs.map((r) => r.studentId));
   const students = regs.map((r) => {
     const p = r.student.profile || {};
+    const st = (statusMap.get(r.studentId) || new Map()).get(courseCode);
     return {
       registrationId: r.id,
       studentId: r.studentId,
@@ -321,6 +328,7 @@ router.get('/offerings/:id/students', asyncHandler(async (req, res) => {
       photoUrl: p.photoUrl || null,
       registrationType: r.registrationType,
       status: r.status,
+      courseStatus: st ? st.result : null,
     };
   });
   res.json({ students });
