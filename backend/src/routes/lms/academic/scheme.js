@@ -60,7 +60,7 @@ async function snapshot(schemeId) {
     orderBy: [{ semester: 'asc' }, { orderIndex: 'asc' }],
   });
   return items.map((i) => ({
-    courseId: i.courseId, code: i.course.code, title: i.course.title,
+    courseId: i.courseId, code: i.course.code, title: i.title || i.course.title,
     credits: i.course.creditHours, semester: i.semester, orderIndex: i.orderIndex,
   }));
 }
@@ -79,6 +79,15 @@ async function recordVersion(schemeId, changedById, changeNote) {
 // ------------------------------------------------------------
 // List schemes (optionally by program).
 // ------------------------------------------------------------
+// Change 5 — Semester-1 scheme changed → (re)run first-semester auto-enrollment
+// for that program (and batch) in the background. Idempotent, never throws.
+function rerunFirstSemester(scheme, semester) {
+  if (semester != null && Number(semester) !== 1) return;
+  const { reenrollProgramFirstSemester } = require('../../../services/autoEnrollService');
+  setImmediate(() => { reenrollProgramFirstSemester(scheme.programId, scheme.batch || null).catch(() => {}); });
+}
+const cleanBatch = (v) => (v == null || String(v).trim() === '' ? null : String(v).trim().slice(0, 60));
+
 router.get('/schemes', COORD_OR_GOV, asyncHandler(async (req, res) => {
   const where = { isDeleted: false };
   if (req.query.programId) where.programId = parseInt(req.query.programId, 10);
@@ -104,7 +113,7 @@ router.get('/schemes', COORD_OR_GOV, asyncHandler(async (req, res) => {
   });
   res.json({ schemes: schemes.map((s) => ({
     id: s.id, name: s.name, description: s.description, version: s.version,
-    isActive: s.isActive, programId: s.programId,
+    isActive: s.isActive, programId: s.programId, batch: s.batch || null,
     program: s.program ? { id: s.program.id, name: s.program.name, shortForm: s.program.shortForm, totalSemesters: s.program.totalSemesters } : null,
     courseCount: s._count.items, updatedAt: s.updatedAt,
   })) });
@@ -152,13 +161,14 @@ router.get('/schemes/:id', COORD_OR_GOV, asyncHandler(async (req, res) => {
       title: `Semester ${n}`,
       courses: items.filter((i) => i.semester === n).map((i) => ({
         schemeCourseId: i.id, courseId: i.courseId, code: i.course.code,
-        title: i.course.title, credits: i.course.creditHours, orderIndex: i.orderIndex,
+        title: i.title || i.course.title, originalTitle: i.course.title, renamed: !!i.title,
+        credits: i.course.creditHours, orderIndex: i.orderIndex,
       })),
     });
   }
 
   res.json({
-    scheme: { id: scheme.id, name: scheme.name, description: scheme.description, version: scheme.version, isActive: scheme.isActive,
+    scheme: { id: scheme.id, name: scheme.name, description: scheme.description, version: scheme.version, isActive: scheme.isActive, batch: scheme.batch || null,
       program: scheme.program ? { id: scheme.program.id, name: scheme.program.name, shortForm: scheme.program.shortForm, totalSemesters } : null },
     semesters,
     unassigned: allCourses.filter((c) => !placed.has(c.id)).map((c) => ({ courseId: c.id, code: c.code, title: c.title, credits: c.creditHours })),
@@ -194,11 +204,42 @@ router.post('/schemes', COORD, validate([
   }
 
   const scheme = await prisma.schemeOfStudy.create({
-    data: { programId, name: req.body.name.trim(), description: req.body.description || null, createdById: req.lmsUser.id },
+    data: { programId, name: req.body.name.trim(), description: req.body.description || null, batch: cleanBatch(req.body.batch), createdById: req.lmsUser.id },
   });
   await prisma.schemeVersion.create({ data: { schemeId: scheme.id, version: 1, snapshotJson: '[]', changedById: req.lmsUser.id, changeNote: 'Scheme created' } });
   await audit(req, 'SCHEME_CREATE', 'SchemeOfStudy', scheme.id, { after: scheme });
   res.status(201).json({ scheme });
+}));
+
+// ------------------------------------------------------------
+// Change 8 — REUSE an existing scheme for a new batch. Copies every course
+// placement (semester, order, per-scheme name) into a brand-new scheme; the
+// source scheme is never modified. The copy is then edited independently.
+// ------------------------------------------------------------
+router.post('/schemes/:id/clone', COORD, validate([
+  body('batch').trim().notEmpty().withMessage('Batch is required (e.g. Fall 2027)'),
+]), asyncHandler(async (req, res) => {
+  const sourceId = parseInt(req.params.id, 10);
+  const source = await loadOwnedScheme(req.lmsUser, sourceId); // §10 own-dept guard
+  const batch = cleanBatch(req.body.batch);
+  const dup = await prisma.schemeOfStudy.findFirst({ where: { programId: source.programId, batch, isDeleted: false } });
+  if (dup) throw httpError(409, `A scheme for batch "${batch}" already exists for this program ("${dup.name}"). Edit that one instead.`);
+  const items = await prisma.schemeCourse.findMany({ where: { schemeId: sourceId }, orderBy: [{ semester: 'asc' }, { orderIndex: 'asc' }] });
+  const name = (req.body.name && String(req.body.name).trim()) || `${source.name.replace(/\s*\([^)]*\)\s*$/, '')} (${batch})`;
+  const scheme = await prisma.$transaction(async (tx) => {
+    const created = await tx.schemeOfStudy.create({
+      data: { programId: source.programId, name, description: source.description, batch, createdById: req.lmsUser.id },
+    });
+    if (items.length) {
+      await tx.schemeCourse.createMany({ data: items.map((i) => ({ schemeId: created.id, courseId: i.courseId, semester: i.semester, orderIndex: i.orderIndex, title: i.title || null })) });
+    }
+    return created;
+  });
+  const snap = await snapshot(scheme.id);
+  await prisma.schemeVersion.create({ data: { schemeId: scheme.id, version: 1, snapshotJson: JSON.stringify(snap), changedById: req.lmsUser.id, changeNote: `Copied from "${source.name}"${source.batch ? ` (${source.batch})` : ''}` } });
+  await audit(req, 'SCHEME_CLONE', 'SchemeOfStudy', scheme.id, { before: { sourceId }, after: { id: scheme.id, batch, courses: items.length } });
+  rerunFirstSemester(scheme);
+  res.status(201).json({ scheme, copied: items.length });
 }));
 
 // Edit scheme metadata.
@@ -209,8 +250,10 @@ router.put('/schemes/:id', COORD, asyncHandler(async (req, res) => {
   if (req.body.name !== undefined && String(req.body.name).trim()) data.name = String(req.body.name).trim();
   if (req.body.description !== undefined) data.description = req.body.description || null;
   if (req.body.isActive !== undefined) data.isActive = !!req.body.isActive;
+  if (req.body.batch !== undefined) data.batch = cleanBatch(req.body.batch);
   const scheme = await prisma.schemeOfStudy.update({ where: { id }, data });
   await audit(req, 'SCHEME_UPDATE', 'SchemeOfStudy', id, { before, after: scheme });
+  if (data.isActive !== undefined || data.batch !== undefined) rerunFirstSemester(scheme);
   res.json({ scheme });
 }));
 
@@ -250,6 +293,7 @@ router.post('/schemes/:id/items', COORD, validate([
   const item = await prisma.schemeCourse.create({ data: { schemeId, courseId, semester, orderIndex: count } });
   await recordVersion(schemeId, req.lmsUser.id, `Added ${course.code} to Semester ${semester}`);
   await audit(req, 'SCHEME_ITEM_ADD', 'SchemeCourse', item.id, { after: { schemeId, courseId, semester } });
+  rerunFirstSemester(scheme, semester);
   res.status(201).json({ item });
 }));
 
@@ -262,7 +306,7 @@ router.put('/schemes/:id/items/:itemId/move', COORD, validate([
   const semester = parseInt(req.body.semester, 10);
   const orderIndex = req.body.orderIndex != null ? parseInt(req.body.orderIndex, 10) : null;
 
-  await loadOwnedScheme(req.lmsUser, schemeId); // §10 own-dept guard
+  const ownScheme = await loadOwnedScheme(req.lmsUser, schemeId); // §10 own-dept guard
   const item = await prisma.schemeCourse.findUnique({ where: { id: itemId } });
   if (!item || item.schemeId !== schemeId) throw httpError(404, 'Scheme item not found.');
 
@@ -274,6 +318,22 @@ router.put('/schemes/:id/items/:itemId/move', COORD, validate([
   const updated = await prisma.schemeCourse.update({ where: { id: itemId }, data: { semester, orderIndex: nextOrder } });
   await recordVersion(schemeId, req.lmsUser.id, `Moved course to Semester ${semester}`);
   await audit(req, 'SCHEME_ITEM_MOVE', 'SchemeCourse', itemId, { before, after: { semester, orderIndex: nextOrder } });
+  rerunFirstSemester(ownScheme, semester);
+  res.json({ item: updated });
+}));
+
+// Change 8 — rename a course within THIS scheme only (per-batch display name).
+// An empty title restores the course's catalogue name.
+router.put('/schemes/:id/items/:itemId/title', COORD, asyncHandler(async (req, res) => {
+  const schemeId = parseInt(req.params.id, 10);
+  const itemId = parseInt(req.params.itemId, 10);
+  await loadOwnedScheme(req.lmsUser, schemeId); // §10 own-dept guard
+  const item = await prisma.schemeCourse.findUnique({ where: { id: itemId }, include: { course: { select: { code: true } } } });
+  if (!item || item.schemeId !== schemeId) throw httpError(404, 'Scheme item not found.');
+  const title = req.body.title != null && String(req.body.title).trim() ? String(req.body.title).trim().slice(0, 200) : null;
+  const updated = await prisma.schemeCourse.update({ where: { id: itemId }, data: { title } });
+  await recordVersion(schemeId, req.lmsUser.id, title ? `Renamed ${item.course.code} to "${title}"` : `Restored ${item.course.code} name`);
+  await audit(req, 'SCHEME_ITEM_RENAME', 'SchemeCourse', itemId, { before: { title: item.title }, after: { title } });
   res.json({ item: updated });
 }));
 

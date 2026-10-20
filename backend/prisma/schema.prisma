@@ -3054,6 +3054,9 @@ model SchemeCourse {
   courseId   Int
   semester   Int
   orderIndex Int      @default(0)
+  // Change 8 — optional course name used in THIS scheme only (renaming a course
+  // for one batch never touches the shared course record or other batches).
+  title      String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

@@ -92,19 +92,33 @@ async function determineCurrentSemester(studentId, programId) {
  *
  * @returns {Promise<{courseIds:number[], source:'scheme'|'semester-template'|'none'}>}
  */
-async function resolveSemesterCourseIds(programId, semesterNumber, semesterTemplate) {
+async function resolveSemesterCourseIds(programId, semesterNumber, semesterTemplate, batch) {
   // 1. Prefer the active approved Scheme of Study for this program.
-  const scheme = await prisma.schemeOfStudy.findFirst({
-    where: { programId, isActive: true, isDeleted: false },
-    orderBy: [{ version: 'desc' }, { id: 'desc' }],
-    include: {
-      items: {
-        where: { semester: semesterNumber },
-        include: { course: true },
-        orderBy: { orderIndex: 'asc' },
-      },
+  //    Change 5/8 — when the student's batch is known, a scheme made for that
+  //    exact batch wins; otherwise the batch-less ("all batches") schemes are
+  //    used exactly as before. Without a batch argument behaviour is unchanged.
+  const include = {
+    items: {
+      where: { semester: semesterNumber },
+      include: { course: true },
+      orderBy: { orderIndex: 'asc' },
     },
-  });
+  };
+  let scheme = null;
+  if (batch) {
+    scheme = await prisma.schemeOfStudy.findFirst({
+      where: { programId, isActive: true, isDeleted: false, batch: String(batch).trim() },
+      orderBy: [{ version: 'desc' }, { id: 'desc' }],
+      include,
+    });
+  }
+  if (!scheme) {
+    scheme = await prisma.schemeOfStudy.findFirst({
+      where: { programId, isActive: true, isDeleted: false, ...(batch ? { batch: null } : {}) },
+      orderBy: [{ version: 'desc' }, { id: 'desc' }],
+      include,
+    });
+  }
   if (scheme && scheme.items.length) {
     const ids = scheme.items
       .filter((it) => it.course && !it.course.isDeleted)
@@ -135,7 +149,7 @@ async function autoEnrollStudent(studentId) {
   // Additional Fixes §10 — resolve the courses for this semester from the
   // approved Course Scheme first (Course Coordinator's scheme), falling back
   // to the semester template. Works for EVERY department with isolation.
-  const { courseIds, source } = await resolveSemesterCourseIds(program.id, semesterNumber, semester);
+  const { courseIds, source } = await resolveSemesterCourseIds(program.id, semesterNumber, semester, profile.session || null);
   if (!courseIds.length) {
     return { enrolled: 0, semesterNumber, skipped: 0, reason: 'no_scheme_courses' };
   }
@@ -191,4 +205,43 @@ async function autoEnrollStudent(studentId) {
   return { enrolled, semesterNumber, skipped, source, program: program.shortForm };
 }
 
-module.exports = { autoEnrollStudent, determineCurrentSemester, resolveProgram, resolveSemesterCourseIds };
+/**
+ * Change 5 — re-run first-semester auto-enrollment for every student of a
+ * program (optionally one batch) after a Semester-1 scheme is created or
+ * edited. Only students still in Semester 1 are considered. Idempotent
+ * (autoEnrollStudent never duplicates). Never throws.
+ */
+async function reenrollProgramFirstSemester(programId, batch) {
+  try {
+    const program = await prisma.lmsProgram.findUnique({ where: { id: programId } });
+    if (!program) return { students: 0, enrolled: 0 };
+    const profiles = await prisma.lmsStudentProfile.findMany({
+      where: {
+        lmsUser: { role: 'Student', isActive: true },
+        OR: [{ programShortForm: program.shortForm || '___none___' }, { program: program.name || '___none___' }],
+        ...(batch ? { session: String(batch).trim() } : {}),
+      },
+      select: { lmsUserId: true },
+    });
+    let enrolled = 0; const touched = [];
+    for (const p of profiles) {
+      // eslint-disable-next-line no-await-in-loop
+      const cur = await determineCurrentSemester(p.lmsUserId, program.id).catch(() => null);
+      if (!cur || cur.number !== 1) continue; // first-semester students only
+      // eslint-disable-next-line no-await-in-loop
+      const r = await autoEnrollStudent(p.lmsUserId).catch(() => null);
+      if (r && r.enrolled > 0) { enrolled += r.enrolled; touched.push(p.lmsUserId); }
+    }
+    if (touched.length) {
+      const realtime = require('../utils/lmsRealtime');
+      realtime.emitTo(touched, 'enrollment', { action: 'auto-enrolled', programId });
+      realtime.emitTo(touched, 'result', { action: 'scheme-updated', programId });
+    }
+    return { students: profiles.length, enrolled };
+  } catch (e) {
+    console.warn('[auto-enroll] re-run failed:', e.message);
+    return { students: 0, enrolled: 0 };
+  }
+}
+
+module.exports = { autoEnrollStudent, determineCurrentSemester, resolveProgram, resolveSemesterCourseIds, reenrollProgramFirstSemester };

@@ -1,5 +1,6 @@
 -- LMS 10-change update — additive only. No existing column is dropped/renamed.
 ALTER TABLE "SchemeOfStudy" ADD COLUMN "batch" TEXT;
+ALTER TABLE "SchemeCourse" ADD COLUMN "title" TEXT;
 
 CREATE TABLE IF NOT EXISTS "LmsTeacherDepartment" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
