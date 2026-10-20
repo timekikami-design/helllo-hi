@@ -129,6 +129,8 @@ const ManageOffering = () => {
 function StudentsTab({ offeringId }) {
   const { toast } = useToast();
   const { data, loading, error, reload } = useApi(() => api.teacher.students(offeringId), [offeringId]);
+  // Change 9 — Passed/Failed changes (results declared) appear without a refresh.
+  useRealtime(api.teacher.eventsUrl, { result: (d) => { if (d && d.action === "course-status") reload(); } });
   const students = useMemo(() => data?.students || [], [data]);
   const [filters, setFilters] = useState({ search: "", cnic: "", phone: "" });
   const [profile, setProfile] = useState(null);

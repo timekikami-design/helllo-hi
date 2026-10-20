@@ -140,6 +140,8 @@ async function doDeclare(req, res, kind) {
     ? { title: 'Unofficial result declared', message: `Your ${semLabel} unofficial result, GPA, CGPA and transcript are now available.`, type: 'SUCCESS', link: '/student/results' }
     : { title: 'Official result declared', message: `Your ${semLabel} result is now official. The official transcript is available.`, type: 'SUCCESS', link: '/student/results' });
   realtime.emitTo(out.studentIds, 'result', { action: `declared-${kind}`, semester: scope.semester });
+  // Change 9 — Passed / Failed changed: refresh every relevant viewer live.
+  require('../../../services/courseStatusService').broadcastStatusChange({ studentIds: out.studentIds, offeringIds: out.offeringIds || [] });
   res.json({ success: true, ...out, message: `${out.declared} result(s) declared ${kind} for ${scopeLabel(scope)}.` });
 }
 router.post('/collection/declare-unofficial', EXAM, asyncHandler((req, res) => doDeclare(req, res, 'unofficial')));

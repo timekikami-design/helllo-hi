@@ -98,4 +98,28 @@ async function decorateRows(rows, { studentKey = 'studentId', codeKey = 'courseC
   });
 }
 
-module.exports = { resultStatusFor, resultStatusForStudent, studentCourseStatusResolver, decorateRows, isPass, DECLARED };
+/**
+ * Change 9 — real-time propagation. After results are declared (Pass/Fail
+ * changes), tell every relevant viewer: the students, the teachers of the
+ * offerings, department coordinators / focal persons, and exam controller /
+ * provost / QEC accounts (who can already see this data).
+ */
+async function broadcastStatusChange({ studentIds = [], offeringIds = [] } = {}) {
+  try {
+    const realtime = require('../utils/lmsRealtime');
+    const payload = { action: 'course-status', offeringIds };
+    const offs = offeringIds.length ? await prisma.courseOffering.findMany({ where: { id: { in: offeringIds } }, select: { teacherId: true } }) : [];
+    const teachers = offs.map((o) => o.teacherId).filter(Boolean);
+    const depts = [...new Set((await prisma.lmsStudentProfile.findMany({ where: { lmsUserId: { in: studentIds } }, select: { department: true } })).map((p) => p.department).filter(Boolean))];
+    const staff = depts.length ? (await prisma.lmsStudentProfile.findMany({ where: { department: { in: depts }, lmsUser: { role: { in: ['CourseCoordinator', 'FocalPerson'] } } }, select: { lmsUserId: true } })).map((p) => p.lmsUserId) : [];
+    let coordIds = [];
+    try {
+      const dIds = (await prisma.department.findMany({ where: { name: { in: depts } }, select: { id: true } })).map((d) => d.id);
+      if (dIds.length) coordIds = (await prisma.lmsDepartmentCoordinator.findMany({ where: { departmentId: { in: dIds } }, select: { lmsUserId: true } })).map((c) => c.lmsUserId);
+    } catch (_) { /* read-only lookup */ }
+    const gov = (await prisma.lmsUser.findMany({ where: { role: { in: ['ExamController', 'Provost', 'QECCoordinator'] }, isActive: true }, select: { id: true } })).map((u) => u.id);
+    realtime.emitTo([...new Set([...studentIds, ...teachers, ...staff, ...coordIds, ...gov])], 'result', payload);
+  } catch (e) { console.warn('[courseStatus] broadcast failed:', e.message); }
+}
+
+module.exports = { resultStatusFor, resultStatusForStudent, studentCourseStatusResolver, decorateRows, broadcastStatusChange, isPass, DECLARED };

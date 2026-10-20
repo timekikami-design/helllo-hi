@@ -11,6 +11,7 @@ import Badge from "../../components/common/Badge";
 import Modal from "../../components/common/Modal";
 import { useToast } from "../../context/ToastContext";
 import api from "../../services/api";
+import useRealtime from "../../hooks/useRealtime";
 import { Skeleton } from "../../components/common/Skeleton";
 import ErrorState from "../../components/common/ErrorState";
 import EmptyState from "../../components/common/EmptyState";
@@ -87,6 +88,11 @@ const AdminStudents = () => {
   const [profileId, setProfileId] = useState(null);
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
+
+  // Change 9 — results declared → refresh the open profile's Passed/Failed live.
+  useRealtime(api.coordinator.eventsUrl, {
+    result: () => { if (profileId) api.coordinator.studentProfile(profileId).then(setProfile).catch(() => {}); },
+  });
 
   const openProfile = async (id) => {
     setProfileId(id);

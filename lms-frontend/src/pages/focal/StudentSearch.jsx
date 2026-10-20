@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import PageHeader from "../../components/common/PageHeader";
 import CourseStatusBadge from "../../components/common/CourseStatusBadge";
 import EnterpriseTable from "../../components/enterprise/EnterpriseTable";
 import ExportButtons from "../../components/enterprise/ExportButtons";
 import Modal from "../../components/common/Modal";
 import useApi from "../../hooks/useApi";
+import useRealtime from "../../hooks/useRealtime";
 import api from "../../services/api";
 import { Skeleton } from "../../components/common/Skeleton";
 import ErrorState from "../../components/common/ErrorState";
@@ -38,6 +39,13 @@ const StudentSearch = () => {
   const [loadingDetail, setLoadingDetail] = useState(false);
 
   const results = data?.items || [];
+
+  // Change 9 — results declared → re-fetch the open student's Passed/Failed live.
+  const detailRef = useRef(null);
+  detailRef.current = detail;
+  useRealtime(api.focal.eventsUrl, {
+    result: () => { const d = detailRef.current; if (d && d.id) api.focal.student(d.id).then((r) => setDetail(r.student)).catch(() => {}); },
+  });
 
   const openDetail = async (id) => {
     setLoadingDetail(true);
