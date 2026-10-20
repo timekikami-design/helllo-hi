@@ -979,7 +979,7 @@ const workflow = {
   exportStage: (stage, format, scope, name) => download(`/lms/academic/exam/workflow/${stage}/export/${format}${qs(scope)}`, `${name || stage}.${format === 'excel' ? 'xlsx' : 'pdf'}`),
   gazetteBatches: () => get('/lms/academic/exam/workflow/gazette/batches'),
   gazette: (batch, program) => get(`/lms/academic/exam/workflow/gazette${qs({ batch, program })}`),
-  exportGazette: (batch, format, program) => download(`/lms/academic/exam/workflow/gazette/export/${format}${qs({ batch, program })}`, `gazette-${batch}.${format === 'excel' ? 'xlsx' : 'pdf'}`),
+  exportGazette: (batch, format, program, layout) => download(`/lms/academic/exam/workflow/gazette/export/${format}${qs({ batch, program, layout })}`, `gazette-${batch}${layout ? `-${layout}` : ''}.${format === 'excel' ? 'xlsx' : 'pdf'}`),
 };
 
 student.resultRecord = () => get('/lms/academic/student/result-record');
