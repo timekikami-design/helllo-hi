@@ -534,6 +534,9 @@ const coordinator = {
   moveSchemeItem: (id, itemId, body) => put(`/lms/academic/coordinator/schemes/${id}/items/${itemId}/move`, body),
   reorderScheme: (id, body) => put(`/lms/academic/coordinator/schemes/${id}/reorder`, body),
   removeSchemeItem: (id, itemId) => del(`/lms/academic/coordinator/schemes/${id}/items/${itemId}`),
+  // Change 8 — batch-wise schemes: copy a scheme into a new batch, rename a course in one scheme.
+  cloneScheme: (id, body) => post(`/lms/academic/coordinator/schemes/${id}/clone`, body),
+  renameSchemeItem: (id, itemId, title) => put(`/lms/academic/coordinator/schemes/${id}/items/${itemId}/title`, { title }),
 };
 
 // ============================================================

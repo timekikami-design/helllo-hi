@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Layers, Plus, Trash2, History, GripVertical, BookOpen, Pencil,
-  ChevronLeft, Layout, Boxes, CheckCircle2,
+  ChevronLeft, Layout, Boxes, CheckCircle2, Copy, CalendarRange,
 } from "lucide-react";
 import PageHeader from "../../components/common/PageHeader";
 import StatCard from "../../components/common/StatCard";
@@ -54,7 +54,10 @@ function SchemeList({ onOpen, toast }) {
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ programId: "", name: "", description: "" });
+  const [form, setForm] = useState({ programId: "", name: "", description: "", batch: "" });
+  // Change 8 — copy an existing scheme into a new batch.
+  const [cloneOf, setCloneOf] = useState(null);
+  const [cloneForm, setCloneForm] = useState({ batch: "", name: "" });
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -75,8 +78,20 @@ function SchemeList({ onOpen, toast }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const openCreate = () => { setEditing(null); setForm({ programId: programs[0]?.id || "", name: "", description: "" }); setOpen(true); };
-  const openEdit = (s) => { setEditing(s); setForm({ programId: s.programId, name: s.name, description: s.description || "" }); setOpen(true); };
+  const openCreate = () => { setEditing(null); setForm({ programId: programs[0]?.id || "", name: "", description: "", batch: "" }); setOpen(true); };
+  const openEdit = (s) => { setEditing(s); setForm({ programId: s.programId, name: s.name, description: s.description || "", batch: s.batch || "" }); setOpen(true); };
+  const openClone = (s) => { setCloneOf(s); setCloneForm({ batch: "", name: "" }); };
+  const submitClone = async () => {
+    if (!cloneForm.batch.trim()) { toast("Enter the new batch (e.g. Fall 2027)", { type: "error" }); return; }
+    setSaving(true);
+    try {
+      const r = await api.coordinator.cloneScheme(cloneOf.id, { batch: cloneForm.batch.trim(), name: cloneForm.name.trim() || undefined });
+      toast(`Scheme copied for ${cloneForm.batch.trim()} (${r.copied} course(s)) — the original is unchanged`, { type: "success" });
+      setCloneOf(null);
+      load();
+    } catch (err) { toast(err.message || "Copy failed", { type: "error" }); }
+    finally { setSaving(false); }
+  };
 
   const submit = async () => {
     if (!form.name.trim() || !form.programId) {
@@ -86,10 +101,10 @@ function SchemeList({ onOpen, toast }) {
     setSaving(true);
     try {
       if (editing) {
-        await api.coordinator.updateScheme(editing.id, { name: form.name.trim(), description: form.description });
+        await api.coordinator.updateScheme(editing.id, { name: form.name.trim(), description: form.description, batch: form.batch.trim() });
         toast("Scheme updated", { type: "success" });
       } else {
-        await api.coordinator.createScheme({ programId: form.programId, name: form.name.trim(), description: form.description });
+        await api.coordinator.createScheme({ programId: form.programId, name: form.name.trim(), description: form.description, batch: form.batch.trim() });
         toast("Scheme created", { type: "success" });
       }
       setOpen(false);
@@ -138,6 +153,7 @@ function SchemeList({ onOpen, toast }) {
                   <div>
                     <p className="font-bold text-app">{s.name}</p>
                     <p className="text-xs text-muted-app">{s.program?.shortForm || s.program?.name || "—"}</p>
+                    <p className="text-[11px] font-semibold text-primary-700 dark:text-primary-300 inline-flex items-center gap-1 mt-0.5" data-testid="scheme-batch"><CalendarRange size={11} /> {s.batch ? `Batch: ${s.batch}` : "All batches"}</p>
                   </div>
                 </div>
                 {s.isActive && <Badge color="emerald">Active</Badge>}
@@ -149,6 +165,7 @@ function SchemeList({ onOpen, toast }) {
               </div>
               <div className="flex items-center gap-2 mt-3 pt-3 border-t border-app">
                 <button onClick={() => onOpen(s.id)} className="btn-primary text-xs px-3 py-1.5 inline-flex items-center gap-1 flex-1 justify-center"><Layout size={13} /> Open Builder</button>
+                <button onClick={() => openClone(s)} className="p-1.5 rounded-lg border border-app text-emerald-600" title="Copy to a new batch"><Copy size={14} /></button>
                 <button onClick={() => openEdit(s)} className="p-1.5 rounded-lg border border-app text-blue-600" title="Edit"><Pencil size={14} /></button>
                 <button onClick={() => remove(s)} className="p-1.5 rounded-lg border border-app text-rose-600" title="Delete"><Trash2 size={14} /></button>
               </div>
@@ -171,12 +188,34 @@ function SchemeList({ onOpen, toast }) {
             <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. ADCS Scheme 2026" className="input-base py-2 text-sm w-full" />
           </div>
           <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-app block mb-1">Batch</label>
+            <input value={form.batch} onChange={(e) => setForm({ ...form, batch: e.target.value })} placeholder="e.g. Fall 2026 (leave empty for all batches)" className="input-base py-2 text-sm w-full" data-testid="scheme-batch-input" />
+          </div>
+          <div>
             <label className="text-[10px] font-bold uppercase tracking-wider text-muted-app block mb-1">Description</label>
             <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} className="input-base py-2 text-sm w-full" />
           </div>
           <div className="flex justify-end gap-2 pt-1">
             <button onClick={() => setOpen(false)} className="px-4 py-2 rounded-xl border border-app text-sm font-bold text-app">Cancel</button>
             <button onClick={submit} disabled={saving} className="btn-primary text-sm disabled:opacity-60">{saving ? "Saving…" : editing ? "Save" : "Create"}</button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={!!cloneOf} onClose={() => setCloneOf(null)} title="Copy scheme to a new batch" subtitle={cloneOf ? `From: ${cloneOf.name}${cloneOf.batch ? ` (${cloneOf.batch})` : ""}` : ""} icon={Copy} maxWidth="max-w-md">
+        <div className="space-y-3">
+          <p className="text-xs text-muted-app">All semesters and courses are copied into a new, independent scheme. The original scheme is not changed. Edit the copy afterwards (add, remove or rename courses).</p>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-app block mb-1">New batch *</label>
+            <input value={cloneForm.batch} onChange={(e) => setCloneForm({ ...cloneForm, batch: e.target.value })} placeholder="e.g. Fall 2027" className="input-base py-2 text-sm w-full" data-testid="clone-batch" />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-app block mb-1">Name (optional)</label>
+            <input value={cloneForm.name} onChange={(e) => setCloneForm({ ...cloneForm, name: e.target.value })} placeholder="Defaults to the original name + batch" className="input-base py-2 text-sm w-full" />
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={() => setCloneOf(null)} className="px-4 py-2 rounded-xl border border-app text-sm font-bold text-app">Cancel</button>
+            <button onClick={submitClone} disabled={saving} className="btn-primary text-sm disabled:opacity-60" data-testid="clone-save">{saving ? "Copying…" : "Copy scheme"}</button>
           </div>
         </div>
       </Modal>
@@ -276,6 +315,16 @@ function SchemeBuilder({ schemeId, onBack, toast }) {
     }
   };
 
+  // Change 8 — rename a course for this scheme (batch) only.
+  const renameCard = async (c) => {
+    const t = window.prompt(`Name of ${c.code} in this scheme (leave empty to restore "${c.originalTitle || c.title}")`, c.title);
+    if (t === null) return;
+    setBusy(true);
+    try { await api.coordinator.renameSchemeItem(schemeId, c.schemeCourseId, t); await load(); toast("Course renamed in this scheme", { type: "success" }); }
+    catch (err) { toast(err.message || "Rename failed", { type: "error" }); }
+    finally { setBusy(false); }
+  };
+
   const removeCard = async (c) => {
     setBusy(true);
     try {
@@ -304,7 +353,7 @@ function SchemeBuilder({ schemeId, onBack, toast }) {
     <div>
       <PageHeader
         title={data.scheme.name}
-        subtitle={`${data.scheme.program?.name || ""} · Drag courses between the pool and semesters. Every change saves instantly.`}
+        subtitle={`${data.scheme.program?.name || ""} · ${data.scheme.batch ? `Batch: ${data.scheme.batch}` : "All batches"} · Drag courses between the pool and semesters. Every change saves instantly.`}
         icon="Layers"
         breadcrumb={["Course Coordinator", "Scheme of Study", "Builder"]}
         actions={
@@ -366,7 +415,8 @@ function SchemeBuilder({ schemeId, onBack, toast }) {
                       <CourseCard key={c.schemeCourseId} c={c}
                         onDragStart={() => setDragItem({ kind: "item", schemeCourseId: c.schemeCourseId, courseId: c.courseId, fromSemester: sem.number })}
                         onDrop={(e) => { e.stopPropagation(); onDropOnCard(sem.number, c); }}
-                        onRemove={() => removeCard(c)} />
+                        onRemove={() => removeCard(c)}
+                        onRename={() => renameCard(c)} />
                     ))
                   )}
                 </div>
@@ -401,7 +451,7 @@ function SchemeBuilder({ schemeId, onBack, toast }) {
   );
 }
 
-function CourseCard({ c, onDragStart, onDrop, onRemove, pool }) {
+function CourseCard({ c, onDragStart, onDrop, onRemove, onRename, pool }) {
   return (
     <div
       draggable
@@ -413,9 +463,12 @@ function CourseCard({ c, onDragStart, onDrop, onRemove, pool }) {
       <GripVertical size={14} className="text-muted-app shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="text-xs font-bold text-app truncate">{c.code}</p>
-        <p className="text-[11px] text-muted-app truncate">{c.title}</p>
+        <p className="text-[11px] text-muted-app truncate" title={c.renamed ? `Catalogue name: ${c.originalTitle}` : undefined}>{c.title}{c.renamed ? " ✎" : ""}</p>
       </div>
       <span className="text-[10px] text-muted-app shrink-0">{c.credits} cr</span>
+      {onRename && (
+        <button onClick={onRename} className="p-1 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded shrink-0" title="Rename in this scheme only"><Pencil size={12} /></button>
+      )}
       {onRemove && (
         <button onClick={onRemove} className="p-1 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded shrink-0" title="Remove"><Trash2 size={12} /></button>
       )}
