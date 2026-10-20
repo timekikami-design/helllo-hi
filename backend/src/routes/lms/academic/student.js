@@ -3512,6 +3512,9 @@ router.get('/scheme', asyncHandler(async (req, res) => {
         const failed = s.courses.some((c) => statusOf(c.code).result === 'FAIL');
         if (st.length && st.every((x) => x === 'COMPLETED') && !failed) return 'COMPLETED';
         if (st.some((x) => x === 'IN_PROGRESS')) return 'IN_PROGRESS';
+        // Change 10 — keep the semester chip consistent with the course chips:
+        // any course Currently Enrolled / already Completed → In Progress.
+        if (s.courses.some((c) => ['CURRENTLY_ENROLLED', 'COMPLETED'].includes(statusOf(c.code).enrollment))) return 'IN_PROGRESS';
         return 'PENDING';
       })(),
       courses: s.courses.map((c) => ({
