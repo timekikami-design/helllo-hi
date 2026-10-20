@@ -3030,6 +3030,9 @@ model SchemeOfStudy {
   programId   Int
   name        String
   description String?
+  // Change 8 — batch the scheme belongs to (e.g. "Fall 2026"). NULL = all
+  // batches (every scheme created before this column keeps its behaviour).
+  batch       String?
   version     Int       @default(1)
   isActive    Boolean   @default(true)
   isDeleted   Boolean   @default(false)
@@ -3464,4 +3467,37 @@ model LmsSpecialExamCandidate {
   @@unique([studentId, courseId, semester])
   @@index([studentId])
   @@index([status])
+}
+
+// ============================================================
+// Change 3/4 — additional departments assigned to an LMS teacher by the
+// Super Admin. The teacher's PRIMARY department stays in
+// LmsStudentProfile.department (unchanged, still used by all existing
+// coordinator / focal visibility logic). Additive, LMS-only.
+// ============================================================
+model LmsTeacherDepartment {
+  id           Int      @id @default(autoincrement())
+  lmsUserId    String                             // LmsUser.id (Teacher)
+  department   String                             // Department.name (read-only reference)
+  isPrimary    Boolean  @default(false)
+  assignedById Int?                               // Admissions super_admin User.id
+  createdAt    DateTime @default(now())
+
+  @@unique([lmsUserId, department])
+  @@index([lmsUserId])
+  @@index([department])
+}
+
+// ============================================================
+// Change 7 — editable landing-page content. One row per content key
+// (e.g. "hero.title"); missing keys fall back to the built-in defaults in
+// the landing page, so the page is unchanged until the Super Admin edits it.
+// ============================================================
+model LandingContent {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  value       String
+  updatedById Int?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
 }
