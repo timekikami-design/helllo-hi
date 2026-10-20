@@ -130,6 +130,10 @@ app.use('/', printApplicationRoutes);
 app.use('/api/exports', exportRoutes);
 // Department & Program management (Director / Super Admin) + Super Admin system control
 app.use('/api/departments', departmentRoutes);
+// Change 7 — landing-page content (public read; Super Admin write). Additive.
+const landingContent = require('./routes/landingContent');
+app.use('/api/landing-content', landingContent.publicRouter);
+app.use('/api/super-admin/landing-content', landingContent.adminRouter);
 app.use('/api/super-admin', superAdminRoutes);
 // Additive: comprehensive Super Admin module (new namespaced sub-paths only).
 app.use('/api/super-admin', superAdminModuleRoutes);
