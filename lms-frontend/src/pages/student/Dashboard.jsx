@@ -13,6 +13,7 @@ import ErrorState from "../../components/common/ErrorState";
 import useApi from "../../hooks/useApi";
 import api, { fileUrl } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
+import CurrentSemesterBadge from "../../components/student/CurrentSemesterBadge";
 
 const fmtTime = (d) => { const t = new Date(d); return Number.isNaN(t.getTime()) ? "" : t.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }); };
 const fmtDay = (d) => { const t = new Date(d); return Number.isNaN(t.getTime()) ? "" : t.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }); };
@@ -130,6 +131,7 @@ const Dashboard = () => {
             {summary.length ? `You have ${summary.join(" and ")}.` : "Nothing urgent today."}
             {user?.program ? <span className="hidden sm:inline"> · {user.program}</span> : null}
           </p>
+          <div className="mt-4"><CurrentSemesterBadge /></div>
         </div>
         <dl className="grid grid-cols-3 gap-px bg-line border border-line rounded-lg overflow-hidden shrink-0 w-full sm:w-auto">
           {[

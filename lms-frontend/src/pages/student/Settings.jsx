@@ -6,6 +6,7 @@ import ErrorState from "../../components/common/ErrorState";
 import api, { fileUrl } from "../../services/api";
 import { useToast } from "../../context/ToastContext";
 import ThemeToggle from "../../components/common/ThemeToggle";
+import CurrentSemesterBadge from "../../components/student/CurrentSemesterBadge";
 
 // Strong-password policy — mirrors the server-side rule in lmsAuthV2.js.
 const STRONG_PW = /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
@@ -378,6 +379,7 @@ const Settings = () => {
                       <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{val || "—"}</p>
                     </div>
                   ))}
+                  <CurrentSemesterBadge variant="field" label="Currently Enrolled Semester" />
                 </div>
               </div>
 

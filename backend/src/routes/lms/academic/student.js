@@ -1691,6 +1691,13 @@ async function myOfferingIds(studentId, statuses = ['ENROLLED', 'COMPLETED']) {
 // the Admissions System (full profile, documents, missing documents and
 // verification status). Falls back to the stored snapshot when an LmsUser
 // is not linked to an admissions Enrollment. (Requirement #16)
+// Current semester (read from the database on every call; reflects
+// promotions immediately). Shape: { number, label, term, display, status }.
+router.get('/current-semester', asyncHandler(async (req, res) => {
+  const { currentSemesterOf } = require('../../../services/studentSemesterService');
+  res.json({ currentSemester: await currentSemesterOf(req.lmsUser.id) });
+}));
+
 router.get('/profile', asyncHandler(async (req, res) => {
   const { profile, source, enrollmentLinked } = await buildLiveStudentProfile(req.lmsUser);
   res.json({ profile, username: req.lmsUser.username, source, enrollmentLinked });

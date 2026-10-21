@@ -195,6 +195,7 @@ const student = {
   library: () => get('/lms/academic/student/library'),
   libraryCourse: (offeringId) => get(`/lms/academic/student/library/${offeringId}`),
   scheme: () => get('/lms/academic/student/scheme'),
+  currentSemester: () => get('/lms/academic/student/current-semester'),
   // Notes (CRUD)
   notes: () => get('/lms/academic/student/notes'),
   createNote: (body) => post('/lms/academic/student/notes', body),
