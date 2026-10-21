@@ -54,6 +54,14 @@ async function excel(res, filename, title, subtitle, sections) {
       t.font = { bold: true, size: 11 };
       t.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E7FF' } };
     }
+    if (sec.headerGroups) {
+      // Optional grouped header row (e.g. "Semester 1 – Fall 2026" spanning its columns).
+      const cells = []; const spans = [];
+      for (const gh of sec.headerGroups) { spans.push([cells.length + 1, cells.length + gh.span]); cells.push(gh.label || '', ...Array(Math.max(0, gh.span - 1)).fill('')); }
+      const gr = ws.addRow(cells);
+      styleHeader(gr);
+      for (const [a, b] of spans) if (b > a) ws.mergeCells(gr.number, a, gr.number, b);
+    }
     styleHeader(ws.addRow(sec.columns.map((c) => c.header)));
     for (const row of sec.rows) {
       const r = ws.addRow(sec.columns.map((c) => (row[c.key] == null ? '' : row[c.key])));
@@ -116,11 +124,28 @@ function table(doc, columns, rows, opts = {}) {
     doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(fontSize);
     return Math.max(...cells.map((t, i) => doc.heightOfString(String(t), { width: columns[i].width - pad * 2 }))) + pad * 2;
   };
+  // Optional grouped header (opts.headerGroups = [{label, span}]) drawn above the column header.
+  const groups = opts.headerGroups || null;
+  const drawGroups = () => {
+    if (!groups) return;
+    const widths = []; let i = 0;
+    for (const g of groups) { widths.push(columns.slice(i, i + g.span).reduce((a, c) => a + c.width, 0)); i += g.span; }
+    doc.font('Helvetica-Bold').fontSize(fontSize);
+    const h = Math.max(...groups.map((g, k) => doc.heightOfString(String(g.label || ''), { width: widths[k] - pad * 2 }))) + pad * 2;
+    const y = doc.y; let x = x0;
+    groups.forEach((g, k) => {
+      doc.rect(x, y, widths[k], h).fill(g.label ? '#334155' : HEAD);
+      doc.rect(x, y, widths[k], h).lineWidth(0.4).strokeColor('#94a3b8').stroke();
+      doc.font('Helvetica-Bold').fontSize(fontSize).fillColor('#ffffff').text(String(g.label || ''), x + pad, y + pad, { width: widths[k] - pad * 2, align: 'center' });
+      x += widths[k];
+    });
+    doc.y = y + h; doc.x = x0;
+  };
   const drawRow = (cells, { bold = false, fill = null } = {}, isHeader = false) => {
     const h = measure(cells, bold);
     if (doc.y + h > doc.page.height - doc.page.margins.bottom - 12) {
       doc.addPage();
-      if (!isHeader) drawRow(columns.map((c) => c.header), { bold: true, fill: HEAD }, true);
+      if (!isHeader) { drawGroups(); drawRow(columns.map((c) => c.header), { bold: true, fill: HEAD }, true); }
     }
     const y = doc.y;
     if (fill) doc.rect(x0, y, totalW, h).fill(fill);
@@ -133,6 +158,7 @@ function table(doc, columns, rows, opts = {}) {
     });
     doc.y = y + h; doc.x = x0;
   };
+  drawGroups();
   drawRow(columns.map((c) => c.header), { bold: true, fill: HEAD }, true);
   rows.forEach((r, i) => drawRow(columns.map((c) => (r[c.key] == null || r[c.key] === '' ? (r.__bold || r.__fill ? '' : '—') : r[c.key])), { bold: !!r.__bold, fill: r.__fill || (i % 2 ? '#f8fafc' : null) }));
   doc.moveDown(0.6);
@@ -157,7 +183,7 @@ function pdf(res, filename, title, subtitle, sections, opts = {}) {
       doc.moveDown(0.2).fillColor('#000');
     }
     const sum = sec.columns.reduce((s, c) => s + (c.width || 14), 0);
-    table(doc, sec.columns.map((c) => ({ ...c, width: ((c.width || 14) / sum) * avail })), sec.rows, { fontSize: opts.fontSize });
+    table(doc, sec.columns.map((c) => ({ ...c, width: ((c.width || 14) / sum) * avail })), sec.rows, { fontSize: opts.fontSize, headerGroups: sec.headerGroups });
   }
   footer(doc);
   doc.end();
@@ -303,7 +329,34 @@ function gazetteVerticalSections(g) {
   return out;
 }
 
+/** Cumulative horizontal gazette (Batch + Current Semester groups): Roll No, Name,
+ *  Semester 1 courses + GPA, Semester 2 courses + GPA, …, CGPA, Remarks. */
+function gazetteCumulativeSections(c) {
+  return c.groups.map((grp, i) => {
+    const columns = [{ header: 'Roll No', key: 'roll', width: 10 }, { header: 'Student Name', key: 'name', width: 16 }];
+    const headerGroups = [{ label: '', span: 2 }];
+    for (const b of grp.blocks) {
+      for (const co of b.courses) columns.push({ header: co.code, key: `s${b.semester}_${co.code}`, width: 7, align: 'center' });
+      columns.push({ header: `Sem ${b.semester} GPA`, key: `s${b.semester}_gpa`, width: 6, align: 'center' });
+      headerGroups.push({ label: `Semester ${b.semester}${b.term ? ` – ${b.term}` : ''}`, span: b.courses.length + 1 });
+    }
+    columns.push({ header: 'CGPA', key: 'cgpa', width: 6, align: 'center' }, { header: 'Remarks', key: 'remarks', width: 14 });
+    headerGroups.push({ label: '', span: 2 });
+    const rows = grp.rows.map((r) => {
+      const row = { roll: r.rollNumber, name: r.student, cgpa: fmt(r.cgpa), remarks: r.remarks };
+      for (const b of grp.blocks) {
+        const sm = r.semesters[b.semester];
+        for (const co of b.courses) { const m = sm && sm.marks[co.code]; row[`s${b.semester}_${co.code}`] = m && m.total != null ? fmt(m.total, 1) : '—'; }
+        row[`s${b.semester}_gpa`] = sm ? fmt(sm.gpa) : '—';
+      }
+      return row;
+    });
+    return { pageBreak: i > 0, title: `Batch: ${grp.batch} – ${grp.currentSemesterLabel}${grp.term ? ` (${grp.term})` : ''} · ${grp.rows.length} student(s)`, headerGroups, columns, rows };
+  });
+}
+
 module.exports = {
+  gazetteCumulativeSections,
   UNI, NAVY, LOGO, fmt, safeName,
   excel, pdf, pdfStart, header, footer, table,
   SUBJECT_COLUMNS, subjectRows, scopeSections, GAZETTE_COLUMNS, gazetteSections,

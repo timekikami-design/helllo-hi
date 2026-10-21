@@ -82,8 +82,24 @@ router.get('/gazette', EXAM_OR_GOV, asyncHandler(async (req, res) => {
   if (!req.query.batch) throw httpError(400, 'batch is required');
   res.json(await svc.gazette(String(req.query.batch), { program: req.query.program || undefined }));
 }));
+// Cumulative horizontal gazette — groups by Batch + Current Semester (read-only).
+router.get('/gazette/cumulative', EXAM_OR_GOV, asyncHandler(async (req, res) => {
+  if (!req.query.batch) throw httpError(400, 'batch is required');
+  res.json(await svc.gazetteCumulative(String(req.query.batch), { program: req.query.program || undefined }));
+}));
 router.get('/gazette/export/:format', EXAM_OR_GOV, asyncHandler(async (req, res) => {
   if (!req.query.batch) throw httpError(400, 'batch is required');
+  if (String(req.query.layout) === 'cumulative') {
+    const c = await svc.gazetteCumulative(String(req.query.batch), { program: req.query.program || undefined });
+    const title = `Result Gazette (Cumulative) — Batch: ${c.batch}`;
+    const subtitle = `Current Session: ${c.currentSession || '—'} · ${c.groups.reduce((a, g) => a + g.rows.length, 0)} student(s)${req.query.program ? ` · ${req.query.program}` : ''}`;
+    const sections = X.gazetteCumulativeSections(c);
+    const fname = `gazette-${c.batch}-cumulative`;
+    await audit(req, 'EXAM_GAZETTE_EXPORT', 'Gazette', c.batch, { after: { format: req.params.format, layout: 'cumulative' } });
+    if (req.params.format === 'excel') return X.excel(res, fname, title, subtitle, sections);
+    if (req.params.format === 'pdf') return X.pdf(res, fname, title, subtitle, sections, { landscape: true, fontSize: 6.5 });
+    throw httpError(400, 'format must be excel or pdf');
+  }
   const g = await svc.gazette(String(req.query.batch), { program: req.query.program || undefined });
   const title = `Result Gazette — Batch: ${g.batch}`;
   const subtitle = `Current Session: ${g.currentSession || '—'} · ${g.students.length} student(s)${req.query.program ? ` · ${req.query.program}` : ''}`;

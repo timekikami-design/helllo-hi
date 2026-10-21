@@ -334,7 +334,129 @@ async function gazette(batch, { program } = {}) {
   return { batch, currentSession: term?.title || null, students: list };
 }
 
+// ============================================================
+// CUMULATIVE HORIZONTAL GAZETTE — grouped by Batch + Current Semester.
+// One row per student: Semester 1 courses (total marks) + Sem 1 GPA,
+// Semester 2 … up to the student's current semester, then CGPA and
+// Remarks. Reuses gazette() data (same stages), gpaIndex() (existing
+// GPA/CGPA), and the existing promotion rules for Remarks. Read-only,
+// computed on every request so it always reflects the latest data.
+// ============================================================
+const REMARK_LABELS = {
+  ELIGIBLE: 'Promoted', PROBATION: 'Probation', LAST_PROBATION: 'Last Probation',
+  FAILED_COURSES: 'Promoted (failed courses)', REPEAT: 'Repeat Semester', DROPPED: 'Dropped', REMOVED: 'Removed',
+};
+async function remarksFor(studentIds) {
+  const out = {};
+  if (!studentIds.length) return out;
+  const promotionSvc = require('./promotionService');
+  const [{ rows }, records] = await Promise.all([
+    promotionSvc.buildPromotionList({ studentIds }),
+    prisma.lmsPromotionRecord.findMany({ where: { studentId: { in: studentIds } }, orderBy: { createdAt: 'desc' } }),
+  ]);
+  for (const id of studentIds) {
+    const row = rows.find((r) => r.studentId === id);
+    const rec = records.find((r) => r.studentId === id);
+    const failed = (row && row.failedCourses || []).map((f) => f.code).filter(Boolean);
+    if (row && row.list !== 'pending' && row.status) {
+      // Current semester already evaluated by the existing promotion rules.
+      let label = REMARK_LABELS[row.status] || row.label || row.status;
+      if (row.status === 'FAILED_COURSES' && failed.length) label = `Promoted (failed: ${failed.join(', ')})`;
+      out[id] = { status: row.status, label, pending: false };
+    } else if (rec) {
+      // Last decision taken (e.g. promoted into the current semester).
+      let fc = [];
+      try { fc = JSON.parse(rec.failedCourses || '[]').map((f) => f.code).filter(Boolean); } catch (_) { fc = []; }
+      let label = REMARK_LABELS[rec.outcome] || rec.outcome;
+      if (rec.outcome === 'FAILED_COURSES' && fc.length) label = `Promoted (failed: ${fc.join(', ')})`;
+      if (rec.toSemester && rec.outcome !== 'REPEAT') label = `${label} to Semester ${rec.toSemester}`;
+      out[id] = { status: rec.outcome, label, pending: false };
+    } else {
+      out[id] = { status: 'PENDING', label: 'Result pending', pending: true };
+    }
+  }
+  return out;
+}
+
+async function gazetteCumulative(batch, { program } = {}) {
+  const { currentSemesterMap, semesterLabel } = require('./studentSemesterService');
+  const base = await gazette(batch, { program });
+  const ids = base.students.map((s) => s.studentId);
+  const [semMap, idx, remarks, regs] = await Promise.all([
+    currentSemesterMap(ids),
+    gpaIndex(ids, STAGE_SETS.compilation),
+    remarksFor(ids),
+    // Current enrolments: a block for a semester the student has reached
+    // shows its courses even before any result is submitted.
+    prisma.courseRegistration.findMany({
+      where: { studentId: { in: ids }, status: { in: ['ENROLLED', 'COMPLETED'] }, offering: { isDeleted: false } },
+      select: { studentId: true, offering: { select: { term: { select: { title: true } }, course: { select: { code: true, title: true, creditHours: true, semester: { select: { number: true } } } } } } },
+    }),
+  ]);
+  const groups = new Map();
+  for (const s of base.students) {
+    const cur = semMap[s.studentId] || { number: 1, label: semesterLabel(1) };
+    if (!groups.has(cur.number)) groups.set(cur.number, { currentSemester: cur.number, currentSemesterLabel: cur.label, term: cur.term || base.currentSession, blocks: new Map(), rows: [] });
+    const g = groups.get(cur.number);
+    const semBy = new Map(s.semesters.map((x) => [x.semester || 0, x]));
+    // Courses per semester block (results first, then current enrolments).
+    for (const x of s.semesters) {
+      const n = x.semester || 0;
+      if (n > cur.number) continue;
+      if (!g.blocks.has(n)) g.blocks.set(n, { semester: n, term: x.term || null, courses: new Map() });
+      const b = g.blocks.get(n);
+      if (!b.term && x.term) b.term = x.term;
+      for (const c of x.subjects) if (!b.courses.has(c.courseCode)) b.courses.set(c.courseCode, { code: c.courseCode, title: c.courseTitle, creditHours: c.creditHours });
+    }
+    for (const r of regs.filter((y) => y.studentId === s.studentId)) {
+      const n = r.offering?.course?.semester?.number;
+      if (!n || n > cur.number) continue;
+      if (!g.blocks.has(n)) g.blocks.set(n, { semester: n, term: r.offering?.term?.title || null, courses: new Map() });
+      const b = g.blocks.get(n);
+      if (!b.term && r.offering?.term?.title) b.term = r.offering.term.title;
+      const c = r.offering.course;
+      if (!b.courses.has(c.code)) b.courses.set(c.code, { code: c.code, title: c.title, creditHours: c.creditHours });
+    }
+    const gi = idx[s.studentId] || {};
+    const reached = Object.keys(gi).map(Number).filter((n) => n <= cur.number).sort((a, b) => a - b);
+    const lastSem = reached[reached.length - 1];
+    const semesters = {};
+    for (const [n, x] of semBy.entries()) {
+      if (n > cur.number) continue;
+      semesters[n] = {
+        gpa: gi[n]?.gpa ?? null,
+        marks: Object.fromEntries(x.subjects.map((c) => [c.courseCode, { total: c.totalPercent, grade: c.letterGrade, gradePoints: c.gradePoints, stage: c.stage }])),
+      };
+    }
+    g.rows.push({
+      studentId: s.studentId, rollNumber: s.rollNumber, student: s.student, program: s.program, department: s.department,
+      semesters,
+      cgpa: lastSem != null ? gi[lastSem].cgpa : null,
+      remarks: remarks[s.studentId]?.label || 'Result pending',
+      remarksStatus: remarks[s.studentId]?.status || 'PENDING',
+    });
+  }
+  const list = [...groups.values()].sort((a, b) => a.currentSemester - b.currentSemester).map((g) => {
+    // Every block from Semester 1 up to the group's current semester.
+    const blocks = [];
+    for (let n = 1; n <= g.currentSemester; n += 1) {
+      const b = g.blocks.get(n) || { semester: n, term: null, courses: new Map() };
+      blocks.push({ semester: n, label: semesterLabel(n), term: b.term || (n === g.currentSemester ? g.term : null), courses: [...b.courses.values()].sort((x, y) => String(x.code).localeCompare(String(y.code))) });
+    }
+    return {
+      batch,
+      currentSemester: g.currentSemester,
+      title: `${batch} – ${g.currentSemesterLabel}`,
+      currentSemesterLabel: g.currentSemesterLabel,
+      term: g.term,
+      blocks,
+      rows: g.rows.sort((a, b) => String(a.rollNumber).localeCompare(String(b.rollNumber))),
+    };
+  });
+  return { batch, currentSession: base.currentSession, groups: list };
+}
+
 module.exports = {
   STAGE_SETS, currentTerm, fetchResults, buildTree, gpaIndex, subjectSheet, scopeStudents,
-  declare, studentRecord, gazetteBatches, gazette, round2,
+  declare, studentRecord, gazetteBatches, gazette, round2, gazetteCumulative,
 };
