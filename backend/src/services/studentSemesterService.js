@@ -5,8 +5,8 @@
 //  read from the database every time (no caching):
 //    1. LmsStudentStanding.currentSemester — written by the existing
 //       promotion flow (promotionService.applyDecision);
-//    2. otherwise the semester of the courses the student is ENROLLED in
-//       for the current academic term;
+//    2. otherwise the lowest semester of the courses the student is
+//       ENROLLED in for the current academic term;
 //    3. otherwise Semester 1 (new student).
 //  The term shown next to it is the current AcademicTerm.
 //  Used by the Exam Controller gazette (grouping) and the student
@@ -39,7 +39,10 @@ async function currentSemesterMap(studentIds) {
   const enrolledSem = {};
   for (const r of regs) {
     const n = r.offering?.course?.semester?.number;
-    if (n) enrolledSem[r.studentId] = Math.max(enrolledSem[r.studentId] || 0, n);
+    // Lowest semester the student is still enrolled in this term (a student
+    // auto-enrolled ahead into next-semester courses before the promotion
+    // decision stays in the semester being completed).
+    if (n) enrolledSem[r.studentId] = Math.min(enrolledSem[r.studentId] || Infinity, n);
   }
   for (const id of ids) {
     const st = standingBy.get(id);
