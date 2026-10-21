@@ -979,6 +979,7 @@ const workflow = {
   exportStage: (stage, format, scope, name) => download(`/lms/academic/exam/workflow/${stage}/export/${format}${qs(scope)}`, `${name || stage}.${format === 'excel' ? 'xlsx' : 'pdf'}`),
   gazetteBatches: () => get('/lms/academic/exam/workflow/gazette/batches'),
   gazette: (batch, program) => get(`/lms/academic/exam/workflow/gazette${qs({ batch, program })}`),
+  gazetteCumulative: (batch, program) => get(`/lms/academic/exam/workflow/gazette/cumulative${qs({ batch, program })}`),
   exportGazette: (batch, format, program, layout) => download(`/lms/academic/exam/workflow/gazette/export/${format}${qs({ batch, program, layout })}`, `gazette-${batch}${layout ? `-${layout}` : ''}.${format === 'excel' ? 'xlsx' : 'pdf'}`),
 };
 

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Users, FileSpreadsheet, FileDown, Loader2, Search, CalendarClock, GraduationCap, RefreshCw, Rows3, Columns3, LayoutList } from "lucide-react";
+import { Users, FileSpreadsheet, FileDown, Loader2, Search, CalendarClock, GraduationCap, RefreshCw, Rows3, Columns3, LayoutList, TableProperties } from "lucide-react";
 import PageHeader from "../../components/common/PageHeader";
 import { Skeleton } from "../../components/common/Skeleton";
 import ErrorState from "../../components/common/ErrorState";
@@ -111,10 +111,89 @@ function VerticalLayout({ batch, students }) {
   );
 }
 
+/* Cumulative horizontal gazette — one table per Batch + Current Semester.
+   Roll No | Name | Semester 1 courses (total marks) + GPA | Semester 2 … |
+   CGPA | Remarks. Grouped headers; Roll No + Name stay visible when the
+   table scrolls sideways. Data comes from the server on every load (and on
+   live result / promotion events), so it never needs manual regeneration. */
+function CumulativeLayout({ batch, q }) {
+  const { data, loading, error, reload } = useApi(() => api.workflow.gazetteCumulative(batch), [batch]);
+  useRealtime(api.coordinator.eventsUrl, { result: () => reload(), promotion: () => reload(), "promotions:changed": () => reload(), enrollment: () => reload() });
+  const groups = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    return (data?.groups || []).map((g) => ({ ...g, rows: t ? g.rows.filter((r) => [r.student, r.rollNumber].filter(Boolean).some((v) => String(v).toLowerCase().includes(t))) : g.rows }));
+  }, [data, q]);
+  if (loading) return <Skeleton className="h-48 w-full rounded-2xl" />;
+  if (error) return <ErrorState description={error} onRetry={reload} />;
+  if (!groups.length) return <EmptyState icon="Users" title="No students" description="No results for this batch yet." />;
+  const stick1 = "sticky left-0 z-10 bg-white dark:bg-slate-950";
+  const stick2 = "sticky left-[96px] z-10 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-700";
+  return (
+    <div className="space-y-5" data-testid="gazette-cumulative">
+      {groups.map((g) => (
+        <div key={g.currentSemester} className="card-base overflow-hidden" data-testid="gazette-cumulative-group">
+          <div className="px-4 py-3 bg-primary-50/60 dark:bg-primary-500/5 flex flex-wrap items-center justify-between gap-2">
+            <p className="font-display font-bold text-app" data-testid="gazette-cumulative-title">Batch: {g.batch} – {g.currentSemesterLabel}{g.term ? ` (${g.term})` : ""}</p>
+            <p className="text-xs text-muted-app">{g.rows.length} student(s) · Semesters 1–{g.currentSemester}</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="text-xs border-collapse min-w-full">
+              <thead>
+                <tr className="text-[11px] text-slate-600 dark:text-slate-300">
+                  <th rowSpan={2} className={`${stick1} w-[96px] min-w-[96px] px-2 py-2 text-left border-b border-slate-200 dark:border-slate-700`}>Roll No</th>
+                  <th rowSpan={2} className={`${stick2} min-w-[150px] px-2 py-2 text-left border-b`}>Student Name</th>
+                  {g.blocks.map((b) => (
+                    <th key={b.semester} colSpan={b.courses.length + 1} className="px-2 py-1.5 text-center font-bold bg-slate-100 dark:bg-slate-800 border-l border-slate-300 dark:border-slate-600" data-testid="gazette-sem-header">
+                      Semester {b.semester}{b.term ? ` – ${b.term}` : ""}
+                    </th>
+                  ))}
+                  <th rowSpan={2} className="px-2 py-2 text-center border-l border-slate-300 dark:border-slate-600 border-b">CGPA</th>
+                  <th rowSpan={2} className="px-2 py-2 text-left border-b min-w-[140px]">Remarks</th>
+                </tr>
+                <tr className="text-[10px] uppercase text-slate-500 border-b border-slate-200 dark:border-slate-700">
+                  {g.blocks.map((b) => [
+                    ...b.courses.map((c, i) => <th key={`${b.semester}-${c.code}`} title={c.title} className={`px-2 py-1 text-center whitespace-nowrap ${i === 0 ? "border-l border-slate-300 dark:border-slate-600" : ""}`}>{c.code}</th>),
+                    <th key={`${b.semester}-gpa`} className={`px-2 py-1 text-center whitespace-nowrap font-bold text-primary-700 dark:text-primary-300 ${b.courses.length ? "" : "border-l border-slate-300 dark:border-slate-600"}`}>Sem {b.semester} GPA</th>,
+                  ])}
+                </tr>
+              </thead>
+              <tbody>
+                {g.rows.map((r) => (
+                  <tr key={r.studentId} className="border-t border-slate-100 dark:border-slate-800" data-testid="gazette-cumulative-row">
+                    <td className={`${stick1} px-2 py-1.5 font-mono text-primary-700 dark:text-primary-300 whitespace-nowrap`}>{r.rollNumber}</td>
+                    <td className={`${stick2} px-2 py-1.5 font-semibold text-app whitespace-nowrap`}>{r.student}</td>
+                    {g.blocks.map((b) => {
+                      const sm = r.semesters[b.semester];
+                      return [
+                        ...b.courses.map((c, i) => {
+                          const m = sm?.marks?.[c.code];
+                          const fail = m && m.total != null && Number(m.total) < PASS_PERCENT;
+                          return <td key={`${b.semester}-${c.code}`} title={m?.grade ? `Grade ${m.grade}` : undefined} className={`px-2 py-1.5 text-center tabular-nums ${i === 0 ? "border-l border-slate-200 dark:border-slate-700" : ""} ${fail ? "text-rose-600 font-semibold" : ""}`}>{m && m.total != null ? fmt(m.total, 1) : "—"}</td>;
+                        }),
+                        <td key={`${b.semester}-gpa`} className="px-2 py-1.5 text-center font-bold tabular-nums bg-slate-50/70 dark:bg-slate-900/50">{sm ? fmt(sm.gpa) : "—"}</td>,
+                      ];
+                    })}
+                    <td className="px-2 py-1.5 text-center font-bold tabular-nums text-emerald-700 dark:text-emerald-300 border-l border-slate-200 dark:border-slate-700">{fmt(r.cgpa)}</td>
+                    <td className="px-2 py-1.5 whitespace-nowrap" data-testid="gazette-remarks">
+                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${/Probation|Repeat|Dropped|Removed/.test(r.remarks) ? "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300" : /Promoted/.test(r.remarks) ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"}`}>{r.remarks}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="px-4 py-2 text-[11px] text-muted-app border-t border-slate-100 dark:border-slate-800">Course cells show the course total marks (%). GPA and CGPA use the existing grading and credit-hour rules; remarks follow the existing promotion rules.</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const LAYOUTS = [
   { key: "current", label: "Current View", icon: LayoutList },
   { key: "horizontal", label: "Horizontal View", icon: Columns3 },
   { key: "vertical", label: "Vertical View", icon: Rows3 },
+  { key: "cumulative", label: "Cumulative (Horizontal)", icon: TableProperties },
 ];
 
 function GazetteView({ batch }) {
@@ -170,6 +249,7 @@ function GazetteView({ batch }) {
 
       {layout === "horizontal" && <HorizontalLayout batch={data.batch} students={students} />}
       {layout === "vertical" && <VerticalLayout batch={data.batch} students={students} />}
+      {layout === "cumulative" && <CumulativeLayout batch={data.batch} q={q} />}
       {layout === "current" && students.map((s) => (
         <div key={s.studentId} className="card-base overflow-hidden">
           <div className="px-4 py-3 bg-slate-50 dark:bg-slate-900 flex flex-wrap items-center gap-2 justify-between">
@@ -220,7 +300,7 @@ function GazetteView({ batch }) {
           </div>
         </div>
       ))}
-      {!students.length && <EmptyState icon="Users" title="No matching students" description="Try a different search." />}
+      {layout !== "cumulative" && !students.length && <EmptyState icon="Users" title="No matching students" description="Try a different search." />}
 
       <Modal open={!!dl} onClose={() => setDl(null)} title={`Download gazette (${dl?.format === "excel" ? "Excel" : "PDF"})`} icon={FileDown} maxWidth="max-w-md">
         <div className="space-y-3" data-testid="gazette-download-dialog">
@@ -229,6 +309,7 @@ function GazetteView({ batch }) {
             { k: "standard", t: "Standard (existing)", d: "Exactly the current gazette download." },
             { k: "horizontal", t: "Horizontal", d: "One row per student, a column per course, then GPA, CGPA, Remarks. PDF is landscape." },
             { k: "vertical", t: "Vertical", d: "Grouped by batch and semester; each student reads top to bottom. PDF is portrait." },
+            { k: "cumulative", t: "Cumulative (Horizontal)", d: "Grouped by batch + current semester: Roll No, Name, each semester's course marks + GPA, CGPA, Remarks. PDF is landscape." },
           ].map((o) => (
             <label key={o.k} className={`flex gap-2 items-start p-2 rounded-lg border cursor-pointer ${dlLayout === o.k ? "border-primary-500 bg-primary-50/50 dark:bg-primary-500/5" : "border-slate-200 dark:border-slate-700"}`}>
               <input type="radio" name="gz-layout" value={o.k} checked={dlLayout === o.k} onChange={() => setDlLayout(o.k)} className="mt-1" />
