@@ -332,7 +332,7 @@ const DocumentPreviewLink = ({ documentId, scope, filePath, fileName, mimeType, 
               ) : (
                 // Unknown mime — graceful fallback (never auto-download).
                 <div className="dpv-fallback">
-                  <div className="dpv-fallback-icon">📄</div>
+                  <div className="dpv-fallback-icon"><i className="fas fa-file-lines" aria-hidden="true"></i></div>
                   <div style={{ marginBottom: 12 }}>
                     Inline preview is not available for this file type.
                   </div>

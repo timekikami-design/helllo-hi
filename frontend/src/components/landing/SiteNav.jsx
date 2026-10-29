@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../utils/AuthContext';
+import SiteHeader from '../ds/SiteHeader';
+import { USE_NEW_SITE_CHROME } from '../../config/designFlags';
+import '../../styles/ds/site.css';
 
 const dashHref = (user) => {
   if (!user) return '/login';
@@ -204,4 +207,5 @@ const SiteNav = () => {
   );
 };
 
-export default SiteNav;
+// Redesign: public pages render the shared header; legacy nav kept for one-line revert.
+export default USE_NEW_SITE_CHROME ? SiteHeader : SiteNav;

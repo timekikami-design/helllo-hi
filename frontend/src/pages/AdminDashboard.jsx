@@ -21,17 +21,17 @@ import {
 const NEW_APP_STATUSES_UI = ['SUBMITTED', 'PENDING', 'UNDER_REVIEW', 'NEED_INFO', 'RESULT_AWAITED'];
 
 const sidebarItems = [
-  { key: 'dashboard', label: 'Dashboard', icon: '📊' },
-  { key: 'departments', label: 'Departments', icon: '🏛️' },
-  { key: 'announce', label: 'Announce Admissions Cycle', icon: '📣' },
-  { key: 'applications', label: 'Applications', icon: '📋' },
-  { key: 'initialmerit', label: 'Initial Merit List', icon: '🎯' },
-  { key: 'merit', label: 'Final Merit List', icon: '🏆' },
-  { key: 'feemanagement', label: 'Fee Management', icon: '💰' },
-  { key: 'paymethods', label: 'Payment Methods', icon: '🏦' },
-  { key: 'appeals', label: 'Appeals', icon: '📝' },
-  { key: 'enrollment', label: 'Enrollment', icon: '🎓' },
-  { key: 'backups', label: 'Backups & Exports', icon: '💾' },
+  { key: 'dashboard', label: 'Dashboard', icon: 'fa-gauge-high' },
+  { key: 'departments', label: 'Departments', icon: 'fa-building-columns' },
+  { key: 'announce', label: 'Announce Admissions Cycle', icon: 'fa-bullhorn' },
+  { key: 'applications', label: 'Applications', icon: 'fa-clipboard-list' },
+  { key: 'initialmerit', label: 'Initial Merit List', icon: 'fa-list-check' },
+  { key: 'merit', label: 'Final Merit List', icon: 'fa-trophy' },
+  { key: 'feemanagement', label: 'Fee Management', icon: 'fa-money-bill-wave' },
+  { key: 'paymethods', label: 'Payment Methods', icon: 'fa-building-columns' },
+  { key: 'appeals', label: 'Appeals', icon: 'fa-gavel' },
+  { key: 'enrollment', label: 'Enrollment', icon: 'fa-graduation-cap' },
+  { key: 'backups', label: 'Backups & Exports', icon: 'fa-database' },
 ];
 
 // Auto-detect a URL inside a free-text venue
@@ -127,9 +127,10 @@ const AdminDashboard = () => {
 
   return (
     <div>
-      <nav className="navbar">
+      <a className="ds-skip" href="#portal-main">Skip to content</a>
+      <header className="navbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button className="menu-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle menu"><i className="fas fa-bars"></i></button>
+          <button className="menu-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Open or close the section menu" aria-expanded={sidebarOpen}><i className="fas fa-bars"></i></button>
           <div className="navbar-brand">
             <img src="/assets/aust-logo.png" alt="AUST" className="brand-logo" />
             <div className="brand-text">
@@ -141,24 +142,24 @@ const AdminDashboard = () => {
         <div className="navbar-user">
           <span>{user?.email}</span>
           <span className="role-badge"><i className="fas fa-user-tie" style={{ marginRight: 5 }}></i>Director</span>
-          <Link to="/" className="nav-link"><i className="fas fa-house"></i></Link>
+          <Link to="/" className="nav-link" aria-label="Main website"><i className="fas fa-house" aria-hidden="true"></i></Link>
           <button onClick={logout} className="nav-link" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-            <i className="fas fa-arrow-right-from-bracket"></i> Logout
+            <i className="fas fa-arrow-right-from-bracket" aria-hidden="true"></i> <span className="label-text">Sign out</span>
           </button>
         </div>
-      </nav>
+      </header>
       <div className="page-wrapper">
         <div className={`sidebar-overlay ${sidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)} />
-        <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`} aria-label="Portal sections">
           <div className="sidebar-section-title">Director Panel</div>
           {sidebarItems.map(item => (
-            <div key={item.key} className={`sidebar-item ${activeTab === item.key ? 'active' : ''}`}
+            <button type="button" key={item.key} className={`sidebar-item ${activeTab === item.key ? 'active' : ''}`} aria-current={activeTab === item.key ? 'page' : undefined}
               onClick={() => { setActiveTab(item.key); setSidebarOpen(false); }}>
               <span className="icon"><i className={`fas ${item.icon}`}></i></span><span>{item.label}</span>
-            </div>
+            </button>
           ))}
         </aside>
-        <main className="main-content">{renderSection()}</main>
+        <main className="main-content" id="portal-main" tabIndex={-1}>{renderSection()}</main>
       </div>
     </div>
   );
@@ -2465,7 +2466,7 @@ const MeritListSection = () => {
       )}
 
       {entries.length === 0 ? (
-        <div className="card"><div className="empty-state"><div className="empty-icon">🏆</div><p style={{ fontWeight: 600, color: '#1a2744' }}>No merit entries yet.</p><p style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '0.4rem' }}>Merit scores are calculated by the Coordinator after interviews, or you can add candidates manually.</p></div></div>
+        <div className="card"><div className="empty-state"><div className="empty-icon"><i className="fas fa-trophy" aria-hidden="true"></i></div><p style={{ fontWeight: 600, color: '#1a2744' }}>No merit entries yet.</p><p style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '0.4rem' }}>Merit scores are calculated by the Coordinator after interviews, or you can add candidates manually.</p></div></div>
       ) : (
         groupList.map((g) => {
           const groupEditable = g.entries.filter(e => !isRowLocked(e));
@@ -3414,7 +3415,7 @@ const EnrollmentSection = () => {
       {feeApproved.length === 0 && enrolled.length === 0 && feePaid.length === 0 && (
         <div className="enroll-card">
           <div className="enroll-empty">
-            <div className="ee-emoji">🎓</div>
+            <div className="ee-emoji"><i className="fas fa-graduation-cap" aria-hidden="true"></i></div>
             <div className="ee-title">No students ready for enrollment yet</div>
             <div className="ee-sub">Once students complete fee payment, they'll appear here for enrollment processing.</div>
           </div>

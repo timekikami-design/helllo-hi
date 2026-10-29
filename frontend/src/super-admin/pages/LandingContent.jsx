@@ -83,7 +83,7 @@ export const LandingContent = () => {
         )}
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 16, alignItems: 'start' }}>
+      <div className="sa-lc-grid" style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 16, alignItems: 'start' }}>
         <aside className="sa-card sa-card-pad" style={{ position: 'sticky', top: 12 }}>
           <input className="sa-input" placeholder="Search any text…" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginBottom: 10 }} data-testid="landing-search" />
           {LANDING_SECTIONS.map((s) => (

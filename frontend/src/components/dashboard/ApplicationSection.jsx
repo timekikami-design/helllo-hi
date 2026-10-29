@@ -559,11 +559,11 @@ const ApplicationSection = ({ onNavigate }) => {
                           ? 'Retake Interview Pending — Coordinator will reschedule'
                           : interview.status === 'COMPLETED' ? 'Interview Completed' : 'Interview Scheduled'}
                       </div>
-                      <div>📅 {interview.scheduledDate} at {interview.scheduledTime}</div>
-                      <div>📍 Venue: {interview.venue || 'AUST Campus'}</div>
+                      <div><i className="fas fa-calendar" aria-hidden="true" style={{ marginRight: 6 }}></i>{interview.scheduledDate} at {interview.scheduledTime}</div>
+                      <div><i className="fas fa-location-dot" aria-hidden="true" style={{ marginRight: 6 }}></i>Venue: {interview.venue || 'AUST Campus'}</div>
                       {interview.meetingLink && (
                         <div>
-                          🔗 Meeting Link:{' '}
+                          <i className="fas fa-link" aria-hidden="true" style={{ marginRight: 6 }}></i>Meeting link:{' '}
                           <a href={interview.meetingLink} target="_blank" rel="noopener noreferrer"
                              style={{ color: '#0ea5e9', textDecoration: 'underline', wordBreak: 'break-all' }}>
                             {interview.meetingLink}

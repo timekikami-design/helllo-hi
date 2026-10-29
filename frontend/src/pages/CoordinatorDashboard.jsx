@@ -104,9 +104,10 @@ const CoordinatorDashboard = () => {
 
   return (
     <div>
-      <nav className="navbar">
+      <a className="ds-skip" href="#portal-main">Skip to content</a>
+      <header className="navbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button className="menu-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle menu"><i className="fas fa-bars"></i></button>
+          <button className="menu-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Open or close the section menu" aria-expanded={sidebarOpen}><i className="fas fa-bars"></i></button>
           <div className="navbar-brand">
             <img src="/assets/aust-logo.png" alt="AUST" className="brand-logo" />
             <div className="brand-text">
@@ -118,24 +119,24 @@ const CoordinatorDashboard = () => {
         <div className="navbar-user">
           <span>{user?.email}</span>
           <span className="role-badge"><i className="fas fa-user-gear" style={{ marginRight: 5 }}></i>Coordinator</span>
-          <Link to="/" className="nav-link"><i className="fas fa-house"></i></Link>
+          <Link to="/" className="nav-link" aria-label="Main website"><i className="fas fa-house" aria-hidden="true"></i></Link>
           <button onClick={logout} className="nav-link" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-            <i className="fas fa-arrow-right-from-bracket"></i> Logout
+            <i className="fas fa-arrow-right-from-bracket" aria-hidden="true"></i> <span className="label-text">Sign out</span>
           </button>
         </div>
-      </nav>
+      </header>
       <div className="page-wrapper">
         <div className={`sidebar-overlay ${sidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)} />
-        <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`} aria-label="Portal sections">
           <div className="sidebar-section-title">Coordinator Panel</div>
           {sidebarItems.map(item => (
-            <div key={item.key} className={`sidebar-item ${activeTab === item.key ? 'active' : ''}`}
+            <button type="button" key={item.key} className={`sidebar-item ${activeTab === item.key ? 'active' : ''}`} aria-current={activeTab === item.key ? 'page' : undefined}
               onClick={() => { setActiveTab(item.key); setSidebarOpen(false); }}>
               <span className="icon"><i className={`fas ${item.icon}`}></i></span><span>{item.label}</span>
-            </div>
+            </button>
           ))}
         </aside>
-        <main className="main-content">{renderSection()}</main>
+        <main className="main-content" id="portal-main" tabIndex={-1}>{renderSection()}</main>
       </div>
     </div>
   );
@@ -1220,7 +1221,7 @@ const InterviewSection = () => {
                       const isRetake = !!(a.interview && a.interview.decision === 'DISQUALIFIED' && hasAcceptedInterviewAppeal(a));
                       return (
                         <option key={a.id} value={a.id}>
-                          {isRetake ? '🔁 RETAKE — ' : ''}
+                          {isRetake ? 'RETAKE — ' : ''}
                           #{a.id} — {a.user?.profile?.firstName} {a.user?.profile?.lastName} — {a.program?.name}
                         </option>
                       );
@@ -1274,7 +1275,7 @@ const InterviewSection = () => {
                     onChange={e => setScheduleForm({ ...scheduleForm, meetingLink: e.target.value })}
                     placeholder="https://meet.google.com/abc-defg-hij  or  Zoom / Teams URL" />
                   <small style={{ color: (venueIsUrl || scheduleForm.meetingLink) ? '#0ea5e9' : '#64748b', fontSize: '0.78rem' }}>
-                    🔗 Paste a Zoom / Google Meet / Teams URL — it will be clickable in the student's notification and dashboard.
+                    Paste a Zoom / Google Meet / Teams URL — it will be clickable in the student's notification and dashboard.
                   </small>
                 </div>
               )}
@@ -1382,7 +1383,7 @@ const InterviewSection = () => {
       )}
 
       {needsScheduling.length === 0 && scheduled.length === 0 && completed.length === 0 && (
-        <div className="card"><div className="empty-state"><div className="empty-icon">🎤</div><p style={{ fontWeight: 600, color: '#1a2744' }}>No applications forwarded for interview yet.</p><p style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '0.4rem' }}>Applications appear here once the Director forwards them for interview scheduling.</p></div></div>
+        <div className="card"><div className="empty-state"><div className="empty-icon"><i className="fas fa-microphone-lines" aria-hidden="true"></i></div><p style={{ fontWeight: 600, color: '#1a2744' }}>No applications forwarded for interview yet.</p><p style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '0.4rem' }}>Applications appear here once the Director forwards them for interview scheduling.</p></div></div>
       )}
     </div>
   );
@@ -1559,7 +1560,7 @@ const CoordinatorAppealsSection = () => {
                     />
                     <small style={{ color: venueIsUrl ? '#0ea5e9' : '#64748b', fontSize: '0.78rem' }}>
                       {venueIsUrl
-                        ? '🔗 Online meeting link auto-detected — it will be clickable in the student\'s notification.'
+                        ? 'Online meeting link auto-detected — it will be clickable in the student\'s notification.'
                         : 'Tip: paste a Zoom / Google Meet / Teams URL here for online retake interviews.'}
                     </small>
                   </div>
@@ -1640,7 +1641,7 @@ const CoordinatorAppealsSection = () => {
       {appeals.length === 0 && (
         <div className="card">
           <div className="empty-state">
-            <div className="empty-icon">⚖️</div>
+            <div className="empty-icon"><i className="fas fa-scale-balanced" aria-hidden="true"></i></div>
             <p>No interview-disqualification appeals at the moment.</p>
           </div>
         </div>
@@ -1693,7 +1694,7 @@ const MeritSection = () => {
       }
 
       {entries.length === 0 ? (
-        <div className="card"><div className="empty-state"><div className="empty-icon">🏆</div><p style={{ fontWeight: 600, color: '#1a2744' }}>No merit entries yet.</p><p style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '0.4rem' }}>Merit scores are calculated automatically once interview marks are recorded.</p></div></div>
+        <div className="card"><div className="empty-state"><div className="empty-icon"><i className="fas fa-trophy" aria-hidden="true"></i></div><p style={{ fontWeight: 600, color: '#1a2744' }}>No merit entries yet.</p><p style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '0.4rem' }}>Merit scores are calculated automatically once interview marks are recorded.</p></div></div>
       ) : (
         <div className="card" style={{ padding: 0 }}>
           <div className="table-wrapper">
@@ -1982,7 +1983,7 @@ const EnrollmentSection = () => {
       {feeApproved.length === 0 && feePaid.length === 0 && enrolled.length === 0 && (
         <div className="enroll-card">
           <div className="enroll-empty">
-            <div className="ee-emoji">🎓</div>
+            <div className="ee-emoji"><i className="fas fa-graduation-cap" aria-hidden="true"></i></div>
             <div className="ee-title">No students ready for enrollment yet</div>
             <div className="ee-sub">Once students complete fee payment and the Director confirms, they'll appear here for enrollment.</div>
           </div>

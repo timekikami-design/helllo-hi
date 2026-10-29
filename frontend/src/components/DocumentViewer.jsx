@@ -107,7 +107,7 @@ const DocumentViewer = ({ open, onClose, doc, useIdRoute = true }) => {
       <div className="docviewer-modal" onClick={(e) => e.stopPropagation()}>
         <div className="docviewer-header">
           <div className="docviewer-title">
-            <i className={isPdf ? 'icon-pdf' : 'icon-image'}>{isPdf ? '📄' : '🖼️'}</i>
+            <i className={isPdf ? 'icon-pdf' : 'icon-image'}>{isPdf ? 'PDF' : 'IMG'}</i>
             <span>{doc.fileName || 'Document Preview'}</span>
           </div>
           <div className="docviewer-actions">

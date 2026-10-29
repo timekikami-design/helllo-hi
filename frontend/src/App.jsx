@@ -3,13 +3,24 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './utils/AuthContext';
 
 // --- Eager (small / always-needed) -----------------------------------------
-import Landing from './pages/Landing';
-import Login from './pages/Login';
-import Register from './pages/Register';
+import LandingLegacy from './pages/Landing';
+import LandingV2 from './pages/LandingV2';
+import LoginLegacy from './pages/Login';
+import RegisterLegacy from './pages/Register';
+import LoginV2 from './pages/auth/LoginV2';
+import RegisterV2 from './pages/auth/RegisterV2';
+import ConnectionBanner from './components/ds/ConnectionBanner';
+import { USE_NEW_LANDING, USE_NEW_AUTH, USE_DS_THEME } from './config/designFlags';
+
+// One-line revert: set USE_NEW_LANDING=false in config/designFlags.js.
+// The legacy page is kept untouched until the redesign is signed off.
+const Landing = USE_NEW_LANDING ? LandingV2 : LandingLegacy;
+const Login = USE_NEW_AUTH ? LoginV2 : LoginLegacy;
+const Register = USE_NEW_AUTH ? RegisterV2 : RegisterLegacy;
 
 // --- Lazy-loaded (heavier or rarely-visited) -------------------------------
-const ForgotPassword       = lazy(() => import('./pages/ForgotPassword'));
-const ResetPassword        = lazy(() => import('./pages/ResetPassword'));
+const ForgotPassword       = lazy(() => (USE_NEW_AUTH ? import('./pages/auth/ForgotPasswordV2') : import('./pages/ForgotPassword')));
+const ResetPassword        = lazy(() => (USE_NEW_AUTH ? import('./pages/auth/ResetPasswordV2') : import('./pages/ResetPassword')));
 const Terms                = lazy(() => import('./pages/Terms'));
 const Privacy              = lazy(() => import('./pages/Privacy'));
 const Dashboard            = lazy(() => import('./pages/Dashboard'));
@@ -54,7 +65,9 @@ const SaExamsRechecks  = lazy(() => import('./super-admin/pages/LmsExams').then(
 const SaQualitySurveys = lazy(() => import('./super-admin/pages/LmsQuality').then(m => ({ default: m.QualitySurveys })));
 const SaBulkOps        = lazy(() => import('./super-admin/pages/UsersBulk').then(m => ({ default: m.BulkOperations })));
 const SaTransferDuties = lazy(() => import('./super-admin/pages/UsersTransfer').then(m => ({ default: m.TransferDuties })));
-const SaPortals        = lazy(() => import('./super-admin/pages/Portals').then(m => ({ default: m.PortalRegistry })));
+const SaPortals        = lazy(() => (USE_DS_THEME
+  ? import('./super-admin/pages/PortalsV2').then(m => ({ default: m.PortalCatalog }))
+  : import('./super-admin/pages/Portals').then(m => ({ default: m.PortalRegistry }))));
 const SaMarksPins      = lazy(() => import('./super-admin/pages/LmsMarksPins').then(m => ({ default: m.MarksPins })));
 const SaLandingContent = lazy(() => import('./super-admin/pages/LandingContent'));
 const CoordinatorDashboard = lazy(() => import('./pages/CoordinatorDashboard'));
@@ -142,6 +155,7 @@ const App = () => {
   return (
     <>
       <ScrollToTop />
+      <ConnectionBanner />
       <Suspense fallback={<RouteFallback />}>
         <Routes>
           <Route path="/" element={<Landing />} />

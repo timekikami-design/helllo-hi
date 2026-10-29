@@ -1,5 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import SiteFooterV2 from '../ds/SiteFooterV2';
+import { USE_NEW_SITE_CHROME } from '../../config/designFlags';
 
 const SiteFooter = () => (
   <footer className="aust-footer aust-footer--rich">
@@ -96,4 +98,4 @@ const SiteFooter = () => (
   </footer>
 );
 
-export default SiteFooter;
+export default USE_NEW_SITE_CHROME ? SiteFooterV2 : SiteFooter;

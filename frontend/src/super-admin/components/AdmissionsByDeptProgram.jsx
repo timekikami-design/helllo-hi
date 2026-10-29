@@ -117,19 +117,19 @@ const AdmissionsByDeptProgram = ({ onManage }) => {
       <div className="sa-card-pad">
         {/* Filter bar */}
         <div className="sa-toolbar" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
-          <select className="sa-filter-select" value={departmentId} onChange={(e) => { setDepartmentId(e.target.value); setProgramId(''); }}>
+          <select className="sa-filter-select" aria-label="Filter by department" value={departmentId} onChange={(e) => { setDepartmentId(e.target.value); setProgramId(''); }}>
             <option value="">All Departments</option>
             {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
-          <select className="sa-filter-select" value={programId} onChange={(e) => setProgramId(e.target.value)}>
+          <select className="sa-filter-select" aria-label="Filter by program" value={programId} onChange={(e) => setProgramId(e.target.value)}>
             <option value="">All Programs</option>
             {programOptions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          <select className="sa-filter-select" value={cycleId} onChange={(e) => setCycleId(e.target.value)}>
+          <select className="sa-filter-select" aria-label="Filter by admission cycle" value={cycleId} onChange={(e) => setCycleId(e.target.value)}>
             <option value="">All Sessions</option>
             {cycles.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
           </select>
-          <select className="sa-filter-select" value={status} onChange={(e) => setStatus(e.target.value)}>
+          <select className="sa-filter-select" aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">All Statuses</option>
             {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>

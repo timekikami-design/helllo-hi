@@ -1,0 +1,289 @@
+/* ======================================================================
+   AUST — DESIGN SYSTEM BASE
+   Loaded once from main.jsx after the legacy global.css.
+   1. Remaps the legacy CSS variables onto the shared tokens so every
+      existing screen inherits the new palette without markup changes.
+   2. Global typography, focus, skip link, motion and shared primitives
+      (ds-*) used by the public site, auth pages and portals.
+   ====================================================================== */
+@import './tokens.css';
+
+/* ---------- 1. Legacy variable remap (non-breaking) ---------- */
+:root {
+  --primary:        var(--c-brand);
+  --primary-dark:   var(--c-deep);
+  --primary-light:  #2453a6;
+  --accent:         var(--c-brand);
+  --accent-2:       #2453a6;
+  --orange:         var(--c-accent);
+  --grad-primary:      linear-gradient(var(--c-brand), var(--c-brand));
+  --grad-primary-soft: linear-gradient(var(--c-brand), var(--c-brand));
+  --grad-accent:       linear-gradient(var(--c-brand), var(--c-brand));
+  --grad-success:      linear-gradient(var(--c-success), var(--c-success));
+  --grad-warning:      linear-gradient(var(--c-warning), var(--c-warning));
+  --grad-danger:       linear-gradient(var(--c-danger), var(--c-danger));
+  --text:        var(--c-ink);
+  --text-muted:  var(--c-ink-soft);
+  --text-soft:   var(--c-muted);
+  --bg:          var(--c-paper);
+  --bg-soft:     var(--c-paper-2);
+  --surface:     var(--c-surface);
+  --border:      var(--c-rule);
+  --border-soft: var(--c-rule-soft);
+  --success: var(--c-success);
+  --warning: var(--c-warning);
+  --danger:  var(--c-danger);
+  --info:    var(--c-info);
+  --shadow-xs: none;
+  --shadow-sm: var(--shadow-1);
+  --shadow-md: var(--shadow-1);
+  --shadow-lg: var(--shadow-2);
+  --shadow-xl: var(--shadow-2);
+  --shadow-glow: 0 0 0 3px rgba(11, 60, 140, 0.18);
+  --radius-sm: var(--r-2);
+  --radius:    var(--r-3);
+  --radius-lg: var(--r-3);
+  --radius-xl: var(--r-3);
+  --navbar-h:  64px;
+
+  /* legacy auth.css variables */
+  --aust-primary: var(--c-brand);
+  --aust-primary-dark: var(--c-deep);
+  --aust-primary-light: #2453a6;
+  --aust-text: var(--c-ink);
+  --aust-muted: var(--c-muted);
+  --aust-border: var(--c-rule);
+  --aust-success: var(--c-success);
+  --aust-danger: var(--c-danger);
+}
+
+/* ---------- 2. Base ---------- */
+html { -webkit-text-size-adjust: 100%; }
+/* The legacy sheet hid horizontal overflow on html/body. Layout causes
+   are fixed at the component level instead (min-width:0, wrappers). */
+html, body { overflow-x: visible; max-width: none; }
+html body {
+  font-family: var(--font-body);
+  font-size: var(--fs-base);
+  line-height: var(--lh-body);
+  color: var(--c-ink);
+  background: var(--c-paper);
+}
+html body h1, html body h2, html body h3, html body h4, html body h5 {
+  font-family: var(--font-display);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--lh-tight);
+  color: inherit;
+}
+html body b, html body strong, html body th { font-weight: var(--fw-semibold); }
+img, video, iframe, svg, canvas { max-width: 100%; }
+img { height: auto; }
+*::selection { background: rgba(11, 60, 140, 0.16); color: var(--c-ink); }
+
+/* Focus: always visible, 2px, never colour alone */
+html body :focus-visible {
+  outline: 2px solid var(--c-brand);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+html body .on-deep :focus-visible { outline-color: #ffffff; }
+
+/* Skip link — first focusable element on every page */
+.ds-skip {
+  position: fixed;
+  left: var(--s-4);
+  top: var(--s-2);
+  z-index: calc(var(--z-toast) + 1);
+  padding: var(--s-2) var(--s-4);
+  background: var(--c-ink);
+  color: #fff;
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+  border-radius: var(--r-2);
+  transform: translateY(-200%);
+  transition: transform var(--dur-1) var(--ease-out);
+}
+.ds-skip:focus, .ds-skip:focus-visible { transform: translateY(0); color: #fff; }
+
+.ds-sr-only {
+  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---------- Layout primitives ---------- */
+.ds-container {
+  width: 100%;
+  max-width: calc(var(--container) + 2 * var(--gutter));
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+.ds-section { padding-block: var(--section-y); }
+.ds-section + .ds-section { border-top: 1px solid var(--c-rule); }
+.ds-eyebrow {
+  display: inline-block;
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--c-accent);
+  margin-bottom: var(--s-3);
+}
+.on-deep .ds-eyebrow { color: var(--c-gold); }
+.ds-h2 { font-size: var(--fs-h2); margin: 0 0 var(--s-4); max-width: 22ch; }
+.ds-lede { font-size: var(--fs-lg); color: var(--c-ink-soft); max-width: var(--measure); margin: 0; }
+.ds-prose { max-width: var(--measure); color: var(--c-ink-soft); }
+.ds-prose p + p { margin-top: var(--s-4); }
+.ds-wrap-anywhere { overflow-wrap: anywhere; }
+.ds-scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+
+/* ---------- Buttons ---------- */
+.ds-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2);
+  min-height: var(--control-h);
+  padding: 0 var(--s-5);
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  line-height: 1.2;
+  text-decoration: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-2);
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+  white-space: nowrap;
+}
+.ds-btn--primary { background: var(--c-accent); color: #fff; }
+.ds-btn--primary:hover { background: var(--c-accent-ink); color: #fff; }
+.ds-btn--brand { background: var(--c-brand); color: #fff; }
+.ds-btn--brand:hover { background: var(--c-brand-ink); color: #fff; }
+.ds-btn--ghost { background: transparent; color: var(--c-ink); border-color: var(--c-border-strong); }
+.ds-btn--ghost:hover { border-color: var(--c-ink); color: var(--c-ink); background: rgba(23, 32, 45, 0.03); }
+.on-deep .ds-btn--ghost { color: #fff; border-color: rgba(255, 255, 255, 0.55); }
+.on-deep .ds-btn--ghost:hover { border-color: #fff; background: rgba(255, 255, 255, 0.06); color: #fff; }
+.ds-btn--block { width: 100%; }
+.ds-btn:active { transform: translateY(1px); }
+.ds-btn:disabled, .ds-btn[aria-disabled='true'] { opacity: 0.55; cursor: not-allowed; transform: none; }
+.ds-link {
+  color: var(--c-brand);
+  font-weight: var(--fw-semibold);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(11, 60, 140, 0.35);
+  display: inline-flex; align-items: center; gap: var(--s-1);
+}
+.ds-link:hover { text-decoration-color: currentColor; color: var(--c-brand-ink); }
+.on-deep .ds-link { color: #fff; text-decoration-color: rgba(255, 255, 255, 0.45); }
+
+/* ---------- Form controls ---------- */
+.ds-field { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
+.ds-label { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--c-ink); }
+.ds-label .ds-req { font-weight: var(--fw-regular); color: var(--c-muted); font-size: var(--fs-xs); margin-left: var(--s-1); }
+.ds-input, .ds-select, .ds-textarea {
+  width: 100%;
+  min-height: var(--control-h);
+  padding: 0.55rem 0.8rem;
+  font: inherit;
+  font-size: var(--fs-base);
+  color: var(--c-ink);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-2);
+  transition: border-color var(--dur-1) var(--ease-out);
+}
+.ds-textarea { min-height: 7.5rem; resize: vertical; }
+.ds-input:hover, .ds-select:hover, .ds-textarea:hover { border-color: var(--c-ink-soft); }
+.ds-input:focus-visible, .ds-select:focus-visible, .ds-textarea:focus-visible { outline: 2px solid var(--c-brand); outline-offset: 0; border-color: var(--c-brand); }
+.ds-input[aria-invalid='true'], .ds-select[aria-invalid='true'], .ds-textarea[aria-invalid='true'] { border-color: var(--c-danger); }
+.ds-input:disabled, .ds-select:disabled, .ds-textarea:disabled { background: var(--c-paper-2); color: var(--c-muted); cursor: not-allowed; }
+.ds-input[readonly] { background: var(--c-paper); }
+.ds-help { font-size: var(--fs-xs); color: var(--c-muted); margin: 0; }
+.ds-error { font-size: var(--fs-xs); color: var(--c-danger); display: flex; gap: var(--s-1); align-items: flex-start; margin: 0; }
+.ds-error .ds-icon { flex: none; margin-top: 1px; }
+.ds-ok { font-size: var(--fs-xs); color: var(--c-success); display: flex; gap: var(--s-1); align-items: center; margin: 0; }
+
+/* ---------- Alerts / notices ---------- */
+.ds-alert {
+  display: flex; gap: var(--s-3); align-items: flex-start;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid; border-left-width: 3px;
+  border-radius: var(--r-2);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+.ds-alert .ds-icon { flex: none; margin-top: 2px; }
+.ds-alert--error   { color: var(--c-danger);  background: var(--c-danger-bg);  border-color: var(--c-danger); }
+.ds-alert--success { color: var(--c-success); background: var(--c-success-bg); border-color: var(--c-success); }
+.ds-alert--info    { color: var(--c-info);    background: var(--c-info-bg);    border-color: var(--c-info); }
+.ds-alert--warning { color: var(--c-warning); background: var(--c-warning-bg); border-color: var(--c-warning); }
+
+/* ---------- Spinner + skeleton ---------- */
+.ds-spinner {
+  width: 1em; height: 1em; flex: none;
+  border: 2px solid currentColor; border-right-color: transparent;
+  border-radius: 50%;
+  animation: ds-spin 0.8s linear infinite;
+}
+@keyframes ds-spin { to { transform: rotate(360deg); } }
+.ds-skel {
+  display: block;
+  background: linear-gradient(90deg, var(--c-paper-2) 0%, #f6f1e8 50%, var(--c-paper-2) 100%);
+  background-size: 200% 100%;
+  animation: ds-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--r-1);
+}
+@keyframes ds-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+/* ---------- Reveal on scroll ---------- */
+.ds-reveal { opacity: 0; transform: translateY(14px); transition: opacity var(--dur-reveal) var(--ease-out), transform var(--dur-reveal) var(--ease-out); }
+.ds-reveal.is-in { opacity: 1; transform: none; }
+
+/* ---------- Connection banner ---------- */
+.ds-offline {
+  position: fixed; left: 50%; bottom: calc(var(--s-4) + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
+  display: flex; align-items: center; gap: var(--s-2);
+  max-width: calc(100vw - 2rem);
+  padding: var(--s-2) var(--s-4);
+  background: var(--c-ink); color: #fff;
+  border-radius: var(--r-2);
+  font-size: var(--fs-sm);
+  box-shadow: var(--shadow-2);
+}
+
+/* ---------- Reduced motion: no non-essential motion, static loaders ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .ds-reveal { opacity: 1; transform: none; }
+  .ds-skel, .skeleton, .sa-skel { animation: none !important; background: var(--c-paper-2) !important; }
+  .ds-spinner { animation: ds-spin 1.6s linear infinite !important; }
+}
+
+/* ---------- Responsive root-cause fixes (horizontal scroll) ----------
+   Legacy global.css forces `label > span { white-space: nowrap }` and
+   `button { min-width: max-content }`. Long checkbox labels, FAQ answers
+   rendered inside buttons and toolbar buttons therefore could not wrap
+   and pushed the page wider than the viewport. Restore normal wrapping. */
+html.ds label > span,
+html.ds label > strong,
+html.ds label > b { white-space: normal; flex-shrink: 1; min-width: 0; overflow-wrap: anywhere; }
+html.ds button, html.ds .btn, html.ds .aust-btn { min-width: 0; max-width: 100%; }
+html.ds .aust-faq-item { white-space: normal; text-align: left; width: 100%; overflow-wrap: anywhere; }
+html.ds .aust-faq-item * { white-space: normal; }
+html.ds .aust-download-card > * { min-width: 0; overflow-wrap: anywhere; }
+html.ds .aust-download-card { max-width: 100%; }
+html.ds .sa-root [style*="display: flex"], html.ds .sa-card-head, html.ds .sa-toolbar, html.ds .sa-page-head { flex-wrap: wrap; min-width: 0; }
+html.ds .sa-root td .sa-btn, html.ds .sa-root .sa-btn-sm { white-space: nowrap; }
+html.ds .aust-download-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }
+html.ds .sa-input, html.ds .sa-textarea, html.ds .sa-search, html.ds .sa-filter-select { max-width: 100%; box-sizing: border-box; }
+/* Grid/flex children default to min-width:auto and refuse to shrink below
+   their content; allow the console's layout containers to shrink. */
+html.ds .sa-content div, html.ds .sa-content section, html.ds .sa-content form { min-width: 0; }

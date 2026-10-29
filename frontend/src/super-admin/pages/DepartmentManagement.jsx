@@ -376,7 +376,7 @@ const DepartmentManagement = () => {
                           <td style={{ fontFamily: 'monospace', fontSize: 11.5 }}>{`${(p.shortForm || p.code || 'XXXX')}-F26-SERIAL`}</td>
                           <td style={{ fontSize: 11.5 }}>
                             {`${p.matricWeight ?? 30}/${p.fscWeight ?? 40}/${p.interviewWeight ?? 30}`}
-                            {(p.interviewWeight ?? 30) === 0 && <span title="Interview disabled"> 🚫</span>}
+                            {(p.interviewWeight ?? 30) === 0 && <span title="Interview disabled" style={{ color: 'var(--sa-text-muted)' }}> (interview off)</span>}
                           </td>
                           <td>{p.regNextSerial || 101}</td>
                         </tr>

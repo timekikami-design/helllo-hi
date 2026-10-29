@@ -1,0 +1,94 @@
+/* ======================================================================
+   AUST — DESIGN TOKENS (single source of truth)
+   Shared by: public site (A), admissions portals + auth (B),
+   Super Admin console (C). Components reference these tokens only.
+
+   Contrast (WCAG 2.2, measured — see report):
+     ink #17202d on paper #f7f4ee ............ 14.93
+     ink-soft #4a5262 on paper ................  7.15   on white 7.85
+     muted #5f6675 on paper ...................  5.25   on paper-2 4.77
+     brand #0b3c8c on paper ...................  9.38   white on brand 10.30
+     white on accent #a3401b ..................  6.35   accent on paper 5.79
+     white on deep #0a2350 .................... 15.34   deep-soft #c9d3e6 on deep 10.18
+     gold #e0b25c on deep .....................  7.81
+     success #1d6b45 on #e8f3ec ...............  5.70   warning #8a5300 on #fbf1dc 5.64
+     danger #b3261e on #fbeae8 ................  5.61   info #0b4f86 on #e7eff8 7.31
+     border-strong #8d8577 on white (UI) ......  3.65   (rule #ddd5c8 is decorative only)
+   ====================================================================== */
+:root {
+  /* ---- Neutrals ---- */
+  --c-paper:        #f7f4ee;
+  --c-paper-2:      #efe9de;
+  --c-surface:      #ffffff;
+  --c-ink:          #17202d;
+  --c-ink-soft:     #4a5262;
+  --c-muted:        #5f6675;
+  --c-rule:         #ddd5c8;
+  --c-rule-soft:    #e9e3d8;
+  --c-border-strong:#8d8577;
+
+  /* ---- Brand (existing AUST blue, unchanged hue) ---- */
+  --c-brand:        #0b3c8c;
+  --c-brand-ink:    #082e6d;
+  --c-brand-tint:   #e8edf6;
+  --c-deep:         #0a2350;
+  --c-deep-2:       #102d61;
+  --c-deep-soft:    #c9d3e6;
+  --c-gold:         #e0b25c;
+
+  /* ---- Accent (existing orange refined to terracotta for AA) ---- */
+  --c-accent:       #a3401b;
+  --c-accent-ink:   #86330f;
+
+  /* ---- Semantic ---- */
+  --c-success: #1d6b45;  --c-success-bg: #e8f3ec;
+  --c-warning: #8a5300;  --c-warning-bg: #fbf1dc;
+  --c-danger:  #b3261e;  --c-danger-bg:  #fbeae8;
+  --c-info:    #0b4f86;  --c-info-bg:    #e7eff8;
+
+  /* ---- Typography ---- */
+  --font-display: 'Source Serif 4', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif;
+  --font-body: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, 'Helvetica Neue', Arial, sans-serif;
+  --font-urdu: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', serif;
+  --fw-regular: 400;
+  --fw-semibold: 600;
+
+  --fs-xs:   0.8125rem;
+  --fs-sm:   0.9375rem;
+  --fs-base: clamp(1rem, 0.96rem + 0.2vw, 1.0625rem);
+  --fs-lg:   clamp(1.125rem, 1.05rem + 0.35vw, 1.25rem);
+  --fs-h4:   clamp(1.1875rem, 1.1rem + 0.45vw, 1.375rem);
+  --fs-h3:   clamp(1.375rem, 1.2rem + 0.8vw, 1.75rem);
+  --fs-h2:   clamp(1.75rem, 1.4rem + 1.7vw, 2.75rem);
+  --fs-h1:   clamp(2.25rem, 1.6rem + 3.1vw, 4rem);
+  --lh-body: 1.6;
+  --lh-tight: 1.15;
+  --tracking-tight: -0.015em;
+  --tracking-eyebrow: 0.12em;
+  --measure: 65ch;
+
+  /* ---- Spacing (8px base) ---- */
+  --s-1: 0.25rem;  --s-2: 0.5rem;  --s-3: 0.75rem; --s-4: 1rem;
+  --s-5: 1.5rem;   --s-6: 2rem;    --s-7: 3rem;    --s-8: 4rem;
+  --s-9: 6rem;     --s-10: 8rem;
+  --section-y: clamp(4rem, 2.4rem + 6vw, 8rem);
+  --container: 75rem;
+  --gutter: clamp(1rem, 0.4rem + 2.6vw, 2.5rem);
+
+  /* ---- Shape ---- */
+  --r-1: 2px; --r-2: 4px; --r-3: 6px;
+  --shadow-1: 0 1px 2px rgba(23, 32, 45, 0.06);
+  --shadow-2: 0 10px 30px -14px rgba(23, 32, 45, 0.22);
+
+  /* ---- Motion ---- */
+  --dur-1: 150ms; --dur-2: 250ms; --dur-reveal: 500ms;
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* ---- Layers ---- */
+  --z-sticky: 50; --z-drawer: 80; --z-modal: 100; --z-toast: 120;
+
+  /* ---- Controls ---- */
+  --control-h: 2.75rem;   /* 44px touch target */
+  --header-h: 4.5rem;
+  /* Breakpoints (reference): sm 600px · md 900px · lg 1200px */
+}

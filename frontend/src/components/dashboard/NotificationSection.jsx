@@ -139,7 +139,7 @@ const NotificationSection = () => {
       {notifications.length === 0 ? (
         <div className="card">
           <div className="empty-state">
-            <div className="empty-icon">🔔</div>
+            <div className="empty-icon"><i className="fas fa-bell" aria-hidden="true"></i></div>
             <p style={{ fontWeight: 600, color: '#1a2744' }}>You have no notifications.</p>
             <p style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '0.4rem' }}>
               New alerts about your application, interview, merit, fee, and enrollment will appear here automatically.

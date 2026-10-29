@@ -1,0 +1,302 @@
+/* ======================================================================
+   AUST — PORTAL THEME (Surface B: applicant / director / coordinator
+   portals; Surface C: Super Admin console).
+   Re-skins the EXISTING class names through the shared tokens. No markup,
+   props or behaviour change. Everything is scoped under html.ds, so
+   USE_DS_THEME=false restores the previous look in one line.
+   ====================================================================== */
+
+/* ---------------- Top bar ---------------- */
+html.ds .navbar {
+  background: var(--c-deep);
+  box-shadow: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: none;
+  padding-inline: var(--gutter);
+  padding-top: env(safe-area-inset-top);
+  height: calc(var(--navbar-h) + env(safe-area-inset-top));
+  gap: var(--s-3);
+  min-width: 0;
+}
+html.ds .navbar::after { display: none; }
+html.ds .navbar > * { min-width: 0; }
+html.ds .navbar-brand { font-family: var(--font-display); letter-spacing: 0; min-width: 0; }
+html.ds .navbar-brand .brand-logo { border-radius: var(--r-2); box-shadow: none; padding: 2px; }
+html.ds .navbar-brand .brand-text { min-width: 0; }
+html.ds .navbar-brand .brand-text strong { font-family: var(--font-display); font-weight: var(--fw-semibold); font-size: 1.05rem; }
+html.ds .navbar-brand .brand-text small { font-family: var(--font-body); color: var(--c-deep-soft); letter-spacing: 0.02em; overflow: hidden; text-overflow: ellipsis; }
+html.ds .navbar-user { color: var(--c-deep-soft); gap: var(--s-2); min-width: 0; }
+html.ds .navbar-user > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 22ch; }
+html.ds .navbar-user .role-badge {
+  background: transparent; border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: var(--r-2); color: #fff; letter-spacing: 0.04em;
+}
+html.ds .navbar-user .nav-link {
+  color: #fff; min-height: var(--control-h); min-width: var(--control-h);
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2);
+  border-radius: var(--r-2); padding: 0 var(--s-3); font-family: var(--font-body);
+}
+html.ds .navbar-user .nav-link:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+html.ds .navbar :focus-visible { outline-color: #fff; }
+html.ds .menu-toggle {
+  background: transparent; border: 1px solid rgba(255, 255, 255, 0.35); border-radius: var(--r-2);
+  min-width: var(--control-h); min-height: var(--control-h); font-size: 1.05rem;
+}
+
+/* ---------------- Layout ---------------- */
+html.ds .page-wrapper { background: var(--c-paper); min-width: 0; }
+html.ds .main-content {
+  padding: clamp(1rem, 0.5rem + 2vw, 2.5rem) var(--gutter) var(--s-8);
+  max-width: calc(var(--container) + 2 * var(--gutter));
+  animation: none;
+  overflow: visible;
+}
+
+/* ---------------- Sidebar ---------------- */
+html.ds .sidebar { background: var(--c-surface); border-right: 1px solid var(--c-rule); padding: var(--s-5) var(--s-3); }
+html.ds .sidebar::after { display: none; }
+html.ds .sidebar-section-title { color: var(--c-accent); letter-spacing: var(--tracking-eyebrow); font-weight: var(--fw-semibold); font-size: var(--fs-xs); }
+html.ds .sidebar-item {
+  color: var(--c-ink-soft); border-radius: var(--r-2); min-height: var(--control-h);
+  font-size: var(--fs-sm); padding: 0 var(--s-3); font-weight: var(--fw-regular);
+}
+html.ds .sidebar-item .icon { color: var(--c-muted); font-size: 0.95rem; }
+html.ds .sidebar-item:hover { background: var(--c-paper); color: var(--c-ink); }
+html.ds .sidebar-item:hover .icon { transform: none; color: var(--c-ink); }
+html.ds .sidebar-item.active { background: var(--c-brand-tint); color: var(--c-brand); box-shadow: none; font-weight: var(--fw-semibold); }
+html.ds .sidebar-item.active .icon { color: var(--c-brand); }
+html.ds .sidebar-item.active::before { background: var(--c-brand); border-radius: 0; width: 2px; top: 10px; bottom: 10px; }
+html.ds .sidebar-overlay { background: rgba(23, 32, 45, 0.45); backdrop-filter: none; }
+
+/* ---------------- Cards ---------------- */
+html.ds .card {
+  border: 1px solid var(--c-rule); border-radius: var(--r-3); box-shadow: none;
+  animation: none; padding: clamp(1rem, 0.7rem + 1vw, 1.5rem);
+}
+html.ds .card:hover { box-shadow: none; }
+html.ds .card-header {
+  font-family: var(--font-display); font-weight: var(--fw-semibold); font-size: var(--fs-h4);
+  border-bottom: 1px solid var(--c-rule); flex-wrap: wrap; gap: var(--s-2);
+}
+html.ds .section-title { font-family: var(--font-display); font-weight: var(--fw-semibold); font-size: var(--fs-h3); color: var(--c-ink); }
+html.ds .section-title::before { display: none; }
+html.ds .section-eyebrow { color: var(--c-accent); letter-spacing: var(--tracking-eyebrow); }
+
+/* ---------------- Stats ---------------- */
+html.ds .stats-grid { gap: 0; border: 1px solid var(--c-rule); border-radius: var(--r-3); background: var(--c-surface); overflow: hidden; grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); }
+html.ds .stat-card { border: 0; border-radius: 0; box-shadow: none; animation: none; border-right: 1px solid var(--c-rule-soft); border-bottom: 1px solid var(--c-rule-soft); background: transparent; }
+html.ds .stat-card::before { display: none; }
+html.ds .stat-card:hover { transform: none; box-shadow: none; }
+html.ds .stat-card .stat-icon { background: var(--c-paper); color: var(--c-brand); border-radius: var(--r-2); }
+html.ds .stat-card .stat-value { font-family: var(--font-display); font-weight: var(--fw-semibold); color: var(--c-ink); }
+html.ds .stat-card .stat-label { color: var(--c-muted); font-weight: var(--fw-semibold); }
+html.ds .overview-stat-card { border-radius: var(--r-3); box-shadow: none; animation: none; }
+html.ds .overview-stat-card:hover { transform: none; box-shadow: none; border-color: var(--c-border-strong); }
+html.ds .overview-stat-card__icon { background: var(--c-paper) !important; color: var(--c-brand) !important; border-radius: var(--r-2) !important; box-shadow: none !important; }
+html.ds .overview-stat-card__value { font-family: var(--font-display); font-weight: var(--fw-semibold); }
+
+/* ---------------- Welcome banner (student overview) ---------------- */
+html.ds .welcome-banner-card { border-radius: var(--r-3); box-shadow: none; animation: none; padding: clamp(1.25rem, 0.8rem + 2vw, 2.25rem); }
+html.ds .welcome-banner-card__bg { background: var(--c-deep); }
+html.ds .welcome-banner-card__bg::after { display: none; }
+html.ds .welcome-eyebrow { background: transparent; border: 0; padding: 0; color: var(--c-gold); border-radius: 0; }
+html.ds .welcome-title { font-family: var(--font-display); font-weight: var(--fw-semibold); color: #fff; font-size: var(--fs-h2); }
+html.ds .welcome-sub { color: var(--c-deep-soft); }
+html.ds .welcome-progress__bar { background: rgba(255, 255, 255, 0.16); border-radius: 0; }
+html.ds .welcome-progress__fill { background: var(--c-gold); border-radius: 0; box-shadow: none; }
+
+/* ---------------- Buttons ---------------- */
+html.ds .btn {
+  border-radius: var(--r-2); min-height: 2.5rem; font-weight: var(--fw-semibold);
+  box-shadow: none; letter-spacing: 0; border: 1px solid transparent;
+}
+html.ds .btn::after { display: none; }
+html.ds .btn:hover:not(:disabled) { transform: none; box-shadow: none; filter: none; }
+html.ds .btn:active:not(:disabled) { transform: translateY(1px); }
+html.ds .btn-primary { background: var(--c-brand); color: #fff; box-shadow: none; }
+html.ds .btn-primary:hover:not(:disabled) { background: var(--c-brand-ink); filter: none; box-shadow: none; }
+html.ds .btn-success { background: var(--c-success); box-shadow: none; }
+html.ds .btn-success:hover:not(:disabled) { background: #155636; }
+html.ds .btn-danger { background: var(--c-danger); box-shadow: none; }
+html.ds .btn-danger:hover:not(:disabled) { background: #8f1e18; }
+html.ds .btn-warning { background: var(--c-warning); box-shadow: none; }
+html.ds .btn-warning:hover:not(:disabled) { background: #6e4200; }
+html.ds .btn-info { background: var(--c-info); box-shadow: none; }
+html.ds .btn-info:hover:not(:disabled) { background: #083d68; }
+html.ds .btn-secondary { background: var(--c-ink-soft); }
+html.ds .btn-secondary:hover:not(:disabled) { background: var(--c-ink); }
+html.ds .btn-outline { background: var(--c-surface); color: var(--c-ink); border: 1px solid var(--c-border-strong); }
+html.ds .btn-outline:hover:not(:disabled) { border-color: var(--c-ink); background: var(--c-paper); color: var(--c-ink); }
+html.ds .btn-ghost { color: var(--c-ink-soft); }
+html.ds .btn-ghost:hover:not(:disabled) { background: var(--c-paper-2); color: var(--c-ink); }
+html.ds .btn-sm { min-height: 2.25rem; border-radius: var(--r-2); }
+html.ds .btn-lg { min-height: var(--control-h); border-radius: var(--r-2); }
+
+/* ---------------- Forms ---------------- */
+html.ds .form-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
+html.ds .form-grid.three-col { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); }
+html.ds .form-group { min-width: 0; }
+html.ds .form-group label { font-size: var(--fs-sm); color: var(--c-ink); }
+html.ds .form-group label .required { color: var(--c-danger); }
+html.ds .form-group input,
+html.ds .form-group select,
+html.ds .form-group textarea {
+  border: 1px solid var(--c-border-strong); border-radius: var(--r-2);
+  min-height: var(--control-h); font-size: var(--fs-base); background: var(--c-surface); box-shadow: none;
+  max-width: 100%;
+}
+html.ds .form-group textarea { min-height: 6rem; }
+html.ds .form-group input:focus,
+html.ds .form-group select:focus,
+html.ds .form-group textarea:focus { border-color: var(--c-brand); box-shadow: 0 0 0 1px var(--c-brand); outline: none; }
+html.ds .form-group input:disabled,
+html.ds .form-group select:disabled,
+html.ds .form-group textarea:disabled { background: var(--c-paper-2); color: var(--c-muted); }
+html.ds input[type='checkbox'], html.ds input[type='radio'] { accent-color: var(--c-brand); }
+html.ds .help-text, html.ds .form-help { color: var(--c-muted); }
+
+/* File upload drop zones (existing markup) */
+html.ds .file-upload {
+  border: 1px dashed var(--c-border-strong) !important; border-radius: var(--r-3) !important;
+  background: var(--c-paper) !important;
+}
+html.ds .file-upload:hover, html.ds .file-upload:focus-within { border-color: var(--c-brand) !important; background: var(--c-brand-tint) !important; }
+
+/* ---------------- Tables (scroll inside own wrapper) ---------------- */
+html.ds .table-wrapper, html.ds .table-wrap { border: 1px solid var(--c-rule); border-radius: var(--r-3); max-width: 100%; overflow-x: auto; }
+html.ds table th {
+  background: var(--c-paper) !important; color: var(--c-ink-soft) !important;
+  font-size: var(--fs-xs); letter-spacing: 0.06em; text-transform: uppercase; font-weight: var(--fw-semibold);
+  border-bottom: 1px solid var(--c-rule) !important;
+}
+html.ds table td { border-bottom: 1px solid var(--c-rule-soft); }
+html.ds table tbody tr:hover td { background: #fbf9f5; }
+
+/* ---------------- Badges / status ---------------- */
+html.ds .badge { border-radius: var(--r-2); letter-spacing: 0.02em; font-weight: var(--fw-semibold); }
+html.ds .badge::before { display: none; }
+html.ds .status-badge { border-radius: var(--r-2) !important; font-weight: var(--fw-semibold); }
+html.ds .role-badge { border-radius: var(--r-2); }
+
+/* ---------------- Alerts ---------------- */
+html.ds .alert { border-radius: var(--r-2); border-left-width: 3px; box-shadow: none; animation: none; }
+html.ds .alert-error   { background: var(--c-danger-bg);  color: var(--c-danger);  border-color: var(--c-danger); }
+html.ds .alert-success { background: var(--c-success-bg); color: var(--c-success); border-color: var(--c-success); }
+html.ds .alert-info    { background: var(--c-info-bg);    color: var(--c-info);    border-color: var(--c-info); }
+html.ds .alert-warning { background: var(--c-warning-bg); color: var(--c-warning); border-color: var(--c-warning); }
+
+/* ---------------- Empty states ---------------- */
+html.ds .empty-state { color: var(--c-ink-soft); padding: var(--s-7) var(--s-4); }
+html.ds .empty-state .empty-icon { color: var(--c-muted); font-size: 1.75rem; opacity: 1; }
+html.ds .empty-state p { max-width: 46ch; }
+
+/* ---------------- Modals (focus + scroll within) ---------------- */
+html.ds .modal-overlay { background: rgba(23, 32, 45, 0.55); backdrop-filter: none; padding: var(--s-4); }
+html.ds .modal { border-radius: var(--r-3); box-shadow: var(--shadow-2); max-height: calc(100dvh - 2rem); overflow-y: auto; max-width: min(100%, var(--modal-w, 720px)); }
+html.ds .modal-header { border-bottom: 1px solid var(--c-rule); font-family: var(--font-display); }
+
+/* ---------------- Timelines / progress ---------------- */
+html.ds .timeline-pro__dot { box-shadow: none !important; }
+html.ds .progress-tracker { overflow-x: auto; max-width: 100%; }
+html.ds .pt-circle { box-shadow: none !important; }
+
+/* ---------------- Loading ---------------- */
+html.ds .skeleton { background: linear-gradient(90deg, var(--c-paper-2) 0%, #f6f1e8 50%, var(--c-paper-2) 100%); background-size: 200% 100%; border-radius: var(--r-1); }
+html.ds .spinner { border-color: var(--c-rule); border-top-color: var(--c-brand); }
+
+/* ---------------- Wrap long tokens: emails, application numbers ---------------- */
+html.ds .card, html.ds .modal, html.ds td, html.ds .info-row, html.ds .doc-item { overflow-wrap: anywhere; }
+
+/* ---------------- Responsive fixes for the portals ---------------- */
+@media (max-width: 768px) {
+  html.ds .sidebar { top: calc(var(--navbar-h) + env(safe-area-inset-top)); width: min(85vw, 300px); box-shadow: var(--shadow-2); padding-bottom: calc(var(--s-5) + env(safe-area-inset-bottom)); }
+  html.ds .navbar-user .nav-link span.label-text { display: none; }
+  html.ds .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 420px) {
+  html.ds .navbar-brand .brand-logo { width: 32px; height: 32px; }
+  html.ds .navbar-user .role-badge { display: none; }
+}
+
+/* ======================================================================
+   SURFACE C — SUPER ADMIN CONSOLE: token remap onto .sa-root variables.
+   Dark mode already exists here, so it is refined, not added.
+   ====================================================================== */
+html.ds .sa-root {
+  --sa-navy: var(--c-deep);
+  --sa-navy-700: var(--c-deep-2);
+  --sa-navy-600: #17386f;
+  --sa-blue: var(--c-brand);
+  --sa-blue-600: var(--c-brand-ink);
+  --sa-blue-soft: var(--c-brand-tint);
+  --sa-bg: var(--c-paper);
+  --sa-card: var(--c-surface);
+  --sa-card-alt: #fbf9f5;
+  --sa-border: var(--c-rule);
+  --sa-text: var(--c-ink);
+  --sa-text-soft: var(--c-ink-soft);
+  --sa-text-muted: var(--c-muted);
+  --sa-success: var(--c-success);  --sa-success-soft: var(--c-success-bg);
+  --sa-warning: var(--c-warning);  --sa-warning-soft: var(--c-warning-bg);
+  --sa-danger: var(--c-danger);    --sa-danger-soft: var(--c-danger-bg);
+  --sa-shadow: none;
+  --sa-shadow-lg: var(--shadow-2);
+  --sa-radius: var(--r-3);
+  --sa-radius-sm: var(--r-2);
+  --sa-font: var(--font-body);
+}
+html.ds .sa-root.sa-dark {
+  --sa-navy: #08162f; --sa-navy-700: #0c1d3b; --sa-navy-600: #12284d;
+  --sa-blue: #8fb3ff; --sa-blue-600: #a9c4ff; --sa-blue-soft: #16243d;
+  --sa-bg: #0e1726; --sa-card: #152033; --sa-card-alt: #152033; --sa-border: #26344d;
+  --sa-text: #e8ecf3; --sa-text-soft: #a9b3c4; --sa-text-muted: #8d97a8;
+  --sa-success: #6fcf97; --sa-warning: #f2c46d; --sa-danger: #f28b82;
+  --sa-success-soft: #14271c; --sa-warning-soft: #2a2113; --sa-danger-soft: #2a1717;
+}
+html.ds .sa-root h1, html.ds .sa-root h2, html.ds .sa-root h3 { font-family: var(--font-display); font-weight: var(--fw-semibold); }
+html.ds .sa-page-head h1, html.ds .sa-page-head h2 { font-size: var(--fs-h3); letter-spacing: var(--tracking-tight); }
+html.ds .sa-brand-logo { border-radius: var(--r-2) !important; background: transparent !important; border: 1px solid rgba(255, 255, 255, 0.35); font-family: var(--font-display); }
+html.ds .sa-brand-text strong { font-family: var(--font-display); font-weight: var(--fw-semibold); }
+html.ds .sa-nav-group-label { color: var(--c-gold) !important; letter-spacing: var(--tracking-eyebrow); font-weight: var(--fw-semibold); }
+html.ds .sa-nav-item { border-radius: var(--r-2) !important; min-height: 2.5rem; }
+html.ds .sa-nav-item.active { background: rgba(255, 255, 255, 0.10) !important; box-shadow: inset 2px 0 0 var(--c-gold) !important; color: #fff !important; }
+html.ds .sa-card, html.ds .sa-stat, html.ds .sa-gov-tile, html.ds .sa-qa, html.ds .sa-modal { box-shadow: none !important; border-radius: var(--r-3) !important; }
+html.ds .sa-stat:hover, html.ds .sa-gov-tile:hover, html.ds .sa-qa:hover { transform: none !important; }
+html.ds .sa-btn { border-radius: var(--r-2) !important; min-height: 2.5rem; box-shadow: none !important; font-weight: var(--fw-semibold); }
+html.ds .sa-btn-primary { background: var(--sa-blue) !important; }
+html.ds .sa-root.sa-dark .sa-btn-primary { color: #0e1726 !important; }
+html.ds .sa-input, html.ds .sa-search, html.ds .sa-filter-select, html.ds .sa-textarea { border-radius: var(--r-2) !important; min-height: 2.5rem; }
+html.ds .sa-badge, html.ds .sa-chip { border-radius: var(--r-2) !important; }
+html.ds .sa-table-wrap { max-width: 100%; overflow-x: auto; }
+html.ds .sa-table th { text-transform: uppercase; letter-spacing: 0.06em; font-size: var(--fs-xs); }
+html.ds .sa-header { box-shadow: none !important; border-bottom: 1px solid var(--sa-border); }
+html.ds .sa-header-title { font-family: var(--font-display); font-weight: var(--fw-semibold); }
+html.ds .sa-icon-btn { min-width: 2.5rem; min-height: 2.5rem; border-radius: var(--r-2) !important; }
+html.ds .sa-avatar { border-radius: var(--r-2) !important; }
+html.ds .sa-toast { border-radius: var(--r-2) !important; }
+html.ds .sa-main, html.ds .sa-content { min-width: 0; }
+html.ds .sa-gov-ic { border-radius: var(--r-2) !important; }
+
+/* Sidebar items are now <button>s (keyboard reachable). Reset UA styles. */
+button.sidebar-item {
+  width: 100%; background: none; border: 0; font: inherit; text-align: left;
+  display: flex; align-items: center; gap: 12px; cursor: pointer;
+}
+html.ds button.sidebar-item:focus-visible { outline: 2px solid var(--c-brand); outline-offset: -2px; }
+html.ds .main-content:focus { outline: none; }
+
+/* Landing-content editor: section list + editor stack on narrow screens */
+@media (max-width: 760px) {
+  html.ds .sa-lc-grid { grid-template-columns: minmax(0, 1fr) !important; }
+}
+
+/* Contrast: legacy inline styles hard-code slate greys (#64748b = 4.33:1,
+   #94a3b8 = 2.4:1 on paper). Lift them to the AA muted token (5.25:1). */
+html.ds [style*="rgb(100, 116, 139)"], html.ds [style*="rgb(148, 163, 184)"] { color: var(--c-muted) !important; }
+html.ds .pay-pill { color: var(--c-ink-soft); }
+html.ds .stat-card .stat-label, html.ds .overview-stat-card__label, html.ds .overview-stat-card__hint, html.ds .help-text, html.ds .form-help { color: var(--c-muted) !important; }
+/* Legacy inline semantic colours below AA on white → AA tokens */
+html.ds [style*="rgb(22, 163, 74)"], html.ds [style*="rgb(5, 150, 105)"], html.ds [style*="rgb(16, 185, 129)"] { color: var(--c-success) !important; }
+html.ds [style*="color: rgb(217, 119, 6)"], html.ds [style*="color: rgb(245, 158, 11)"] { color: var(--c-warning) !important; }
+html.ds [style*="color: rgb(220, 38, 38)"], html.ds [style*="color: rgb(239, 68, 68)"] { color: var(--c-danger) !important; }
+html.ds [style*="color: rgb(14, 165, 233)"] { color: var(--c-info) !important; }

@@ -207,7 +207,7 @@ const FeeSection = () => {
 
       {hasFeeApproved && (
         <div className="alert alert-success" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '1.2rem' }}>✅</span>
+          <span style={{ fontSize: '1.1rem', color: 'var(--c-success)' }}><i className="fas fa-circle-check" aria-hidden="true"></i></span>
           <div>
             <strong>Fee Confirmed!</strong> Your fee has been approved by the Director. You will be forwarded for enrollment shortly.
           </div>
@@ -270,14 +270,14 @@ const FeeSection = () => {
       ) : isOnMeritList ? (
         <div className="card">
           <div className="empty-state">
-            <div className="empty-icon">💳</div>
+            <div className="empty-icon"><i className="fas fa-credit-card" aria-hidden="true"></i></div>
             <p style={{ fontWeight: 600, color: '#1a2744' }}>Fee details will be announced shortly. You will be notified.</p>
           </div>
         </div>
       ) : (
         <div className="card">
           <div className="empty-state">
-            <div className="empty-icon">💳</div>
+            <div className="empty-icon"><i className="fas fa-credit-card" aria-hidden="true"></i></div>
             <p style={{ fontWeight: 600, color: '#1a2744' }}>No fee details available yet.</p>
             <p style={{ fontSize: '0.85rem', color: '#64748b', maxWidth: 520, margin: '0.5rem auto 0' }}>
               The fee schedule will appear here <strong>only after you are selected in the finalized merit list</strong>. You will also receive an in-app and email notification when that happens.
@@ -386,7 +386,7 @@ const FeeSection = () => {
                 className={`btn ${paymentMethod === 'BANK_GATEWAY' ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => setPaymentMethod('BANK_GATEWAY')}
               >
-                💳 {paymentConfig.bankGateway?.name || 'Bank Payment Gateway'} {paymentConfig.gatewayMode !== 'live' && <small style={{ opacity: .8 }}>(Test Mode)</small>}
+                <i className="fas fa-credit-card" aria-hidden="true" style={{ marginRight: 6 }}></i>{paymentConfig.bankGateway?.name || 'Bank Payment Gateway'} {paymentConfig.gatewayMode !== 'live' && <small style={{ opacity: .8 }}>(Test Mode)</small>}
               </button>
             )}
             <button
@@ -394,7 +394,7 @@ const FeeSection = () => {
               className={`btn ${paymentMethod === 'BANK' ? 'btn-primary' : 'btn-secondary'}`}
               onClick={() => setPaymentMethod('BANK')}
             >
-              🏦 Bank Deposit (Receipt Upload)
+              <i className="fas fa-building-columns" aria-hidden="true" style={{ marginRight: 6 }}></i>Bank Deposit (Receipt Upload)
             </button>
           </div>
 

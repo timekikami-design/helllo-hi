@@ -3,7 +3,6 @@
    Single-card design: Form (LEFT)  ·  Image (RIGHT) — both inside one card
    Fits viewport, no scroll, responsive across all breakpoints
    ====================================================================== */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
   --aust-primary:        #0b3c8c;

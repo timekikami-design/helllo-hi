@@ -76,9 +76,10 @@ const Dashboard = () => {
 
   return (
     <div>
-      <nav className="navbar">
+      <a className="ds-skip" href="#portal-main">Skip to content</a>
+      <header className="navbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button className="menu-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle menu"><i className="fas fa-bars"></i></button>
+          <button className="menu-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Open or close the section menu" aria-expanded={sidebarOpen}><i className="fas fa-bars"></i></button>
           <div className="navbar-brand">
             <img src="/assets/aust-logo.png" alt="AUST" className="brand-logo" />
             <div className="brand-text">
@@ -90,28 +91,30 @@ const Dashboard = () => {
         <div className="navbar-user">
           <span>{user?.email}</span>
           <span className="role-badge"><i className="fas fa-user-graduate" style={{ marginRight: 5 }}></i>{roleLabel}</span>
-          <Link to="/" className="nav-link"><i className="fas fa-house"></i></Link>
+          <Link to="/" className="nav-link" aria-label="Main website"><i className="fas fa-house" aria-hidden="true"></i></Link>
           <button onClick={logout} className="nav-link" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-            <i className="fas fa-arrow-right-from-bracket"></i> Logout
+            <i className="fas fa-arrow-right-from-bracket" aria-hidden="true"></i> <span className="label-text">Sign out</span>
           </button>
         </div>
-      </nav>
+      </header>
       <div className="page-wrapper">
         <div className={`sidebar-overlay ${sidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)} />
-        <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`} aria-label="Portal sections">
           <div className="sidebar-section-title">{portalLabel}</div>
           {sidebarItems.map(item => (
-            <div
+            <button
+              type="button"
               key={item.key}
               className={`sidebar-item ${activeTab === item.key ? 'active' : ''}`}
+              aria-current={activeTab === item.key ? 'page' : undefined}
               onClick={() => { setActiveTab(item.key); setSidebarOpen(false); }}
             >
               <span className="icon"><i className={`fas ${item.icon}`}></i></span>
               <span>{item.label}</span>
-            </div>
+            </button>
           ))}
         </aside>
-        <main className="main-content">
+        <main className="main-content" id="portal-main" tabIndex={-1}>
           {renderSection()}
         </main>
       </div>
@@ -406,7 +409,7 @@ const StudentOverviewSection = ({ user, onNavigate }) => {
             <div className="welcome-eyebrow">
               <i className="fas fa-hand-sparkles"></i> Welcome back
             </div>
-            <h1 className="welcome-title">Hello, {fullName} 👋</h1>
+            <h1 className="welcome-title">Hello, {fullName}</h1>
             <p className="welcome-sub">
               {cycle?.title ? `${cycle.title} · ` : ''}Track your application, payments and enrollment in one place.
             </p>
@@ -616,7 +619,7 @@ const StudentOverviewSection = ({ user, onNavigate }) => {
           marginBottom: '1.5rem',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-            <span style={{ fontSize: '1.6rem' }}>✅</span>
+            <span style={{ fontSize: '1.4rem', color: 'var(--c-success)' }}><i className="fas fa-circle-check" aria-hidden="true"></i></span>
             <div>
               <div style={{ fontWeight: 700, color: '#065f46', fontSize: '1.05rem' }}>Enrollment Confirmed</div>
               <div style={{ fontSize: '0.85rem', color: '#047857' }}>Save these credentials — you will use them throughout your studies. This card will disappear after your first LMS login.</div>
@@ -652,7 +655,7 @@ const StudentOverviewSection = ({ user, onNavigate }) => {
             {lmsPasswordChanged && (
               <div style={{ padding: '0.75rem', background: '#fff', borderRadius: '8px', border: '1px solid #a7f3d0' }}>
                 <div style={{ fontSize: '0.72rem', color: '#047857', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '4px' }}>LMS Password</div>
-                <div style={{ fontWeight: 700, color: '#065f46', fontSize: '0.95rem' }}>✅ Password updated</div>
+                <div style={{ fontWeight: 700, color: '#065f46', fontSize: '0.95rem' }}>Password updated</div>
                 <div style={{ fontSize: '0.7rem', color: '#047857', marginTop: 2 }}>Use the password you set to log in to the LMS.</div>
               </div>
             )}
@@ -675,7 +678,7 @@ const StudentOverviewSection = ({ user, onNavigate }) => {
           marginBottom: '1.5rem',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '1.8rem' }}>🎉</span>
+            <span style={{ fontSize: '1.5rem', color: 'var(--c-success)' }}><i className="fas fa-circle-check" aria-hidden="true"></i></span>
             <div>
               <div style={{ fontWeight: 800, color: '#065f46', fontSize: '1.15rem' }}>Congratulations! Successfully Enrolled</div>
               <div style={{ fontSize: '0.9rem', color: '#047857', marginTop: 4 }}>
@@ -901,7 +904,7 @@ const StudentEnrollmentSection = () => {
         <h2 className="section-title">Enrollment</h2>
         <div className="card">
           <div className="empty-state">
-            <div className="empty-icon">🎓</div>
+            <div className="empty-icon"><i className="fas fa-graduation-cap" aria-hidden="true"></i></div>
             <p style={{ fontWeight: 600, color: '#1a2744' }}>You are not enrolled yet.</p>
             <p style={{ fontSize: '0.85rem', color: '#64748b', maxWidth: 560, margin: '0.5rem auto 0' }}>
               Enrollment is completed after your application is approved, your admission fee is verified by the Director, and the Coordinator finalises your enrollment record. Your roll number and registration number will appear here once active.
@@ -922,7 +925,7 @@ const StudentEnrollmentSection = () => {
 
       {isFullyEnrolled ? (
         <div className="enrollment-card">
-          <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🎉</div>
+          <div style={{ fontSize: '2rem', marginBottom: '0.5rem', color: 'var(--c-success)' }}><i className="fas fa-graduation-cap" aria-hidden="true"></i></div>
           <h3>Congratulations! Successfully Enrolled</h3>
           <p style={{ color: '#065f46', marginBottom: '1rem' }}>
             {published

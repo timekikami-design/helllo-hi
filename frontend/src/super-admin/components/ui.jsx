@@ -63,7 +63,7 @@ export const SkeletonTable = ({ rows = 6, cols = 5 }) => (
 /* ---------------- Breadcrumb ---------------- */
 export const Breadcrumb = ({ items = [] }) => (
   <nav className="sa-breadcrumb" aria-label="Breadcrumb">
-    <Link to="/super-admin"><i className="fas fa-home" /></Link>
+    <Link to="/super-admin" aria-label="Super Admin overview"><i className="fas fa-home" aria-hidden="true" /></Link>
     {items.map((it, i) => (
       <React.Fragment key={i}>
         <span className="sep">/</span>

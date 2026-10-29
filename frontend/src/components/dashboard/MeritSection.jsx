@@ -98,7 +98,7 @@ const MeritSection = () => {
       ) : (
         <div className="card">
           <div className="empty-state">
-            <div className="empty-icon">🏆</div>
+            <div className="empty-icon"><i className="fas fa-trophy" aria-hidden="true"></i></div>
             <p style={{ fontWeight: 600, color: '#1a2744' }}>Your merit score is not available yet.</p>
             <p style={{ fontSize: '0.85rem', color: '#64748b', maxWidth: 520, margin: '0.5rem auto 0' }}>
               Merit is calculated automatically after the Coordinator completes your interview. Once published, your rank and total merit percentage will appear here.
