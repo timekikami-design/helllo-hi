@@ -10,6 +10,7 @@ import RegisterLegacy from './pages/Register';
 import LoginV2 from './pages/auth/LoginV2';
 import RegisterV2 from './pages/auth/RegisterV2';
 import ConnectionBanner from './components/ds/ConnectionBanner';
+import PageSkeleton, { skeletonVariantFor } from './components/ds/PageSkeleton';
 import { USE_NEW_LANDING, USE_NEW_AUTH, USE_DS_THEME } from './config/designFlags';
 
 // One-line revert: set USE_NEW_LANDING=false in config/designFlags.js.
@@ -139,17 +140,26 @@ const ScrollToTop = () => {
   return null;
 };
 
-const RouteFallback = () => (
-  <div className="loading" style={{ marginTop: '30vh' }} aria-busy="true" aria-live="polite">
-    <span className="spinner"></span>
-  </div>
-);
+// Skeleton that matches the page being loaded (presentation only).
+const RouteFallback = () => {
+  const { pathname } = useLocation();
+  if (!USE_DS_THEME) {
+    return (
+      <div className="loading" style={{ marginTop: '30vh' }} aria-busy="true" aria-live="polite">
+        <span className="spinner"></span>
+      </div>
+    );
+  }
+  return <PageSkeleton variant={skeletonVariantFor(pathname)} />;
+};
 
 const App = () => {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <div className="loading" style={{ marginTop: '40vh' }}><span className="spinner"></span></div>;
+    return USE_DS_THEME
+      ? <RouteFallback />
+      : <div className="loading" style={{ marginTop: '40vh' }}><span className="spinner"></span></div>;
   }
 
   return (

@@ -1,0 +1,56 @@
+/* ======================================================================
+   Page skeletons — shown while lazy route chunks / auth check load.
+   Uses the shared `.ds-skel` shimmer (static under reduced motion).
+   ====================================================================== */
+.psk { min-height: 100vh; min-height: 100svh; background: var(--c-paper, #f7f4ee); overflow: hidden; }
+.psk .ds-skel { max-width: 100%; }
+.psk .psk-dark {
+  background: linear-gradient(90deg, rgba(255,255,255,.10) 0%, rgba(255,255,255,.22) 50%, rgba(255,255,255,.10) 100%);
+  background-size: 200% 100%;
+}
+
+/* Header */
+.psk-header { background: var(--c-deep, #0a2350); }
+.psk-header__row { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; min-height: var(--header-h, 4.5rem); }
+.psk-header .ds-skel { background: rgba(255,255,255,.16); animation: none; }
+.psk-brand, .psk-nav, .psk-row { display: flex; align-items: center; gap: .75rem; }
+.psk-nav { gap: 1.5rem; }
+.psk-logo { width: 2.5rem; height: 2.5rem; border-radius: 50%; flex: none; }
+.psk-logo--lg { width: 4rem; height: 4rem; margin-inline: auto; }
+.psk-cta { width: 7.5rem; height: 2.75rem; border-radius: var(--r-1, 4px); }
+
+/* Landing hero */
+.psk-hero { background: var(--c-deep, #0a2350); min-height: calc(min(100svh, 60rem) - var(--header-h, 4.5rem)); display: flex; align-items: center; }
+.psk-hero__inner, .psk-band .ds-container { display: grid; gap: 1rem; padding-block: 3rem; }
+.psk-band { background: var(--c-deep, #0a2350); }
+.psk-band .ds-container { padding-block: 3.5rem 3rem; }
+
+/* Body */
+.psk-body { display: grid; gap: 2.5rem; padding-block: 3rem 4rem; }
+.psk-text { display: grid; gap: .85rem; max-width: 46rem; }
+.psk-grid { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); }
+.psk-tile { height: 11rem; border-radius: var(--r-2, 8px); }
+
+/* Signed-in apps */
+.psk-app { display: flex; min-height: 100svh; }
+.psk-app__side { width: 15rem; flex: none; display: grid; align-content: start; gap: 1.1rem; padding: 1.5rem; background: var(--c-deep, #0a2350); }
+.psk-app__side .ds-skel { background: rgba(255,255,255,.16); animation: none; }
+.psk-app__main { flex: 1; min-width: 0; display: grid; align-content: start; gap: 1rem; padding: 2rem clamp(1rem, 3vw, 2.5rem); }
+.psk-cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); margin-top: .5rem; }
+.psk-card { height: 6.5rem; border-radius: var(--r-2, 8px); }
+.psk-table { height: 18rem; border-radius: var(--r-2, 8px); }
+
+/* Auth */
+.psk-auth { min-height: 100svh; display: grid; place-items: center; padding: 1.5rem; background: var(--c-deep, #0a2350); }
+.psk-auth__card { width: min(100%, 26rem); display: grid; gap: 1rem; padding: 2rem; background: #fff; border-radius: var(--r-2, 8px); }
+.psk-auth__card .ds-skel:nth-child(2), .psk-auth__card .ds-skel:nth-child(3) { margin-inline: auto; }
+
+@media (max-width: 1080px) { .psk-hide-md { display: none !important; } }
+@media (max-width: 600px)  { .psk-hide-sm { display: none !important; } .psk-cta { width: 6rem; } }
+
+/* ---------- Image placeholders (landing + public pages) ----------
+   While a photo downloads its frame shows a calm paper/deep fill instead of
+   an empty hole, so sections never collapse or flash. */
+html.ds .hx__media { background: var(--c-deep, #0a2350); }
+html.ds .lp-about__img, html.ds .lp-deep__img, html.ds .lp-map { background-color: var(--c-paper-2, #efe9de); }
+html.ds .lp-about__img img, html.ds .lp-deep__img img, html.ds .lp-map img { background: var(--c-paper-2, #efe9de); }
