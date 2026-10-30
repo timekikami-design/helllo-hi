@@ -98,8 +98,8 @@ const LandingV2 = () => {
           <Reveal className="ds-container lp-about">
             <figure className="lp-about__img">
               <picture>
-                <source type="image/webp" srcSet="/assets/campus-tall-560.webp" />
-                <img src="/assets/campus-tall-560.jpg" alt="Arched entrance and balconies of the AUST academic block in Havelian" width="560" height="684" loading="lazy" decoding="async" />
+                <source type="image/webp" srcSet="/assets/campus-about-640.webp 640w, /assets/campus-about-960.webp 960w" sizes="(max-width: 900px) 100vw, 40vw" />
+                <img src="/assets/campus-about-960.jpg" srcSet="/assets/campus-about-640.jpg 640w, /assets/campus-about-960.jpg 960w" sizes="(max-width: 900px) 100vw, 40vw" alt="The domed red-brick academic block of AUST in Havelian" width="960" height="768" loading="lazy" decoding="async" />
               </picture>
             </figure>
             <div>

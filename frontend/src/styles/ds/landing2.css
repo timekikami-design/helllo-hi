@@ -172,3 +172,26 @@
 .lx-pull p { font-family: var(--font-display); font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.375rem); line-height: 1.3; color: var(--c-ink); margin: 0 0 var(--s-5); }
 .lx-pull footer { color: var(--c-ink-soft); font-size: var(--fs-sm); }
 .lx-pull footer strong { color: var(--c-ink); }
+
+/* ---- Fixes after visual review ---- */
+/* Nav labels never wrap; give the bar room by dropping the brand subtitle earlier */
+.ds-site-nav__link, .ds-mega__btn { white-space: nowrap; }
+.ds-site-nav ul { gap: 0; }
+@media (max-width: 1480px) and (min-width: 1181px) {
+  .ds-brand__sub { display: none; }
+  .ds-site-nav__link { padding: 0 0.6rem; }
+}
+/* About image: landscape crop without the overlaid title text */
+.lp-about__img img { aspect-ratio: 960 / 768; }
+
+/* Phone hero: the building gets its own band above the copy so it stays
+   clearly recognisable; copy sits on the deep brand colour below it. */
+@media (max-width: 600px) {
+  .hx { display: block; min-height: 0; padding-top: 0; }
+  .hx__media { position: relative; inset: auto; z-index: 0; aspect-ratio: 4 / 3; }
+  .hx__img { object-position: 46% 55%; }
+  .hx__shade { background: linear-gradient(180deg, rgba(8, 22, 47, 0.78) 0%, rgba(8, 22, 47, 0) 32%, rgba(8, 22, 47, 0) 70%, rgba(10, 35, 80, 1) 100%); }
+  .hx__inner { padding-block: var(--s-4) var(--s-7); }
+  .hx__sep { display: none; }
+  .hx__status { display: flex; }
+}
