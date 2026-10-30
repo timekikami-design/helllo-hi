@@ -116,6 +116,10 @@ const SiteHeader = ({ overlay = false }) => {
   const triggerRef = useRef(null);
   const drawerRef = useRef(null);
   const navRef = useRef(null);
+  // The Login dropdown lives outside <nav>, so "outside click" must be measured
+  // against the whole header — otherwise pressing a Login item closed (hid) the
+  // panel on pointerdown before the click could reach the link.
+  const headerRef = useRef(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -130,7 +134,7 @@ const SiteHeader = ({ overlay = false }) => {
   // Close desktop dropdowns on outside click.
   useEffect(() => {
     if (!openMenu) return undefined;
-    const onDown = (e) => { if (!navRef.current?.contains(e.target)) setOpenMenu(null); };
+    const onDown = (e) => { if (!headerRef.current?.contains(e.target)) setOpenMenu(null); };
     document.addEventListener('pointerdown', onDown);
     return () => document.removeEventListener('pointerdown', onDown);
   }, [openMenu]);
@@ -180,7 +184,7 @@ const SiteHeader = ({ overlay = false }) => {
   return (
     <>
       <a className="ds-skip" href="#main" onClick={skipToMain}>Skip to main content</a>
-      <header className={`ds-site-header${scrolled ? ' is-scrolled' : ''}${overlay ? ' is-overlay' : ''}${transparent ? ' is-transparent' : ''}`}>
+      <header ref={headerRef} className={`ds-site-header${scrolled ? ' is-scrolled' : ''}${overlay ? ' is-overlay' : ''}${transparent ? ' is-transparent' : ''}`}>
         <div className="ds-container ds-site-header__row">
           <Link to="/" className="ds-brand" aria-label="Abbottabad University of Science and Technology, home">
             <img src="/assets/aust-logo.png" alt="" width="40" height="42" decoding="async" />
