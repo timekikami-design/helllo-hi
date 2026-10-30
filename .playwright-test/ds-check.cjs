@@ -18,7 +18,7 @@ const jwt = require('../backend/node_modules/jsonwebtoken');
 require('../backend/node_modules/dotenv').config({ path: path.join(__dirname, '../backend/.env') });
 
 const BASE = process.env.DS_BASE || 'http://127.0.0.1:3000';
-const WIDTHS = [[320, 720], [375, 812], [414, 896], [768, 1024], [1024, 768], [1440, 900], [844, 390]];
+const WIDTHS = [[360, 640], [390, 844], [412, 915], [768, 1024], [820, 1180], [1024, 768], [1280, 720], [1440, 900], [1920, 1080], [2560, 1440]];
 const MODE = process.argv[2] || 'all';
 const AXE_SRC = fs.readFileSync(path.join(__dirname, '../.patches/node_modules/axe-core/axe.min.js'), 'utf8');
 
@@ -157,15 +157,25 @@ async function keyboard(browser) {
   await p.goto(BASE + '/', { waitUntil: 'networkidle' });
   const first = await focusPath(1);
   console.log('KEY landing first focus:', first[0]);
-  results.push({ ok: /Skip to content/.test(first[0]), page: 'keyboard landing skip link first', w: '', extra: first[0] });
-  await p.focus('#enq-name');
-  const enq = await focusPath(5);
-  console.log('KEY enquiry form order:', enq.join(' → '));
-  results.push({ ok: enq[0].includes('#enq-email') && enq[1].includes('#enq-phone') && enq[2].includes('#enq-program') && enq[3].includes('#enq-message'), page: 'keyboard enquiry order', w: '', extra: enq.join(' | ') });
-  // Submitting an empty enquiry moves focus to the first invalid field
-  await p.click('form.lp-form button[type=submit]');
-  const af = await p.evaluate(() => document.activeElement.id);
-  results.push({ ok: af === 'enq-name', page: 'keyboard enquiry focus-first-error', w: '', extra: af });
+  results.push({ ok: /Skip to (main )?content/.test(first[0]), page: 'keyboard landing skip link first', w: '', extra: first[0] });
+  // Desktop dropdown: Enter opens, ArrowDown moves, Escape closes + returns focus
+  await p.setViewportSize({ width: 1440, height: 900 });
+  await p.goto(BASE + '/', { waitUntil: 'networkidle' });
+  await p.focus('button.ds-mega__btn >> nth=1');
+  await p.keyboard.press('Enter');
+  await p.waitForTimeout(150);
+  const firstItem = await p.evaluate(() => document.activeElement.closest('.ds-mega__panel') ? document.activeElement.innerText.split('\n')[0] : 'none');
+  await p.keyboard.press('ArrowDown');
+  const secondItem = await p.evaluate(() => document.activeElement.innerText.split('\n')[0]);
+  const expanded = await p.evaluate(() => document.querySelectorAll('button.ds-mega__btn')[1].getAttribute('aria-expanded'));
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(100);
+  const backOnBtn = await p.evaluate(() => document.activeElement.classList.contains('ds-mega__btn') && document.activeElement.getAttribute('aria-expanded') === 'false');
+  console.log('KEY dropdown:', firstItem, '→', secondItem, 'expanded=', expanded, 'escape-return=', backOnBtn);
+  results.push({ ok: firstItem === 'Apply Online' && secondItem === 'Admission Process' && expanded === 'true' && backOnBtn, page: 'keyboard desktop dropdown', w: '1440', extra: `${firstItem}|${secondItem}|${expanded}|${backOnBtn}` });
+  // Apply Now + login targets
+  const targets = await p.evaluate(() => ({ apply: document.querySelector('.ds-site-header__cta')?.getAttribute('href') }));
+  results.push({ ok: targets.apply === '/register', page: 'apply now target', w: '', extra: JSON.stringify(targets) });
 
   await p.goto(BASE + '/login', { waitUntil: 'networkidle' });
   const lg = await focusPath(9);
