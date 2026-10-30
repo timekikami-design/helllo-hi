@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../utils/AuthContext';
 import Icon from './Icon';
+import { NAV, LOGIN_LINKS, APPLY_TO } from './navConfig';
 
 const dashHref = (user) => {
   if (!user) return '/login';
@@ -11,21 +12,12 @@ const dashHref = (user) => {
   return '/dashboard';
 };
 
-export const SITE_NAV = [
-  { label: 'Programs', to: '/programs' },
-  { label: 'Admissions', to: '/admissions' },
-  { label: 'Fees', to: '/fee-structure' },
-  { label: 'Online learning', to: '/odl' },
-  { label: 'About', to: '/about' },
-  { label: 'News', to: '/news' },
-  { label: 'Contact', to: '/contact' },
-];
-
 const FOCUSABLE = 'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])';
+const CLOSE_DELAY = 140;
 
-/** Moves focus to the page's main region (#main, or the element after the header). */
+/** Moves focus to <main id="main"> (or the first region after the header). */
 const skipToMain = (e) => {
-  const target = document.getElementById('main') || document.querySelector('.ds-site-header + *');
+  const target = document.getElementById('main') || document.querySelector('.ds-site-header ~ *');
   if (!target) return;
   e.preventDefault();
   if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
@@ -33,65 +25,148 @@ const skipToMain = (e) => {
   target.scrollIntoView({ block: 'start' });
 };
 
-const SiteHeader = () => {
+/* ---------------- Desktop dropdown ---------------- */
+const Dropdown = ({ menu, open, onOpen, onClose, onToggle, align = 'left' }) => {
+  const btnRef = useRef(null);
+  const panelRef = useRef(null);
+  const timer = useRef(null);
+  const panelId = `nav-panel-${menu.id}`;
+
+  const enter = () => { clearTimeout(timer.current); onOpen(); };
+  const leave = () => { clearTimeout(timer.current); timer.current = setTimeout(onClose, CLOSE_DELAY); };
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const items = () => [...(panelRef.current?.querySelectorAll('a') || [])];
+
+  const onBtnKey = (e) => {
+    if (e.key === 'ArrowDown' || ((e.key === 'Enter' || e.key === ' ') && !open)) {
+      e.preventDefault();
+      onOpen();
+      requestAnimationFrame(() => items()[0]?.focus());
+    } else if (e.key === 'Escape' && open) {
+      e.preventDefault(); onClose(); btnRef.current?.focus();
+    }
+  };
+  const onPanelKey = (e) => {
+    const list = items();
+    const i = list.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown') { e.preventDefault(); list[(i + 1) % list.length]?.focus(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); list[(i - 1 + list.length) % list.length]?.focus(); }
+    else if (e.key === 'Home') { e.preventDefault(); list[0]?.focus(); }
+    else if (e.key === 'End') { e.preventDefault(); list[list.length - 1]?.focus(); }
+    else if (e.key === 'Escape') { e.preventDefault(); onClose(); btnRef.current?.focus(); }
+  };
+  const onBlur = (e) => {
+    if (!e.currentTarget.contains(e.relatedTarget)) onClose();
+  };
+
+  return (
+    <li className={`ds-mega${open ? ' is-open' : ''}`} onMouseEnter={enter} onMouseLeave={leave} onBlur={onBlur}>
+      <button
+        ref={btnRef}
+        type="button"
+        className="ds-site-nav__link ds-mega__btn"
+        aria-expanded={open}
+        aria-haspopup="true"
+        aria-controls={panelId}
+        onClick={onToggle}
+        onKeyDown={onBtnKey}
+      >
+        {menu.label}
+        <Icon name="chevronDown" size={14} className="ds-mega__caret" />
+      </button>
+      <div id={panelId} ref={panelRef} className={`ds-mega__panel ds-mega__panel--${align}`} hidden={!open} onKeyDown={onPanelKey}>
+        <ul>
+          {menu.items.map((it) => (
+            <li key={it.to}>
+              <Link to={it.to} className="ds-mega__item" onClick={onClose}>
+                <span className="ds-mega__ic"><Icon name={it.icon} size={18} /></span>
+                <span className="ds-mega__txt"><strong>{it.label}</strong>{it.desc && <small>{it.desc}</small>}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </li>
+  );
+};
+
+/* ---------------- Header ---------------- */
+const SiteHeader = ({ overlay = false }) => {
   const { user } = useAuth();
   const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [openMenu, setOpenMenu] = useState(null);
+  const [drawer, setDrawer] = useState(false);
+  const [acc, setAcc] = useState(null);
   const triggerRef = useRef(null);
   const drawerRef = useRef(null);
+  const navRef = useRef(null);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12);
+    const onScroll = () => setScrolled(window.scrollY > 24);
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  const close = useCallback((returnFocus = true) => {
-    setOpen(false);
+  // Close everything on route change.
+  useEffect(() => { setOpenMenu(null); setDrawer(false); setAcc(null); }, [location.pathname, location.hash]);
+
+  // Close desktop dropdowns on outside click.
+  useEffect(() => {
+    if (!openMenu) return undefined;
+    const onDown = (e) => { if (!navRef.current?.contains(e.target)) setOpenMenu(null); };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [openMenu]);
+
+  const closeDrawer = useCallback((returnFocus = true) => {
+    setDrawer(false);
     if (returnFocus) requestAnimationFrame(() => triggerRef.current?.focus());
   }, []);
 
-  // Close on route change (link click) without stealing focus.
-  useEffect(() => { setOpen(false); }, [location.pathname, location.hash]);
-
-  // Escape closes, Tab is trapped inside the open drawer, page scroll locked.
+  // Drawer: focus trap, Escape, body scroll lock.
   useEffect(() => {
-    if (!open) return undefined;
-    const drawer = drawerRef.current;
-    const first = drawer?.querySelector(FOCUSABLE);
-    first?.focus();
+    if (!drawer) return undefined;
+    const el = drawerRef.current;
+    el?.querySelector(FOCUSABLE)?.focus();
     const onKey = (e) => {
-      if (e.key === 'Escape') { e.preventDefault(); close(); return; }
-      if (e.key !== 'Tab' || !drawer) return;
-      const items = [...drawer.querySelectorAll(FOCUSABLE)];
-      if (!items.length) return;
-      const firstEl = items[0];
-      const lastEl = items[items.length - 1];
-      if (e.shiftKey && document.activeElement === firstEl) { e.preventDefault(); lastEl.focus(); }
-      else if (!e.shiftKey && document.activeElement === lastEl) { e.preventDefault(); firstEl.focus(); }
+      if (e.key === 'Escape') { e.preventDefault(); closeDrawer(); return; }
+      if (e.key !== 'Tab' || !el) return;
+      const list = [...el.querySelectorAll(FOCUSABLE)];
+      if (!list.length) return;
+      const first = list[0]; const last = list[list.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
     };
-    const prevOverflow = document.body.style.overflow;
+    const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     document.addEventListener('keydown', onKey);
-    const onResize = () => { if (window.innerWidth > 1080) setOpen(false); };
+    const onResize = () => { if (window.innerWidth > 1180) setDrawer(false); };
     window.addEventListener('resize', onResize);
     return () => {
-      document.body.style.overflow = prevOverflow;
+      document.body.style.overflow = prev;
       document.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', onResize);
     };
-  }, [open, close]);
+  }, [drawer, closeDrawer]);
 
-  const cta = user
-    ? <Link to={dashHref(user)} className="ds-btn ds-btn--primary">Open your portal</Link>
-    : <Link to="/register" className="ds-btn ds-btn--primary">Apply online</Link>;
+  const loginMenu = { id: 'login', label: user ? 'Portal' : 'Login', items: user
+    ? [{ label: 'Open your portal', to: dashHref(user), desc: 'Continue where you left off', icon: 'arrowRight' }, LOGIN_LINKS[1]]
+    : LOGIN_LINKS };
+  const transparent = overlay && !scrolled && !drawer;
+  const dd = (m) => ({
+    open: openMenu === m.id,
+    onOpen: () => setOpenMenu(m.id),
+    onClose: () => setOpenMenu((cur) => (cur === m.id ? null : cur)),
+    onToggle: () => setOpenMenu((cur) => (cur === m.id ? null : m.id)),
+  });
 
   return (
     <>
-      <a className="ds-skip" href="#main" onClick={skipToMain}>Skip to content</a>
-      <header className={`ds-site-header${scrolled ? ' is-scrolled' : ''}`}>
+      <a className="ds-skip" href="#main" onClick={skipToMain}>Skip to main content</a>
+      <header className={`ds-site-header${scrolled ? ' is-scrolled' : ''}${overlay ? ' is-overlay' : ''}${transparent ? ' is-transparent' : ''}`}>
         <div className="ds-container ds-site-header__row">
           <Link to="/" className="ds-brand" aria-label="Abbottabad University of Science and Technology, home">
             <img src="/assets/aust-logo.png" alt="" width="40" height="42" decoding="async" />
@@ -101,73 +176,73 @@ const SiteHeader = () => {
             </span>
           </Link>
 
-          <nav className="ds-site-nav" aria-label="Primary">
+          <nav className="ds-site-nav" aria-label="Primary" ref={navRef}>
             <ul>
-              {SITE_NAV.map((item) => (
-                <li key={item.to}>
-                  <NavLink to={item.to} className={({ isActive }) => `ds-site-nav__link${isActive ? ' is-active' : ''}`}>
-                    {item.label}
-                  </NavLink>
-                </li>
-              ))}
+              {NAV.map((m) => (m.items
+                ? <Dropdown key={m.id} menu={m} {...dd(m)} />
+                : (
+                  <li key={m.to}>
+                    <NavLink to={m.to} end={m.to === '/'} className={({ isActive }) => `ds-site-nav__link${isActive ? ' is-active' : ''}`}>{m.label}</NavLink>
+                  </li>
+                )))}
             </ul>
           </nav>
 
           <div className="ds-site-header__actions">
-            {!user && <Link to="/login" className="ds-site-header__signin">Sign in</Link>}
-            <span className="ds-site-header__cta">{cta}</span>
+            <ul className="ds-site-header__login">
+              <Dropdown menu={loginMenu} align="right" {...dd(loginMenu)} />
+            </ul>
+            <Link to={user ? dashHref(user) : APPLY_TO} className="ds-btn ds-btn--primary ds-site-header__cta">
+              {user ? 'My portal' : 'Apply Now'}
+            </Link>
             <button
               ref={triggerRef}
               type="button"
               className="ds-menu-btn"
-              aria-expanded={open}
+              aria-expanded={drawer}
               aria-controls="ds-mobile-nav"
-              onClick={() => (open ? close() : setOpen(true))}
+              onClick={() => (drawer ? closeDrawer() : setDrawer(true))}
             >
-              <Icon name={open ? 'close' : 'menu'} size={22} />
-              <span className="ds-sr-only">{open ? 'Close menu' : 'Open menu'}</span>
+              <Icon name={drawer ? 'close' : 'menu'} size={22} />
+              <span className="ds-sr-only">{drawer ? 'Close menu' : 'Open menu'}</span>
             </button>
           </div>
         </div>
       </header>
 
-      {open && (
+      {drawer && (
         <>
-          <div className="ds-drawer-scrim" onClick={() => close()} aria-hidden="true" />
-          <div
-            id="ds-mobile-nav"
-            ref={drawerRef}
-            className="ds-drawer"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Site menu"
-          >
+          <div className="ds-drawer-scrim" onClick={() => closeDrawer()} aria-hidden="true" />
+          <div id="ds-mobile-nav" ref={drawerRef} className="ds-drawer" role="dialog" aria-modal="true" aria-label="Site menu">
             <div className="ds-drawer__head">
               <span className="ds-eyebrow" style={{ margin: 0 }}>Menu</span>
-              <button type="button" className="ds-menu-btn ds-menu-btn--plain" onClick={() => close()}>
-                <Icon name="close" size={22} />
-                <span className="ds-sr-only">Close menu</span>
+              <button type="button" className="ds-menu-btn ds-menu-btn--plain" onClick={() => closeDrawer()}>
+                <Icon name="close" size={22} /><span className="ds-sr-only">Close menu</span>
               </button>
             </div>
             <nav aria-label="Mobile">
               <ul className="ds-drawer__list">
-                <li><NavLink to="/" end onClick={() => close(false)}>Home</NavLink></li>
-                {SITE_NAV.map((item) => (
-                  <li key={item.to}><NavLink to={item.to} onClick={() => close(false)}>{item.label}</NavLink></li>
-                ))}
-                <li><NavLink to="/faq" onClick={() => close(false)}>Questions</NavLink></li>
-                <li><NavLink to="/downloads" onClick={() => close(false)}>Downloads</NavLink></li>
+                {[...NAV, loginMenu].map((m) => (m.items ? (
+                  <li key={m.id} className={`ds-acc${acc === m.id ? ' is-open' : ''}`}>
+                    <button type="button" className="ds-acc__btn" aria-expanded={acc === m.id} aria-controls={`acc-${m.id}`}
+                      onClick={() => setAcc((cur) => (cur === m.id ? null : m.id))}>
+                      {m.label}<Icon name="chevronDown" size={18} />
+                    </button>
+                    <ul id={`acc-${m.id}`} className="ds-acc__panel" hidden={acc !== m.id}>
+                      {m.items.map((it) => (
+                        <li key={it.to}><Link to={it.to} onClick={() => closeDrawer(false)}>{it.label}{it.desc && <small>{it.desc}</small>}</Link></li>
+                      ))}
+                    </ul>
+                  </li>
+                ) : (
+                  <li key={m.to}><NavLink to={m.to} end={m.to === '/'} className="ds-acc__link" onClick={() => closeDrawer(false)}>{m.label}</NavLink></li>
+                )))}
               </ul>
             </nav>
             <div className="ds-drawer__foot">
-              {user ? (
-                <Link to={dashHref(user)} className="ds-btn ds-btn--primary ds-btn--block" onClick={() => close(false)}>Open your portal</Link>
-              ) : (
-                <>
-                  <Link to="/register" className="ds-btn ds-btn--primary ds-btn--block" onClick={() => close(false)}>Apply online</Link>
-                  <Link to="/login" className="ds-btn ds-btn--ghost ds-btn--block" onClick={() => close(false)}>Sign in</Link>
-                </>
-              )}
+              <Link to={user ? dashHref(user) : APPLY_TO} className="ds-btn ds-btn--primary ds-btn--block" onClick={() => closeDrawer(false)}>
+                {user ? 'Open your portal' : 'Apply Now'}
+              </Link>
             </div>
           </div>
         </>
