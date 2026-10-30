@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../utils/AuthContext';
 import Icon from './Icon';
+import '../../styles/ds/site.css';
+import '../../styles/ds/site-nav.css';
 import { NAV, LOGIN_LINKS, APPLY_TO } from './navConfig';
 
 const dashHref = (user) => {
