@@ -185,7 +185,7 @@ const SiteHeader = ({ overlay = false }) => {
           <Link to="/" className="ds-brand" aria-label="Abbottabad University of Science and Technology, home">
             <img src="/assets/aust-logo.png" alt="" width="40" height="42" decoding="async" />
             <span className="ds-brand__text">
-              <span className="ds-brand__name">Abbottabad University</span>
+              <span className="ds-brand__name"><span className="ds-brand__long">Abbottabad University</span><span className="ds-brand__short" aria-hidden="true">AUST</span></span>
               <span className="ds-brand__sub">of Science &amp; Technology · Open &amp; Distance Learning</span>
             </span>
           </Link>

@@ -195,3 +195,43 @@
   .hx__sep { display: none; }
   .hx__status { display: flex; }
 }
+
+/* ======================================================================
+   Round 3 — hero fits the screen on every desktop/laptop size, and a
+   clean mobile header.
+   ====================================================================== */
+/* Desktop/laptop: hero is exactly one screen tall (minus nothing — the
+   header floats over it), and the type scales with BOTH width and height
+   so the whole block — status, heading, text, buttons — is always visible. */
+@media (min-width: 601px) {
+  .hx { min-height: 0; height: 100vh; height: 100svh; max-height: 60rem; min-height: 30rem; justify-content: center; }
+  .hx__inner { padding-block: calc(var(--header-h) + 1rem) 2.5rem; }
+  .hx__title { font-size: clamp(2.25rem, min(4.6vw, 8.2vh), 4.25rem); margin-bottom: clamp(0.75rem, 2.2vh, 1.5rem); }
+  .hx__sub { font-size: clamp(1rem, min(1.25vw, 2.3vh), 1.25rem); margin-bottom: clamp(1rem, 3vh, 2rem); }
+  .hx__status { margin-bottom: clamp(0.75rem, 2.4vh, 1.5rem); }
+}
+@media (min-width: 601px) and (max-height: 640px) {
+  .hx__status { min-height: 2rem; padding-block: 4px; font-size: var(--fs-xs); }
+  .hx__credit { display: none; }
+  .hx__cta .ds-btn { min-height: 2.5rem; }
+}
+/* Very wide screens: keep the building centred and the copy column readable */
+@media (min-width: 1600px) { .hx__copy { max-width: 46rem; } }
+
+/* Mobile header: logo + "AUST", compact Apply button, menu button */
+.ds-brand__short { display: none; }
+@media (max-width: 600px) {
+  .ds-site-header__row { gap: var(--s-3); min-height: 4rem; }
+  .ds-brand { gap: var(--s-2); flex: 1 1 auto; }
+  .ds-brand img { width: 36px; height: 38px; }
+  .ds-brand__long { display: none; }
+  .ds-brand__short { display: inline; }
+  .ds-brand__name { font-size: 1.25rem; white-space: nowrap; letter-spacing: 0.02em; }
+  .ds-brand__sub { display: none !important; }
+  .ds-site-header .ds-site-header__cta { display: inline-flex; min-height: 2.5rem; padding: 0 var(--s-4); font-size: var(--fs-xs); }
+  .ds-site-header .ds-menu-btn { width: 2.75rem; height: 2.75rem; flex: none; }
+  .ds-site-header__actions { gap: var(--s-2); }
+}
+@media (max-width: 340px) {
+  .ds-site-header .ds-site-header__cta { padding: 0 var(--s-3); }
+}

@@ -18,14 +18,14 @@ const Hero = ({ c, cycle, cycleState, user, dashHref }) => {
           <img src={customBg} alt="" className="hx__img" width="1280" height="578" fetchpriority="high" decoding="async" />
         ) : (
           <picture>
-            <source type="image/webp" srcSet="/assets/hero/aust-dusk-480.webp 480w, /assets/hero/aust-dusk-824.webp 824w, /assets/hero/aust-dusk-1280.webp 1280w" sizes="100vw" />
+            <source type="image/webp" srcSet="/assets/hero/aust-dusk-480.webp 480w, /assets/hero/aust-dusk-824.webp 824w, /assets/hero/aust-dusk-1280.webp 1280w, /assets/hero/aust-dusk-1920.webp 1920w, /assets/hero/aust-dusk-2560.webp 2560w" sizes="100vw" />
             <img
               className="hx__img"
-              src="/assets/hero/aust-dusk-1280.jpg"
-              srcSet="/assets/hero/aust-dusk-480.jpg 480w, /assets/hero/aust-dusk-824.jpg 824w, /assets/hero/aust-dusk-1280.jpg 1280w"
+              src="/assets/hero/aust-dusk-1920.jpg"
+              srcSet="/assets/hero/aust-dusk-480.jpg 480w, /assets/hero/aust-dusk-824.jpg 824w, /assets/hero/aust-dusk-1280.jpg 1280w, /assets/hero/aust-dusk-1920.jpg 1920w, /assets/hero/aust-dusk-2560.jpg 2560w"
               sizes="100vw"
               alt=""
-              width="1280" height="578"
+              width="2560" height="1156"
               fetchpriority="high" decoding="async"
             />
           </picture>
