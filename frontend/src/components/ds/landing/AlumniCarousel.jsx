@@ -60,18 +60,17 @@ const AlumniCarousel = ({ items, eyebrow, title, sub }) => {
           </button>
         </div>
       </div>
+      <div role="region" aria-roledescription="carousel" aria-labelledby="alumni-title">
       <ul
         id="alumni-track"
         ref={trackRef}
         className="lx-car__track"
         tabIndex={0}
-        role="region"
-        aria-roledescription="carousel"
-        aria-labelledby="alumni-title"
+        aria-label="Graduate stories. Use the arrow keys or the buttons to scroll."
         onKeyDown={onKey}
       >
         {items.map((a, i) => (
-          <li key={`${a.name}-${i}`} className="lx-card" aria-roledescription="slide" aria-label={`${i + 1} of ${items.length}`}>
+          <li key={`${a.name}-${i}`} className="lx-card" aria-label={`${i + 1} of ${items.length}: ${a.name}`}>
             <div className="lx-card__who">
               <span className="lx-card__av" aria-hidden="true">{a.initials || a.name.split(' ').map((p) => p[0]).join('').slice(0, 2)}</span>
               <span><strong>{a.name}</strong>{a.role && <small>{a.role}</small>}</span>
@@ -80,6 +79,7 @@ const AlumniCarousel = ({ items, eyebrow, title, sub }) => {
           </li>
         ))}
       </ul>
+      </div>
       <p style={{ marginTop: 'var(--s-4)' }}><Link to="/alumni" className="ds-link">All alumni stories <Icon name="arrowRight" size={16} /></Link></p>
     </div>
   );
