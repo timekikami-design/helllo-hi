@@ -3,21 +3,9 @@ import { Link } from 'react-router-dom';
 import SiteNav from '../components/landing/SiteNav';
 import SiteFooter from '../components/landing/SiteFooter';
 import '../styles/landing.css';
+import { newsItems as news, notices } from '../data/publicContent';
 
-const news = [
-  { date: '2026-05-11', display: 'May 11, 2026', title: 'Spring online orientation schedule released', text: 'New students can now view orientation sessions, portal setup guidance, and faculty introduction timings.', tag: 'Orientation' },
-  { date: '2026-05-04', display: 'May 4, 2026',  title: 'Digital library access expanded',           text: 'Additional journals, course packs and research databases are available for enrolled ODL students.', tag: 'Library' },
-  { date: '2026-04-28', display: 'Apr 28, 2026', title: 'Admissions open for ODL pathways',          text: 'Applications are being accepted for the Associate Degree in Computer Science (ADCS) program.', tag: 'Admissions' },
-  { date: '2026-04-15', display: 'Apr 15, 2026', title: 'New LMS dashboard preview rolls out',       text: 'Updated student dashboard with live application status and faster notifications.', tag: 'Platform' },
-  { date: '2026-04-02', display: 'Apr 2, 2026',  title: 'Online Bank Payment Gateway now live',      text: 'Students can pay processing and admission fees securely online through the bank payment gateway.', tag: 'Payments' },
-  { date: '2026-03-20', display: 'Mar 20, 2026', title: 'Faculty office hours updated',              text: 'Revised weekly office hours posted in the LMS for every ADCS instructor.', tag: 'Academics' },
-];
 
-const notices = [
-  { date: 'May 10, 2026', title: 'Mid-term examination schedule', text: 'Mid-term dates for Spring 2026 published. Check your LMS for paper-wise slots.' },
-  { date: 'May 5, 2026',  title: 'Fee deadline reminder',         text: 'Last date to deposit admission fee for newly selected candidates is May 28, 2026.' },
-  { date: 'Apr 25, 2026', title: 'Result Awaited submissions',    text: 'Students applying with Part-I result can update full FSc result from their dashboard.' },
-];
 
 const News = () => (
   <div className="aust-page">

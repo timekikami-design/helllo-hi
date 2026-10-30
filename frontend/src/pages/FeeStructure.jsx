@@ -3,13 +3,8 @@ import { Link } from 'react-router-dom';
 import SiteNav from '../components/landing/SiteNav';
 import SiteFooter from '../components/landing/SiteFooter';
 import '../styles/landing.css';
+import { feeItems as fees } from '../data/publicContent';
 
-const fees = [
-  { label: 'Application Processing Fee', amount: 'PKR 1,200', note: 'One-time, non-refundable. Paid before submitting the application.' },
-  { label: 'Admission Fee (Per Semester)', amount: 'PKR 25,000', note: 'Indicative — finalized per admission cycle by Director Admissions.' },
-  { label: 'Examination Fee', amount: 'Included', note: 'Included in semester fee for ODL programs.' },
-  { label: 'Library / LMS Fee', amount: 'Included', note: 'Digital library & LMS access included with enrollment.' },
-];
 
 const FeeStructure = () => (
   <div className="aust-page">

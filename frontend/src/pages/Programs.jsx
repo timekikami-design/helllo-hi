@@ -3,33 +3,8 @@ import { Link } from 'react-router-dom';
 import SiteNav from '../components/landing/SiteNav';
 import SiteFooter from '../components/landing/SiteFooter';
 import '../styles/landing.css';
+import { programCatalog as programs } from '../data/publicContent';
 
-const programs = [
-  {
-    type: 'Associate Degree',
-    title: 'Associate Degree in Computer Science (ADCS)',
-    duration: '2 Years · 4 Semesters',
-    text: 'Programming fundamentals, databases, software engineering, networks, AI and information security — all paced gently across four semesters.',
-    icon: 'fa-laptop-code',
-    badge: 'Open',
-  },
-  {
-    type: 'Diploma',
-    title: 'Professional Diploma Programs',
-    duration: '1 Year',
-    text: 'Focused academic and applied learning for students and working professionals. Multiple specializations coming online soon.',
-    icon: 'fa-certificate',
-    badge: 'Coming Soon',
-  },
-  {
-    type: 'Certification',
-    title: 'Short Certificate Courses',
-    duration: '8–16 Weeks',
-    text: 'Short-cycle skill development in practical, career-relevant subjects. Add a credential to your resume in a single semester.',
-    icon: 'fa-award',
-    badge: 'Coming Soon',
-  },
-];
 
 const Programs = () => (
   <div className="aust-page">

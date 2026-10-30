@@ -3,37 +3,8 @@ import { Link } from 'react-router-dom';
 import SiteNav from '../components/landing/SiteNav';
 import SiteFooter from '../components/landing/SiteFooter';
 import '../styles/landing.css';
+import { faculties } from '../data/publicContent';
 
-const faculties = [
-  {
-    name: 'Faculty of Computing & Information Sciences',
-    desc: 'Software engineering, computer science, IT and data foundations for the next generation of Pakistani technologists.',
-    icon: 'fa-laptop-code',
-    departments: ['Computer Science', 'Software Engineering', 'Information Technology', 'Data Science'],
-    badge: 'Active',
-  },
-  {
-    name: 'Faculty of Business & Management',
-    desc: 'Business administration and management programs designed for working professionals and aspiring entrepreneurs.',
-    icon: 'fa-briefcase',
-    departments: ['Business Administration', 'Management Sciences', 'Commerce'],
-    badge: 'Coming Soon',
-  },
-  {
-    name: 'Faculty of Basic & Applied Sciences',
-    desc: 'Mathematics, physics and applied sciences that ground every technical career in a strong analytical foundation.',
-    icon: 'fa-atom',
-    departments: ['Mathematics', 'Physics', 'Statistics'],
-    badge: 'Coming Soon',
-  },
-  {
-    name: 'Faculty of Arts & Social Sciences',
-    desc: 'Languages, education and social sciences for learners who want a broader academic and professional perspective.',
-    icon: 'fa-book-open',
-    departments: ['English', 'Education', 'Islamic Studies', 'Pakistan Studies'],
-    badge: 'Coming Soon',
-  },
-];
 
 const Faculties = () => (
   <div className="aust-page">

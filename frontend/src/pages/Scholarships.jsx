@@ -3,15 +3,8 @@ import { Link } from 'react-router-dom';
 import SiteNav from '../components/landing/SiteNav';
 import SiteFooter from '../components/landing/SiteFooter';
 import '../styles/landing.css';
+import { scholarships } from '../data/publicContent';
 
-const scholarships = [
-  { name: 'Merit Scholarship', amount: 'Up to 50% Tuition', desc: 'Awarded to top-ranked students on the finalized merit list each cycle.', icon: 'fa-trophy', tag: 'Merit' },
-  { name: 'Need-Based Aid', amount: 'Up to 40% Tuition', desc: 'For students from low-income families demonstrating genuine financial need.', icon: 'fa-hand-holding-heart', tag: 'Need' },
-  { name: 'Women in Tech', amount: 'Up to 30% Tuition', desc: 'Encouraging female learners in computing through targeted fee waivers.', icon: 'fa-venus', tag: 'Inclusion' },
-  { name: 'Rural Scholar', amount: 'Up to 35% Tuition', desc: 'For students from underserved rural areas of Khyber Pakhtunkhwa and beyond.', icon: 'fa-tractor', tag: 'Access' },
-  { name: 'Working Professionals', amount: 'Up to 20% Tuition', desc: 'A modest discount for working students balancing employment with study.', icon: 'fa-briefcase', tag: 'Career' },
-  { name: 'Special Needs Support', amount: 'Up to 50% Tuition', desc: 'For applicants with documented special needs or disabilities.', icon: 'fa-wheelchair', tag: 'Inclusion' },
-];
 
 const Scholarships = () => (
   <div className="aust-page">

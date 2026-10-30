@@ -3,15 +3,8 @@ import { Link } from 'react-router-dom';
 import SiteNav from '../components/landing/SiteNav';
 import SiteFooter from '../components/landing/SiteFooter';
 import '../styles/landing.css';
+import { admissionSteps as steps } from '../data/publicContent';
 
-const steps = [
-  { n: '01', title: 'Create Account', text: 'Register on the online admission portal with your email and a math captcha.', icon: 'fa-user-plus' },
-  { n: '02', title: 'Complete Profile', text: 'Fill in your personal, contact and academic details. Upload your photo and CNIC.', icon: 'fa-id-card' },
-  { n: '03', title: 'Add Education Records', text: 'Enter Matric, FSc Part-I, and FSc Full results. Result-awaited applications are also accepted.', icon: 'fa-graduation-cap' },
-  { n: '04', title: 'Submit Application', text: 'Choose your program, pay the processing fee (Bank Deposit or online Bank Payment Gateway) and submit.', icon: 'fa-paper-plane' },
-  { n: '05', title: 'Interview & Merit', text: 'Coordinator schedules your interview, records marks and merit is auto-calculated.', icon: 'fa-clipboard-list' },
-  { n: '06', title: 'Pay Fee & Enroll', text: 'After merit selection, pay the admission fee. You will receive your auto-generated roll number.', icon: 'fa-id-badge' },
-];
 
 const Admissions = () => (
   <div className="aust-page">

@@ -3,15 +3,8 @@ import { Link } from 'react-router-dom';
 import SiteNav from '../components/landing/SiteNav';
 import SiteFooter from '../components/landing/SiteFooter';
 import '../styles/landing.css';
+import { odlFeatures as lmsFeatures } from '../data/publicContent';
 
-const lmsFeatures = [
-  { title: 'Live & Recorded Classes', text: 'Attend live sessions or revisit recorded lectures on demand.', icon: 'fa-video' },
-  { title: 'Digital Library',          text: 'Access reading material, references and academic resources online.', icon: 'fa-book-open-reader' },
-  { title: 'Assessment Portal',        text: 'Submit assignments, quizzes and examination tasks online.', icon: 'fa-file-pen' },
-  { title: 'Progress Dashboard',       text: 'Track grades, attendance, deadlines and course milestones.', icon: 'fa-chart-line' },
-  { title: 'Discussion Forums',        text: 'Talk to classmates and faculty in moderated subject forums.', icon: 'fa-comments' },
-  { title: 'Faculty Support',          text: 'Office-hour links, email and ticketed help from your instructors.', icon: 'fa-headset' },
-];
 
 const ODL = () => (
   <div className="aust-page">

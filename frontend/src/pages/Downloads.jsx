@@ -3,73 +3,8 @@ import { Link } from 'react-router-dom';
 import SiteNav from '../components/landing/SiteNav';
 import SiteFooter from '../components/landing/SiteFooter';
 import '../styles/landing.css';
+import { downloadFiles as files } from '../data/publicContent';
 
-const files = [
-  {
-    name: 'AUST ODL Prospectus 2026',
-    size: '4.2 MB',
-    type: 'PDF',
-    desc: 'Complete program details, fees and admission criteria.',
-    icon: 'fa-file-pdf',
-    file: '/downloads/aust-odl-prospectus-2026.pdf',
-  },
-  {
-    name: 'Admission Application Form',
-    size: '120 KB',
-    type: 'PDF',
-    desc: 'Printable application form for offline reference.',
-    icon: 'fa-file-pdf',
-    file: '/downloads/admission-application-form.pdf',
-  },
-  {
-    name: 'Fee Deposit Slip Template',
-    size: '90 KB',
-    type: 'PDF',
-    desc: 'Bank deposit slip you can print and use at any branch.',
-    icon: 'fa-file-pdf',
-    file: '/downloads/fee-deposit-slip-template.pdf',
-  },
-  {
-    name: 'ADCS Scheme of Study',
-    size: '210 KB',
-    type: 'PDF',
-    desc: 'Semester-wise course plan with credit hours.',
-    icon: 'fa-file-pdf',
-    file: '/downloads/adp-cs-scheme-of-study.pdf',
-  },
-  {
-    name: 'Student Handbook',
-    size: '1.8 MB',
-    type: 'PDF',
-    desc: 'Academic regulations, conduct and student services.',
-    icon: 'fa-book',
-    file: '/downloads/student-handbook.pdf',
-  },
-  {
-    name: 'LMS Quick-Start Guide',
-    size: '780 KB',
-    type: 'PDF',
-    desc: 'How to access lectures, library and submit assignments.',
-    icon: 'fa-file-pdf',
-    file: '/downloads/lms-quick-start-guide.pdf',
-  },
-  {
-    name: 'Online Examination Guidelines',
-    size: '560 KB',
-    type: 'PDF',
-    desc: 'Rules and best practices for proctored online exams.',
-    icon: 'fa-file-pdf',
-    file: '/downloads/online-examination-guidelines.pdf',
-  },
-  {
-    name: 'Online Payment Guide',
-    size: '320 KB',
-    type: 'PDF',
-    desc: 'Step-by-step online fee payment instructions (Bank Payment Gateway).',
-    icon: 'fa-file-pdf',
-    file: '/downloads/online-payment-guide.pdf',
-  },
-];
 
 const Downloads = () => (
   <div className="aust-page">
