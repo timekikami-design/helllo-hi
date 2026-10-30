@@ -185,3 +185,20 @@ export const admissionSteps = [
   { n: '05', title: 'Interview & Merit', text: 'Coordinator schedules your interview, records marks and merit is auto-calculated.', icon: 'fa-clipboard-list' },
   { n: '06', title: 'Pay Fee & Enroll', text: 'After merit selection, pay the admission fee. You will receive your auto-generated roll number.', icon: 'fa-id-badge' },
 ];
+
+// from pages/About.jsx (Vision & Mission, Accreditation) — verbatim
+export const visionMission = [
+  { key: 'Vision', title: 'Our Vision', text: 'To be a leading regional university known for accessible, high-quality distance learning that opens doors for working students, women, and learners from underserved regions of Pakistan.' },
+  { key: 'Mission', title: 'Our Mission', text: 'To deliver flexible, technology-driven academic programs grounded in faculty mentorship, transparent assessment and career-relevant skills — so every student can earn a recognized credential without leaving their home or job.' },
+  { key: 'Values', title: 'Our Values', text: 'Access, integrity, mentorship and academic rigor. Every decision in the ODL platform is filtered through these four values, from admissions to enrollment to the last day of a course.' },
+];
+export const accreditation = [
+  { title: 'HEC Chartered', text: 'Public-sector university under the HEC of Pakistan.' },
+  { title: 'Quality Assured', text: 'Internal QA cell monitors course delivery and assessment.' },
+  { title: 'Recognized Credentials', text: 'Degrees, diplomas and certificates accepted nationally.' },
+  { title: 'Industry Aligned', text: 'Curriculum reviewed with software houses and employers.' },
+];
+export const aboutText = [
+  'Abbottabad University of Science & Technology (AUST) is a chartered public-sector university located in Havelian, Abbottabad. Our ODL platform connects motivated learners with guided digital classrooms, academic mentoring, structured assessments, and practical short-cycle programs designed for students who need quality education beyond the campus boundary.',
+  'We focus on associate degree, diploma and certificate pathways — programs built around recognized academic standards, measurable outcomes and the real-world skills employers are hiring for today.',
+];
