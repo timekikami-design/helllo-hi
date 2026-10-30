@@ -34,8 +34,20 @@ const Dropdown = ({ menu, open, onOpen, onClose, onToggle, align = 'left' }) => 
   const timer = useRef(null);
   const panelId = `nav-panel-${menu.id}`;
 
-  const enter = () => { clearTimeout(timer.current); onOpen(); };
-  const leave = () => { clearTimeout(timer.current); timer.current = setTimeout(onClose, CLOSE_DELAY); };
+  // Hover opens the menu. A click that follows a hover must NOT toggle it
+  // closed again (that made "Login" look like it did nothing).
+  const hoverOpened = useRef(false);
+  const enter = () => {
+    clearTimeout(timer.current);
+    if (!open) hoverOpened.current = true;
+    onOpen();
+  };
+  const leave = () => { clearTimeout(timer.current); timer.current = setTimeout(() => { hoverOpened.current = false; onClose(); }, CLOSE_DELAY); };
+  const click = () => {
+    if (open && hoverOpened.current) { hoverOpened.current = false; return; }
+    hoverOpened.current = false;
+    onToggle();
+  };
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const items = () => [...(panelRef.current?.querySelectorAll('a') || [])];
@@ -71,7 +83,7 @@ const Dropdown = ({ menu, open, onOpen, onClose, onToggle, align = 'left' }) => 
         aria-expanded={open}
         aria-haspopup="true"
         aria-controls={panelId}
-        onClick={onToggle}
+        onClick={click}
         onKeyDown={onBtnKey}
       >
         {menu.label}
